@@ -299,14 +299,24 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   position:fixed; inset:0; z-index:100;
   display:flex; align-items:center; justify-content:center;
   background:rgba(10,18,16,.92);
+  /* El pie va absoluto abajo: se le reserva espacio en el relleno para que la
+     imagen, que ahora puede ocupar todo el alto, no lo tape. */
   padding:clamp(12px, 4vw, 48px);
+  padding-bottom:calc(clamp(12px, 4vw, 48px) + 26px);
+  overflow:hidden;                 /* nada debe poder desbordar el visor */
   animation:aparecer .18s ease;
 }
 .visor[hidden]{display:none}
 @keyframes aparecer{from{opacity:0} to{opacity:1}}
 
 .visor img{
-  max-width:100%; max-height:88vh;
+  /* `min-width`/`min-height` valen `auto` en los elementos flex, lo que impide
+     que una imagen se encoja por debajo de su tamaño natural: con eso, los
+     `max-*` de abajo quedaban anulados y una foto de 1600 px desbordaba la
+     pantalla obligando a hacer scroll. Ponerlos en 0 los reactiva. */
+  min-width:0; min-height:0;
+  max-width:100%; max-height:100%;
+  width:auto; height:auto;
   object-fit:contain; border-radius:var(--radio-s);
   box-shadow:0 24px 60px rgba(0,0,0,.5);
   animation:acercar .22s cubic-bezier(.2,.7,.3,1);
