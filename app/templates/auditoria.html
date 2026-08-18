@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block titulo %}Auditoría{% endblock %}
+
+{% block contenido %}
+<h1>Log de auditoría</h1>
+<p class="leyenda">
+  Bitácora append-only de toda acción sobre datos personales. Cada registro encadena
+  el hash del anterior: si alguien altera una fila, la verificación lo detecta.
+</p>
+
+{% if integra %}
+<div class="aviso-caja ok">
+  <h3>✅ Cadena íntegra</h3>
+  <p>Los {{ registros | length }} registros más recientes forman una cadena de hashes válida.</p>
+</div>
+{% else %}
+<div class="aviso-caja error">
+  <h3>⛔ Cadena rota</h3>
+  <p>La verificación falló en el registro #{{ roto_en }}. Alguien alteró o eliminó una entrada.</p>
+</div>
+{% endif %}
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Fecha</th><th>Actor</th><th>Acción</th><th>Entidad</th><th>Detalle</th><th>Hash</th></tr>
+  </thead>
+  <tbody>
+  {% for r in registros %}
+    <tr>
+      <td class="num">{{ r.id }}</td>
+      <td>{{ r.ts.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+      <td>{{ r.actor }}</td>
+      <td><strong>{{ r.accion }}</strong></td>
+      <td>{{ r.entidad }} <code>{{ r.entidad_id }}</code></td>
+      <td>{{ r.detalle }}</td>
+      <td><code class="hash">{{ r.hash[:12] }}…</code></td>
+    </tr>
+  {% else %}
+    <tr><td colspan="7">Sin registros todavía.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

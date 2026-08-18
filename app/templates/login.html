@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ingreso · {{ empresa }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="/static/estilos.css">
+  <style>.caja{max-width:400px; margin-top:88px}</style>
+</head>
+<body class="publica">
+<div class="caja">
+  <div class="marca-publica">
+    <span class="logo sobre-papel">VVI</span>
+    <span class="sub">Vendedor Virtual Inmobiliario</span>
+  </div>
+  <h1>Ingreso del operador</h1>
+  <p class="leyenda" style="margin-bottom:22px">Panel de gestión de {{ empresa }}.</p>
+
+  {% if error %}
+    <div class="aviso-caja error"><h3>No pudimos ingresar</h3><p>{{ error }}</p></div>
+  {% endif %}
+
+  <form method="post" action="/dashboard/login">
+    <div class="campo">
+      <label for="usuario">Usuario</label>
+      <input type="text" name="usuario" id="usuario" required autofocus autocomplete="username">
+    </div>
+    <div class="campo">
+      <label for="clave">Contraseña</label>
+      <input type="password" name="clave" id="clave" required autocomplete="current-password">
+    </div>
+    <button type="submit" style="width:100%">Iniciar sesión</button>
+  </form>
+
+  <p class="leyenda" style="margin:20px 0 0; text-align:center; font-size:12px">
+    Toda acción del operador sobre datos personales queda auditada.
+  </p>
+</div>
+</body>
+</html>

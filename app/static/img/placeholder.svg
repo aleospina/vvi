@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360" viewBox="0 0 480 360" role="img" aria-label="Foto de la propiedad no disponible">
+  <defs>
+    <linearGradient id="papel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2efe9"/>
+      <stop offset="1" stop-color="#e7e2d8"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="360" fill="url(#papel)"/>
+  <g fill="none" stroke="#b3b8ac" stroke-width="7" stroke-linejoin="round" stroke-linecap="round">
+    <path d="M124 196 L240 112 L356 196"/>
+    <path d="M154 188 V252 H326 V188"/>
+    <rect x="216" y="206" width="48" height="46"/>
+  </g>
+  <text x="240" y="300" text-anchor="middle"
+        font-family="IBM Plex Sans, Segoe UI, sans-serif" font-size="14" letter-spacing=".04em" fill="#98a094">
+    Foto pendiente de carga
+  </text>
+</svg>

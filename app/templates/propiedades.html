@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block titulo %}Cartera{% endblock %}
+
+{% block contenido %}
+<h1>Cartera de propiedades</h1>
+<p class="leyenda">
+  El bot solo puede ofrecer inmuebles que estén aquí. Nunca inventa propiedades ni precios.
+</p>
+
+{% if pendientes %}
+<div class="panel">
+  <h2 style="margin-top:0">Pendientes de validación ({{ pendientes | length }})</h2>
+  <p class="leyenda">
+    Inmuebles que llegaron por ingesta automática. <strong>El bot no los muestra</strong>
+    hasta que los apruebes aquí. Verifica que el precio, la zona y el mandato sean reales
+    antes de publicarlos.
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Ciudad · Zona</th><th>Tipo</th><th class="num">Hab</th>
+        <th class="num">Precio</th><th>Fuente</th><th>Propietario</th><th>Mandato</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in pendientes %}
+      <tr>
+        <td><code>{{ p.id }}</code></td>
+        <td>{{ p.ciudad }} · {{ p.zona or '—' }}</td>
+        <td>{{ p.tipo }}</td>
+        <td class="num">{{ p.habitaciones or '—' }}</td>
+        <td class="num">{{ p.precio | pesos }}</td>
+        <td><small>{{ p.fuente }}</small></td>
+        <td>
+          {{ p.propietario or '—' }}<br>
+          <small class="leyenda">{{ p.propietario_telefono | enmascarar }}</small>
+        </td>
+        <td><small title="{{ p.mandato_evidencia }}">{{ '✅' if p.mandato else '⚠️ sin mandato' }}</small></td>
+        <td class="linea">
+          <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">Revisar y editar</a>
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/aprobar">
+            <button>Aprobar</button>
+          </form>
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/rechazar">
+            <input type="hidden" name="motivo" value="rechazado en revisión manual">
+            <button class="suave">Rechazar</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2 style="margin-top:0">Importar aviso con IA</h2>
+  <p class="leyenda">
+    Pega el texto de un aviso tal como te llegó (WhatsApp del propietario, correo de
+    una inmobiliaria aliada, ficha de un convenio) y el LLM extrae ciudad, zona, tipo,
+    precio y área. <strong>No inventa datos:</strong> lo que no esté en el texto queda
+    vacío y el sistema lo descarta. Entra a la cola de validación, no a la cartera.
+  </p>
+  <form method="post" action="/dashboard/propiedades/importar">
+    <div class="campo" style="margin-bottom:12px">
+      <label for="aviso">Texto del aviso</label>
+      <textarea name="aviso" id="aviso" rows="5" required style="width:100%"
+                placeholder="Ej.: Vendo apartamento en Pinares, Pereira. 3 habitaciones, 2 baños, 95 m2, tercer piso con ascensor. $420 millones. Contacto 300 000 0000."></textarea>
+    </div>
+    <div class="linea">
+      <div style="flex:1 1 320px">
+        <label for="origen">¿De dónde salió? (para la trazabilidad)</label>
+        <input name="origen" id="origen" style="width:100%"
+               placeholder="Ej.: Marketplace, publicación del 17/08/2026">
+      </div>
+      <div style="flex:1 1 260px">
+        <label for="modo">Tipo de carga</label>
+        <select name="modo" id="modo" style="width:100%">
+          <option value="mandato">Con mandato — inventario vendible</option>
+          <option value="referencia">Referencia — aviso ajeno, solo para probar</option>
+        </select>
+      </div>
+    </div>
+    <label id="casilla-mandato" style="display:flex; gap:9px; align-items:flex-start; margin:14px 0; font-size:13px">
+      <input type="checkbox" name="confirmo_mandato" value="on" style="width:auto; margin-top:3px">
+      <span>Confirmo que el propietario autorizó a comercializar este inmueble. Esta
+        declaración queda auditada a mi nombre.</span>
+    </label>
+    <p id="nota-referencia" class="leyenda" style="display:none; margin:14px 0">
+      ⚠ Se guardará marcado como <strong>referencia</strong>: sirve para probar el bot,
+      pero <strong>no puede generar venta ni comisión</strong> y se purga con un botón
+      antes de salir a producción. No se declara ningún mandato.
+    </p>
+    <button>Extraer y encolar</button>
+  </form>
+  <script>
+    // La casilla de mandato solo aplica al inventario vendible: pedirla en modo
+    // referencia empujaría a declarar algo que no es cierto.
+    (function () {
+      var modo = document.getElementById('modo');
+      var casilla = document.getElementById('casilla-mandato');
+      var nota = document.getElementById('nota-referencia');
+      if (!modo) return;
+      function sincronizar() {
+        var ref = modo.value === 'referencia';
+        casilla.style.display = ref ? 'none' : 'flex';
+        nota.style.display = ref ? 'block' : 'none';
+        casilla.querySelector('input').required = !ref;
+      }
+      modo.addEventListener('change', sincronizar);
+      sincronizar();
+    })();
+  </script>
+</div>
+
+{% if referencias %}
+<div class="aviso-caja">
+  <h3>{{ referencias | length }} inmueble{{ '' if referencias | length == 1 else 's' }} de referencia en cartera</h3>
+  <p>
+    Son avisos reales de terceros cargados para probar. <strong>No tienen mandato</strong>,
+    así que el sistema bloquea registrar una venta sobre ellos. Púrgalos antes de salir a
+    producción para que no se mezclen con tu inventario.
+  </p>
+  <form method="post" action="/dashboard/propiedades/purgar-referencias" style="margin-top:10px">
+    <button class="peligro">Purgar los {{ referencias | length }} de referencia</button>
+  </form>
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2 style="margin-top:0">Agregar propiedad</h2>
+  <form method="post" action="/dashboard/propiedades" class="linea">
+    <div>
+      <label for="ciudad">Ciudad</label>
+      <select name="ciudad" id="ciudad"><option>Medellín</option><option>Pereira</option></select>
+    </div>
+    <div><label for="zona">Zona</label><input name="zona" id="zona" required placeholder="Laureles"></div>
+    <div>
+      <label for="tipo">Tipo</label>
+      <select name="tipo" id="tipo"><option>apartamento</option><option>casa</option><option>lote</option></select>
+    </div>
+    <div><label for="habitaciones">Hab.</label><input type="number" name="habitaciones" id="habitaciones" value="0" min="0" style="width:70px"></div>
+    <div><label for="banos">Baños</label><input type="number" name="banos" id="banos" value="0" min="0" style="width:70px"></div>
+    <div><label for="area_m2">Área m²</label><input type="number" name="area_m2" id="area_m2" value="0" min="0" step="0.1" style="width:90px"></div>
+    <div><label for="precio">Precio (COP)</label><input type="number" name="precio" id="precio" required min="1" step="1000000"></div>
+    <div><label for="propietario">Propietario</label><input name="propietario" id="propietario"></div>
+    <div style="flex:1 1 260px"><label for="descripcion">Descripción</label><input name="descripcion" id="descripcion" style="width:100%"></div>
+    <button>Agregar</button>
+  </form>
+</div>
+
+{% if not propiedades %}
+<div class="aviso-caja">
+  <h3>La cartera está vacía</h3>
+  <p>
+    No hay ningún inmueble cargado, así que el bot le responderá con honestidad a los
+    compradores que no tiene nada disponible. Para llenarla:
+  </p>
+  <ul style="margin:8px 0 0 18px; font-size:14px">
+    <li>Comparte el enlace <code>/publicar</code> con propietarios: cargan su inmueble
+      con autorización y mandato.</li>
+    <li>Pega un aviso que te haya llegado en <em>Importar aviso con IA</em>, aquí arriba.</li>
+    <li>Cárgalo a mano en <em>Agregar propiedad</em>.</li>
+  </ul>
+</div>
+{% else %}
+<h2>Cartera · {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}</h2>
+<div class="inmuebles">
+  {% for p in propiedades %}
+    <article class="inmueble">
+      <a href="/dashboard/propiedades/{{ p.id }}" class="foto" aria-label="Ver {{ p.id }}">
+        <img src="{{ p.portada }}" alt="" loading="lazy">
+        <span class="insignias">
+          <span class="insignia {{ 'viva' if p.estado == 'disponible' else ('apagada' if p.estado in ('inactiva','rechazada') else '') }}">
+            {{ p.estado.replace('_', ' ') }}
+          </span>
+          {% if p.es_referencia %}
+            <span class="insignia aviso" title="Aviso de un tercero: no vendible">referencia</span>
+          {% endif %}
+          {% if not p.externo_id %}
+            <span class="insignia apagada" title="Sin identificador de origen verificable">sin origen</span>
+          {% endif %}
+        </span>
+      </a>
+
+      <div class="cuerpo">
+        <div class="precio">{{ p.precio | pesos }}</div>
+        <div class="ubicacion">{{ p.zona or 'Zona sin definir' }}</div>
+        <div class="ciudad">{{ p.ciudad }} · {{ p.tipo }}</div>
+        <div class="specs">
+          {% if p.habitaciones %}<span><b>{{ p.habitaciones }}</b> hab</span>{% endif %}
+          {% if p.banos %}<span><b>{{ p.banos }}</b> baños</span>{% endif %}
+          {% if p.area_m2 %}<span><b>{{ '%.0f' % p.area_m2 }}</b> m²</span>{% endif %}
+          {% if not (p.habitaciones or p.banos or p.area_m2) %}
+            <span class="leyenda" style="margin:0">Sin especificaciones</span>
+          {% endif %}
+        </div>
+      </div>
+
+      {% if p.propietario %}<div class="origen">{{ p.propietario }}</div>{% endif %}
+
+      <div class="pie">
+        <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">Editar</a>
+        {% if p.estado == 'disponible' %}
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/inactivar">
+            <button class="suave">Inactivar</button>
+          </form>
+        {% elif p.estado in ('inactiva', 'rechazada') %}
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/reactivar">
+            <button>Reactivar</button>
+          </form>
+        {% endif %}
+      </div>
+    </article>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

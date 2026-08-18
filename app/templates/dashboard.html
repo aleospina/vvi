@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block titulo %}Prospectos{% endblock %}
+
+{% block contenido %}
+<h1>Prospectos</h1>
+<p class="leyenda">Ordenados por intención de compra. El bot califica; el cierre lo confirma una persona.</p>
+
+<div class="rejilla">
+  <div class="tarjeta">
+    <div class="rotulo">Prospectos</div>
+    <div class="cifra">{{ metricas.prospectos }}</div>
+  </div>
+  <div class="tarjeta">
+    <div class="rotulo">Tasa consentimiento</div>
+    <div class="cifra">{{ metricas.tasa_consentimiento }}%</div>
+  </div>
+  <div class="tarjeta">
+    <div class="rotulo">Tasa calificación</div>
+    <div class="cifra">{{ metricas.tasa_calificacion }}%</div>
+  </div>
+  <div class="tarjeta">
+    <div class="rotulo">Calientes</div>
+    <div class="cifra">{{ metricas.calientes }}</div>
+  </div>
+  <div class="tarjeta">
+    <div class="rotulo">Visitas pedidas</div>
+    <div class="cifra">{{ metricas.visitas_solicitadas }}</div>
+  </div>
+  <div class="tarjeta destacada">
+    <div class="rotulo">Comisión generada</div>
+    <div class="cifra">{{ metricas.comision_generada | pesos }}</div>
+  </div>
+</div>
+
+{% if alertas %}
+<div class="aviso-caja">
+  <h3>⚠️ {{ alertas | length }} oportunidad(es) sin desenlace registrado</h3>
+  <p>
+    Estos prospectos llevan días en visita u oferta sin que nadie registre si se
+    vendieron o se perdieron. Toda venta debe reportarse por el sistema: sin registro
+    no hay atribución de comisión y la omisión queda auditada.
+  </p>
+  <table style="margin-top:12px">
+    <thead>
+      <tr><th>Prospecto</th><th>Estado</th><th class="num">Días sin avance</th><th>Severidad</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for a in alertas %}
+      <tr>
+        <td><a href="/dashboard/prospecto/{{ a.prospecto.codigo }}">{{ a.prospecto.codigo }}</a></td>
+        <td><span class="estado {{ a.prospecto.estado }}">{{ a.prospecto.estado }}</span></td>
+        <td class="num">{{ a.dias_sin_avance }}</td>
+        <td>{{ a.severidad }}</td>
+        <td><a href="/dashboard/prospecto/{{ a.prospecto.codigo }}">Registrar desenlace →</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if solicitudes %}
+<h2>Solicitudes pendientes de atender</h2>
+<table>
+  <thead><tr><th>Prospecto</th><th>Tipo</th><th>Inmueble</th><th>Recibida</th><th></th></tr></thead>
+  <tbody>
+  {% for s in solicitudes %}
+    <tr>
+      <td>
+        <a href="/dashboard/prospecto/{{ s.prospecto.codigo }}">{{ s.prospecto.codigo }}</a>
+        <span class="chip {{ 'caliente' if s.prospecto.etiqueta == 'caliente' else ('tibio' if s.prospecto.etiqueta == 'tibio' else 'frio') }}">
+          {{ s.prospecto.score_intencion }}
+        </span>
+      </td>
+      <td>{{ s.tipo }}</td>
+      <td>
+        {% if s.propiedad %}
+          {{ s.propiedad.zona }}, {{ s.propiedad.ciudad }}<br>
+          <small class="leyenda">{{ s.propiedad.tipo }} · {{ s.propiedad.precio | pesos }}</small>
+        {% else %}—{% endif %}
+      </td>
+      <td>{{ s.creado_en.strftime('%d/%m %H:%M') }}</td>
+      <td class="linea">
+        <a class="boton suave" href="/dashboard/prospecto/{{ s.prospecto.codigo }}">Ver conversación</a>
+        <form method="post" action="/dashboard/solicitud/{{ s.id }}/atender">
+          <button class="suave">Marcar atendida</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h2>Todos los prospectos</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Código</th><th>Contacto</th><th>Origen</th><th>Busca</th>
+      <th class="num">Presupuesto</th><th>Intención</th><th>Estado</th><th>Actualizado</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for p in prospectos %}
+    <tr>
+      <td><a href="/dashboard/prospecto/{{ p.codigo }}"><strong>{{ p.codigo }}</strong></a></td>
+      <td>{{ p.nombre | enmascarar }}</td>
+      <td>{{ p.red_origen or p.canal }}</td>
+      <td>
+        {% if p.tipo %}{{ p.tipo }}{% else %}—{% endif %}
+        {% if p.ciudad %} · {{ p.ciudad }}{% endif %}
+        {% if p.habitaciones %} · {{ p.habitaciones }} hab{% endif %}
+      </td>
+      <td class="num">{% if p.presupuesto_max %}{{ p.presupuesto_max | pesos }}{% else %}—{% endif %}</td>
+      <td>
+        <span class="barra-score"><span style="width: {{ p.score_intencion }}%"></span></span>
+        <span class="chip {{ 'caliente' if p.etiqueta == 'caliente' else ('tibio' if p.etiqueta == 'tibio' else 'frio') }}">
+          {{ p.score_intencion }} · {{ p.etiqueta }}
+        </span>
+      </td>
+      <td><span class="estado {{ p.estado }}">{{ p.estado }}</span></td>
+      <td>{{ p.actualizado_en.strftime('%d/%m %H:%M') }}</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="8">Todavía no hay prospectos. Escríbele al bot de Telegram o carga un lead inbound en <code>/docs</code>.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

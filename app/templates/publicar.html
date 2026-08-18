@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Publica tu inmueble · {{ empresa }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="/static/estilos.css">
+</head>
+<body class="publica">
+<div class="caja ancha">
+  <div class="marca-publica">
+    <span class="logo sobre-papel">VVI</span>
+    <span class="sub">{{ empresa }}</span>
+  </div>
+  {% if enviado %}
+    <h1>Recibido 🏡</h1>
+    <p>
+      Tu inmueble quedó registrado con la referencia <strong>{{ codigo }}</strong>.
+      Un asesor lo revisa antes de mostrarlo a compradores; te contactamos si falta
+      algún dato.
+    </p>
+    <p class="leyenda">
+      Puedes pedir la consulta, corrección o eliminación de tus datos en cualquier
+      momento. Política de tratamiento: <a href="{{ politica }}">verla aquí</a>.
+    </p>
+  {% else %}
+    <h1>Publica tu inmueble en {{ ciudades | join(' o ') }}</h1>
+    <p class="leyenda">
+      Lo mostramos a compradores ya filtrados por nuestro asistente con IA. Solo
+      cobramos si se concreta la venta.
+    </p>
+
+    {% if error %}
+      <div class="aviso-caja error"><h3>No pudimos continuar</h3><p>{{ error }}</p></div>
+    {% endif %}
+
+    <form method="post" action="/publicar" enctype="multipart/form-data">
+      <div class="fila">
+        <div class="campo">
+          <label for="propietario">Tu nombre</label>
+          <input type="text" name="propietario" id="propietario" required maxlength="80">
+        </div>
+        <div class="campo">
+          <label for="telefono">Teléfono o WhatsApp</label>
+          <input type="tel" name="telefono" id="telefono" required maxlength="20"
+                 placeholder="300 000 0000">
+        </div>
+      </div>
+
+      <div class="fila">
+        <div class="campo">
+          <label for="ciudad">Ciudad</label>
+          <select name="ciudad" id="ciudad" required>
+            {% for c in ciudades %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="campo">
+          <label for="zona">Barrio o zona</label>
+          <input type="text" name="zona" id="zona" maxlength="80" placeholder="Ej.: Laureles">
+        </div>
+      </div>
+
+      <div class="fila">
+        <div class="campo">
+          <label for="tipo">Tipo</label>
+          <select name="tipo" id="tipo" required>
+            <option value="apartamento">Apartamento</option>
+            <option value="casa">Casa</option>
+            <option value="lote">Lote o terreno</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="precio">Precio de venta (COP)</label>
+          <input type="number" name="precio" id="precio" required min="20000000"
+                 step="1000000" placeholder="350000000">
+        </div>
+      </div>
+
+      <div class="fila">
+        <div class="campo">
+          <label for="habitaciones">Habitaciones</label>
+          <input type="number" name="habitaciones" id="habitaciones" min="0" max="20" value="0">
+        </div>
+        <div class="campo">
+          <label for="banos">Baños</label>
+          <input type="number" name="banos" id="banos" min="0" max="20" value="0">
+        </div>
+        <div class="campo">
+          <label for="area_m2">Área (m²)</label>
+          <input type="number" name="area_m2" id="area_m2" min="0" step="0.1" value="0">
+        </div>
+      </div>
+
+      <div class="campo">
+        <label for="descripcion">Descríbelo brevemente</label>
+        <textarea name="descripcion" id="descripcion" rows="3"
+                  placeholder="Ej.: tercer piso con ascensor, remodelado, parqueadero cubierto"></textarea>
+      </div>
+
+      <div class="campo">
+        <label for="imagenes">Fotos del inmueble</label>
+        <input type="file" name="imagenes" id="imagenes"
+               accept="image/jpeg,image/png,image/webp" multiple style="width:100%">
+        <p class="leyenda" style="margin:7px 0 0; font-size:12px">
+          JPG, PNG o WebP · hasta 6 MB cada una · máximo 12. Puedes seleccionar varias
+          a la vez. Los inmuebles con fotos reciben muchas más consultas.
+        </p>
+      </div>
+
+      <div class="consentimiento">
+        <strong>Autorización de tratamiento y de comercialización</strong>
+        <p style="margin:8px 0 0">{{ texto_consentimiento }}</p>
+        <label>
+          <input type="checkbox" name="autorizo" value="on" required>
+          <span>Sí, autorizo el tratamiento de mis datos y <strong>autorizo a
+            {{ empresa }} a comercializar este inmueble</strong>, reconociendo la
+            comisión pactada del {{ (comision_pct * 100) | round(1) }}% si la venta se
+            concreta. He leído la
+            <a href="{{ politica }}" target="_blank">política de privacidad</a>.</span>
+        </label>
+      </div>
+
+      <button type="submit" style="width:100%">Publicar mi inmueble</button>
+      <p class="leyenda" style="margin-top:14px; text-align:center">
+        Sin tu autorización no guardamos ningún dato. Publicamos únicamente
+        inmuebles cuyo propietario nos autoriza a comercializarlos.
+      </p>
+    </form>
+  {% endif %}
+</div>
+</body>
+</html>

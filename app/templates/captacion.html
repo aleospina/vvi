@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}Captación{% endblock %}
+
+{% block contenido %}
+<h1>Captación en redes sociales</h1>
+<p class="leyenda">
+  Cómo llegan los prospectos desde Instagram, Facebook/Marketplace, OLX y Mercado Libre —
+  siempre con autorización del titular — y qué red produce compradores reales.
+</p>
+
+<div class="aviso-caja">
+  <h3>Modelo inbound / opt-in</h3>
+  <p>
+    El sistema <strong>no rastrea perfiles ni contacta en frío</strong>: la Ley 1581/2012 exige
+    autorización previa y los términos de servicio de las plataformas prohíben la
+    automatización no autorizada. Lo que sí hace es capturar a quien levanta la mano
+    (formulario, pregunta o mensaje) y medir dónde están esos compradores.
+  </p>
+</div>
+
+<h2>Radar de canales</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Red</th><th class="num">Prospectos</th><th class="num">Calificados</th>
+      <th class="num">Calientes</th><th class="num">Score prom.</th>
+      <th class="num">Visitas</th><th class="num">Ventas</th><th class="num">Comisión</th><th class="num">Conversión</th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for c in canales %}
+    <tr>
+      <td><strong>{{ c.red }}</strong></td>
+      <td class="num">{{ c.prospectos }}</td>
+      <td class="num">{{ c.calificados }}</td>
+      <td class="num">{{ c.calientes }}</td>
+      <td class="num">{{ c.score_promedio }}</td>
+      <td class="num">{{ c.visitas }}</td>
+      <td class="num">{{ c.ventas }}</td>
+      <td class="num">{{ c.comision | pesos }}</td>
+      <td class="num">{{ c.conversion }}%</td>
+    </tr>
+  {% else %}
+    <tr><td colspan="9">Aún no hay prospectos captados. Publica un enlace de campaña y empieza a medir.</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Campañas y enlaces opt-in</h2>
+<p class="leyenda">
+  Pon el enlace en el link-in-bio de Instagram, en la descripción de tus publicaciones de
+  Marketplace/OLX o en tus anuncios. La landing pide autorización antes de guardar nada.
+</p>
+<table>
+  <thead>
+    <tr><th>Campaña</th><th>Red</th><th>Enlace público</th><th class="num">Visitas</th><th class="num">Captados</th><th class="num">Conversión</th></tr>
+  </thead>
+  <tbody>
+  {% for c in campanas %}
+    <tr>
+      <td><strong>{{ c.campana.nombre }}</strong></td>
+      <td>{{ c.campana.red }}</td>
+      <td><a href="/c/{{ c.campana.slug }}" target="_blank"><code>{{ base_url }}/c/{{ c.campana.slug }}</code></a></td>
+      <td class="num">{{ c.campana.visitas }}</td>
+      <td class="num">{{ c.captados }}</td>
+      <td class="num">{{ c.conversion_visita }}%</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<div class="panel" style="margin-top:20px">
+  <h2 style="margin-top:0">Nueva campaña</h2>
+  <form method="post" action="/dashboard/captacion/campana" class="linea">
+    <div><label for="slug">Slug (va en la URL)</label><input name="slug" id="slug" required placeholder="ig-reels-abril"></div>
+    <div><label for="nombre">Nombre</label><input name="nombre" id="nombre" required placeholder="Reels abril — Medellín"></div>
+    <div>
+      <label for="red">Red</label>
+      <select name="red" id="red">
+        <option value="instagram">Instagram</option>
+        <option value="facebook">Facebook</option>
+        <option value="marketplace">Marketplace</option>
+        <option value="olx">OLX</option>
+        <option value="mercado_libre">Mercado Libre</option>
+        <option value="web">Web</option>
+      </select>
+    </div>
+    <button>Crear campaña</button>
+  </form>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Otros puntos de entrada</h2>
+  <dl class="ficha">
+    <dt>Meta Lead Ads</dt>
+    <dd><code>POST {{ base_url }}/webhooks/meta/leadads</code> — configúralo en tu app de Meta con el token de verificación de <code>.env</code>.</dd>
+    <dt>Mercado Libre</dt>
+    <dd><code>POST {{ base_url }}/webhooks/mercadolibre/preguntas</code> — cada pregunta de un comprador entra como prospecto.</dd>
+    <dt>Carga manual</dt>
+    <dd><code>POST {{ base_url }}/api/leads/manual</code> — para DMs de Marketplace/OLX; exige declarar la evidencia del consentimiento.</dd>
+    <dt>Telegram</dt>
+    <dd>El comprador escribe primero al bot; el consentimiento se pide en el mensaje inicial.</dd>
+  </dl>
+</div>
+{% endblock %}

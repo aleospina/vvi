@@ -1,0 +1,19 @@
+.env
+.env.local
+*.db
+*.db-journal
+# WAL y shm de SQLite: `*.db` no los cubre, y el WAL contiene casi todos los
+# datos —incluida la PII cifrada de los prospectos—.
+*.db-wal
+*.db-shm
+data/vvi.db
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.idea/
+.vscode/
+
+# Imágenes subidas por propietarios y operadores
+app/static/fotos/

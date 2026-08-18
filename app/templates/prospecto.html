@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block titulo %}{{ p.codigo }}{% endblock %}
+
+{% block contenido %}
+<h1>{{ p.codigo }}
+  <span class="chip {{ 'caliente' if p.etiqueta == 'caliente' else ('tibio' if p.etiqueta == 'tibio' else 'frio') }}">
+    {{ p.score_intencion }} · {{ p.etiqueta }}
+  </span>
+  <span class="estado {{ p.estado }}">{{ p.estado }}</span>
+</h1>
+<p class="leyenda"><a href="/dashboard">← Volver al tablero</a></p>
+
+<div class="dos-columnas">
+  <div>
+    <div class="panel">
+      <h2 style="margin-top:0">
+        Conversación
+        <span class="leyenda" style="font-weight:400; font-size:14px">
+          · {{ historial | length }} mensaje{{ '' if historial | length == 1 else 's' }}
+        </span>
+      </h2>
+      <p class="leyenda" style="margin-top:-4px">
+        Historial completo descifrado, del primero al último. Es la evidencia de qué
+        le ofreció el asistente y qué pidió el titular.
+        <label style="margin-left:8px">
+          <input type="checkbox" id="expandir-chat"> Ver sin recorte
+        </label>
+      </p>
+      <div class="chat" id="chat">
+        {% for m in historial %}
+          <div class="burbuja {{ m.direccion }}">{{ m.texto }}<span class="ts">{{ m.creado_en.strftime('%d/%m/%Y %H:%M') }}</span></div>
+        {% else %}
+          <p class="leyenda">Sin mensajes registrados.</p>
+        {% endfor %}
+      </div>
+    </div>
+    <script>
+      // El panel abre mostrando lo más reciente, que es lo que el asesor necesita
+      // antes de llamar; el historial completo queda hacia arriba.
+      (function () {
+        var chat = document.getElementById('chat');
+        var expandir = document.getElementById('expandir-chat');
+        if (!chat) return;
+        chat.scrollTop = chat.scrollHeight;
+        if (expandir) {
+          expandir.addEventListener('change', function () {
+            chat.classList.toggle('completo', expandir.checked);
+            if (!expandir.checked) chat.scrollTop = chat.scrollHeight;
+          });
+        }
+      })();
+    </script>
+
+    {% if venta %}
+    <div class="aviso-caja ok">
+      <h3>✅ Venta {{ venta.codigo }} registrada</h3>
+      <p>
+        Precio {{ venta.precio_venta | pesos }} · Comisión
+        <strong>{{ venta.comision_valor | pesos }}</strong>
+        ({{ '%.1f' % (venta.comision_pct * 100) }}%) ·
+        Propiedad {{ venta.propiedad_id }} · Canal de origen {{ venta.canal_origen }} ·
+        Confirmada por {{ venta.operador }} el {{ venta.fecha.strftime('%d/%m/%Y %H:%M') }}.
+      </p>
+    </div>
+    {% else %}
+    <div class="panel">
+      <h2 style="margin-top:0">Confirmar venta</h2>
+      <p class="leyenda">
+        La IA no cierra ventas. Al confirmar aquí, el sistema calcula la comisión del
+        {{ '%.1f' % (comision_pct * 100) }}% y la atribuye a este prospecto, su canal de origen
+        y la propiedad. Solo aparecen los inmuebles que el sistema efectivamente le mostró.
+      </p>
+      {% if atribuibles %}
+      <form method="post" action="/dashboard/prospecto/{{ p.codigo }}/venta" class="linea">
+        <div>
+          <label for="propiedad_id">Propiedad vendida</label>
+          <select name="propiedad_id" id="propiedad_id" required>
+            {% for prop in atribuibles %}
+              <option value="{{ prop.id }}">{{ prop.id }} — {{ prop.zona }}, {{ prop.ciudad }} ({{ prop.precio | pesos }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="precio_venta">Precio final de venta (COP)</label>
+          <input type="number" name="precio_venta" id="precio_venta" min="1" step="1000000" required>
+        </div>
+        <button>Confirmar venta y calcular comisión</button>
+      </form>
+      {% else %}
+      <p class="leyenda">
+        Este prospecto todavía no tiene emparejamientos registrados, así que no hay
+        propiedad atribuible. Complétale el perfil para que el motor le muestre cartera.
+      </p>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2 style="margin-top:0">Ficha</h2>
+      <dl class="ficha">
+        <dt>Nombre</dt><dd>{{ p.nombre | enmascarar }}</dd>
+        <dt>Teléfono</dt><dd>{{ p.telefono | enmascarar }}</dd>
+        <dt>Usuario</dt><dd>{{ p.usuario_canal | enmascarar }}</dd>
+        <dt>Canal</dt><dd>{{ p.canal }}</dd>
+        <dt>Red origen</dt><dd>{{ p.red_origen or '—' }}</dd>
+        <dt>Campaña</dt><dd>{{ p.campana or '—' }}</dd>
+        <dt>Ciudad</dt><dd>{{ p.ciudad or '—' }}{% if p.zona %} · {{ p.zona }}{% endif %}</dd>
+        <dt>Tipo</dt><dd>{{ p.tipo or '—' }}</dd>
+        <dt>Habitaciones</dt><dd>{{ p.habitaciones or '—' }}</dd>
+        <dt>Presupuesto</dt>
+        <dd>
+          {% if p.presupuesto_min %}{{ p.presupuesto_min | pesos }} – {% endif %}
+          {% if p.presupuesto_max %}{{ p.presupuesto_max | pesos }}{% else %}—{% endif %}
+        </dd>
+        <dt>Plazo</dt><dd>{{ p.plazo_compra or '—' }}</dd>
+        <dt>Alta</dt><dd>{{ p.creado_en.strftime('%d/%m/%Y %H:%M') }}</dd>
+      </dl>
+      <p class="leyenda" style="margin-top:12px">
+        Los datos de contacto están cifrados en reposo y se muestran enmascarados
+        (principio de minimización). El detalle completo se descifra solo cuando el
+        asesor lo necesita para contactar.
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Consentimiento</h2>
+      {% for c in consentimientos %}
+        <div class="aviso-caja {{ 'ok' if c.otorgado else 'error' }}">
+          <h3>{{ 'Autorización otorgada' if c.otorgado else 'Autorización revocada' }}</h3>
+          <p>
+            {{ c.creado_en.strftime('%d/%m/%Y %H:%M') }} · canal {{ c.canal }} ·
+            política v{{ c.version_politica }}<br>
+            <em>Evidencia:</em> {{ c.evidencia or '—' }}
+          </p>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer; font-size:13px">Texto exacto autorizado</summary>
+            <p style="margin-top:8px">{{ c.texto_autorizacion }}</p>
+          </details>
+        </div>
+      {% else %}
+        <div class="aviso-caja error">
+          <h3>Sin consentimiento registrado</h3>
+          <p>No se puede contactar a este titular ni tratar sus datos.</p>
+        </div>
+      {% endfor %}
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Cambiar estado</h2>
+      <form method="post" action="/dashboard/prospecto/{{ p.codigo }}/estado" class="linea">
+        <div>
+          <label for="nuevo_estado">Nuevo estado</label>
+          <select name="nuevo_estado" id="nuevo_estado">
+            {% for e in estados %}<option value="{{ e }}" {% if e == p.estado %}selected{% endif %}>{{ e }}</option>{% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="motivo">Motivo</label>
+          <input type="text" name="motivo" id="motivo" placeholder="Ej.: no responde">
+        </div>
+        <button class="suave">Actualizar</button>
+      </form>
+    </div>
+
+    {% if solicitudes %}
+    <div class="panel">
+      <h2 style="margin-top:0">Solicitudes</h2>
+      <table>
+        <thead><tr><th>Tipo</th><th>Propiedad</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <tbody>
+        {% for s in solicitudes %}
+          <tr>
+            <td>{{ s.tipo }}</td><td>{{ s.propiedad_id or '—' }}</td>
+            <td>{{ s.estado }}</td><td>{{ s.creado_en.strftime('%d/%m %H:%M') }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

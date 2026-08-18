@@ -1,0 +1,23 @@
+# VVI — Vendedor Virtual Inmobiliario · MVP
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+jinja2>=3.1.4
+python-multipart>=0.0.9
+pydantic>=2.9.0
+pydantic-settings>=2.5.0
+SQLAlchemy>=2.0.35
+cryptography>=43.0.0
+# Redimensionado de fotos de inmuebles (RF-10)
+Pillow>=11.0
+httpx>=0.27.0
+
+# Canal MVP (ADR-02)
+python-telegram-bot>=21.6
+
+# LLM de runtime (ADR-06): Kimi K2.6 vía API compatible con OpenAI
+openai>=1.51.0
+# Fallback: Claude vía Anthropic API
+anthropic>=0.40.0
+
+# Tests
+pytest>=8.3.0

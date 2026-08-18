@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}VVI{% endblock %} · {{ empresa }}</title>
+  {# Fuentes con respaldo local: si no hay internet, cae a Georgia y Segoe UI
+     sin romper la maqueta. #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="/static/estilos.css">
+</head>
+<body>
+<header class="barra">
+  <div class="marca">
+    <span class="logo">VVI</span>
+    <span class="sub">Vendedor Virtual Inmobiliario</span>
+  </div>
+  {% set ruta = request.url.path %}
+  <nav>
+    <a href="/dashboard" class="{{ 'activo' if ruta == '/dashboard' }}">Prospectos</a>
+    <a href="/dashboard/propiedades" class="{{ 'activo' if ruta.startswith('/dashboard/propiedades') }}">Cartera</a>
+    <a href="/dashboard/captacion" class="{{ 'activo' if ruta.startswith('/dashboard/captacion') }}">Captación</a>
+    <a href="/dashboard/auditoria" class="{{ 'activo' if ruta.startswith('/dashboard/auditoria') }}">Auditoría</a>
+    <a href="/docs">API</a>
+  </nav>
+  <div class="quien">
+    {% if operador %}
+      <span>{{ operador }}</span>
+      <form method="post" action="/dashboard/logout" style="display:inline">
+        <button class="suave" type="submit">Cerrar sesión</button>
+      </form>
+    {% else %}
+      <a class="boton suave" href="/dashboard/login">Iniciar sesión</a>
+    {% endif %}
+  </div>
+</header>
+
+<main>
+  {% block contenido %}{% endblock %}
+</main>
+
+<footer>
+  <p>
+    {{ empresa }} · Comisión configurada: {{ '%.1f' % (comision_pct * 100) }}% ·
+    Datos de contacto cifrados en reposo · Toda acción sobre datos personales queda auditada.
+  </p>
+  <p class="aviso">
+    Sistema inbound / opt-in: no rastrea ni contacta en frío a personas en redes sociales
+    (Ley 1581/2012). Valide el cumplimiento con asesoría jurídica antes de producción.
+  </p>
+</footer>
+</body>
+</html>

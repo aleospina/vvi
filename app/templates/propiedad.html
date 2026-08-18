@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block titulo %}{{ p.id }}{% endblock %}
+
+{% block contenido %}
+<h1>{{ p.id }}
+  <span class="estado {{ p.estado }}">{{ p.estado }}</span>
+  {% if p.es_referencia %}<span class="chip caliente">referencia · no vendible</span>{% endif %}
+</h1>
+<p class="leyenda"><a href="/dashboard/propiedades">← Volver a la cartera</a></p>
+
+{% if p.es_referencia %}
+<div class="aviso-caja">
+  <h3>Inmueble de referencia</h3>
+  <p>
+    Es un aviso real de un tercero cargado para probar. Puedes corregir sus datos y el
+    bot puede mostrarlo, pero <strong>el sistema bloquea registrar una venta o comisión
+    sobre él</strong>, porque no hay mandato de comercialización.
+  </p>
+</div>
+{% endif %}
+
+<div class="dos-columnas">
+  <div>
+    <div class="panel">
+      <h2 style="margin-top:0">Fotos <span class="leyenda" style="font:inherit; font-weight:400">· {{ p.fotos | length }} de 12</span></h2>
+      <p class="leyenda">La primera imagen es la portada que ve el comprador en la tarjeta.</p>
+
+      {% if p.fotos %}
+      <p class="leyenda" style="margin-bottom:10px">
+        Arrastra para reordenar, o usa <strong>★</strong> para hacer portada de un clic.
+      </p>
+      <div class="galeria" id="galeria">
+        {% for f in p.fotos %}
+          <figure class="miniatura" draggable="true" data-id="{{ f.id }}">
+            <img src="{{ f.miniatura }}" alt="Foto {{ loop.index }} de {{ p.id }}" loading="lazy">
+            {% if loop.first %}<span class="insignia viva">portada</span>{% endif %}
+            <div class="acciones-foto">
+              {% if not loop.first %}
+              <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos/{{ f.id }}/portada">
+                <button title="Hacer portada">★</button>
+              </form>
+              {% endif %}
+              <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos/{{ f.id }}/eliminar">
+                <button class="peligro" title="Eliminar esta foto">✕</button>
+              </form>
+            </div>
+          </figure>
+        {% endfor %}
+      </div>
+
+      {# Sin JavaScript el arrastre no existe, pero ★ y ✕ siguen funcionando:
+         la galería nunca queda inmanejable. #}
+      <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos/orden"
+            id="form-orden" style="display:none; margin-top:12px">
+        <input type="hidden" name="orden" id="orden">
+        <button>Guardar el nuevo orden</button>
+      </form>
+      <script>
+        (function () {
+          var galeria = document.getElementById('galeria');
+          var formulario = document.getElementById('form-orden');
+          if (!galeria || !formulario) return;
+          var arrastrada = null;
+
+          galeria.addEventListener('dragstart', function (e) {
+            arrastrada = e.target.closest('.miniatura');
+            if (arrastrada) arrastrada.classList.add('arrastrando');
+          });
+          galeria.addEventListener('dragend', function () {
+            if (arrastrada) arrastrada.classList.remove('arrastrando');
+            arrastrada = null;
+          });
+          galeria.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            var sobre = e.target.closest('.miniatura');
+            if (!sobre || !arrastrada || sobre === arrastrada) return;
+            var caja = sobre.getBoundingClientRect();
+            var despues = (e.clientX - caja.left) > caja.width / 2;
+            galeria.insertBefore(arrastrada, despues ? sobre.nextSibling : sobre);
+          });
+          galeria.addEventListener('drop', function (e) {
+            e.preventDefault();
+            var ids = Array.prototype.map.call(
+              galeria.querySelectorAll('.miniatura'), function (m) { return m.dataset.id; }
+            );
+            document.getElementById('orden').value = ids.join(',');
+            formulario.style.display = 'block';
+          });
+        })();
+      </script>
+      {% else %}
+      <p class="leyenda">Sin fotos. La tarjeta muestra el marcador gris.</p>
+      {% endif %}
+
+      {% if p.fotos | length < 12 %}
+      <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos"
+            enctype="multipart/form-data" class="linea" style="margin-top:14px">
+        <div style="flex:1 1 260px">
+          <label for="imagenes">Agregar imágenes (JPG, PNG o WebP · máx. 6 MB c/u)</label>
+          <input type="file" name="imagenes" id="imagenes" accept="image/jpeg,image/png,image/webp" multiple style="width:100%">
+        </div>
+        <button>Subir</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Editar datos</h2>
+      <p class="leyenda">
+        Corrige aquí lo que el extractor dedujo mal. Cada cambio queda auditado a tu nombre.
+      </p>
+      <form method="post" action="/dashboard/propiedades/{{ p.id }}/editar">
+        <div class="linea">
+          <div>
+            <label for="ciudad">Ciudad</label>
+            <select name="ciudad" id="ciudad" required>
+              {% for c in ciudades %}
+                <option value="{{ c }}" {% if c == p.ciudad %}selected{% endif %}>{{ c }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div style="flex:1 1 200px">
+            <label for="zona">Barrio o zona</label>
+            <input name="zona" id="zona" value="{{ p.zona }}" maxlength="80" style="width:100%">
+          </div>
+          <div>
+            <label for="tipo">Tipo</label>
+            <select name="tipo" id="tipo" required>
+              {% for t in tipos %}
+                <option value="{{ t }}" {% if t == p.tipo %}selected{% endif %}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div class="linea" style="margin-top:12px">
+          <div>
+            <label for="precio">Precio (COP)</label>
+            <input type="number" name="precio" id="precio" value="{{ p.precio }}"
+                   required min="20000000" step="1000000">
+          </div>
+          <div><label for="habitaciones">Hab.</label>
+            <input type="number" name="habitaciones" id="habitaciones" value="{{ p.habitaciones }}" min="0" max="20" style="width:70px"></div>
+          <div><label for="banos">Baños</label>
+            <input type="number" name="banos" id="banos" value="{{ p.banos }}" min="0" max="20" style="width:70px"></div>
+          <div><label for="area_m2">Área m²</label>
+            <input type="number" name="area_m2" id="area_m2" value="{{ '%.1f' % p.area_m2 }}" min="0" step="0.1" style="width:100px"></div>
+        </div>
+
+        <div class="campo" style="margin-top:12px">
+          <label for="descripcion">Descripción</label>
+          <textarea name="descripcion" id="descripcion" rows="3" style="width:100%">{{ p.descripcion }}</textarea>
+        </div>
+
+        <div class="linea">
+          <div style="flex:1 1 220px">
+            <label for="propietario">Propietario</label>
+            <input name="propietario" id="propietario" value="{{ p.propietario }}" maxlength="120" style="width:100%">
+          </div>
+          <div style="flex:1 1 200px">
+            <label for="propietario_telefono">Teléfono del propietario</label>
+            <input name="propietario_telefono" id="propietario_telefono"
+                   value="{{ p.propietario_telefono or '' }}" maxlength="20" style="width:100%">
+          </div>
+          <div style="flex:1 1 260px">
+            <label for="url_origen">Origen</label>
+            <input name="url_origen" id="url_origen" value="{{ p.url_origen }}" maxlength="300" style="width:100%">
+          </div>
+        </div>
+
+        <button style="margin-top:16px">Guardar cambios</button>
+      </form>
+    </div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h2 style="margin-top:0">Procedencia</h2>
+      <p class="leyenda">
+        Estos campos no se editan: son de dónde vino el inmueble y con qué autorización.
+        Cambiarlos desde un formulario permitiría convertir una referencia en inventario
+        vendible y saltarse el control de comisión.
+      </p>
+      <dl class="ficha">
+        <dt>Fuente</dt><dd><code>{{ p.fuente }}</code></dd>
+        <dt>ID externo</dt><dd><code>{{ p.externo_id or '—' }}</code></dd>
+        <dt>Mandato</dt><dd>{{ '✅ sí' if p.mandato else '❌ no' }}</dd>
+        <dt>Creada</dt><dd>{{ p.creada_en.strftime('%d/%m/%Y %H:%M') }}</dd>
+        <dt>Actualizada</dt><dd>{{ p.actualizada_en.strftime('%d/%m/%Y %H:%M') if p.actualizada_en else '—' }}</dd>
+      </dl>
+      <p class="leyenda" style="margin-top:12px">
+        <em>Evidencia:</em> {{ p.mandato_evidencia or '—' }}
+      </p>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Estado</h2>
+      <p class="leyenda">
+        El estado no se cambia editando: se mueve con estas acciones, que quedan
+        auditadas como lo que son.
+      </p>
+      <div class="linea">
+        {% if p.estado == 'pendiente_validacion' %}
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/aprobar">
+            <button>Aprobar y publicar</button>
+          </form>
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/rechazar">
+            <input type="hidden" name="motivo" value="rechazado desde la ficha">
+            <button class="suave">Rechazar</button>
+          </form>
+        {% elif p.estado == 'disponible' %}
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/inactivar">
+            <button class="suave">Inactivar</button>
+          </form>
+        {% elif p.estado in ('inactiva', 'rechazada') %}
+          <form method="post" action="/dashboard/propiedades/{{ p.id }}/reactivar">
+            <button>Reactivar y publicar</button>
+          </form>
+        {% else %}
+          <p class="leyenda">
+            Sin acciones desde <code>{{ p.estado }}</code>. Un inmueble vendido tiene una
+            venta y una comisión atribuidas; volver a ofrecerlo exigiría deshacer eso primero.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
