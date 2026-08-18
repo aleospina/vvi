@@ -107,13 +107,17 @@
             mostrar(miniaturas.indexOf(disparador.closest('.miniatura')));
           });
 
+          var deslizo = false;
+
           visor.addEventListener('click', function (e) {
             var accion = e.target.dataset ? e.target.dataset.accion : null;
             if (accion === 'anterior') mostrar(actual - 1);
             else if (accion === 'siguiente') mostrar(actual + 1);
-            // Clic en el fondo (no en la imagen ni en los controles) cierra.
-            else if (e.target === visor) cerrar();
             else if (accion === 'cerrar') cerrar();
+            // Clic en el fondo cierra, pero no si viene de un deslizamiento que
+            // terminó fuera de la imagen: cambiar de foto no debe cerrar el visor.
+            else if (e.target === visor && !deslizo) cerrar();
+            deslizo = false;
           });
 
           document.addEventListener('keydown', function (e) {
@@ -134,6 +138,7 @@
             var recorrido = e.changedTouches[0].clientX - inicioX;
             inicioX = null;
             if (Math.abs(recorrido) < 45) return;      // umbral: no confundir con un toque
+            deslizo = true;                            // que el clic siguiente no cierre
             mostrar(recorrido < 0 ? actual + 1 : actual - 1);
           }, {passive: true});
         })();

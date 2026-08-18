@@ -297,6 +297,12 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 
 .visor{
   position:fixed; inset:0; z-index:100;
+  /* En móvil, `vh` y el `inset:0` miden el viewport de maquetación, que incluye
+     la franja bajo la barra del navegador. Una foto vertical dimensionada contra
+     ese alto queda parcialmente fuera de lo visible. `dvh` mide lo que de verdad
+     se ve; el `vh` queda como respaldo para navegadores viejos. */
+  height:100vh;
+  height:100dvh;
   display:flex; align-items:center; justify-content:center;
   background:rgba(10,18,16,.92);
   /* El pie va absoluto abajo: se le reserva espacio en el relleno para que la
@@ -330,8 +336,16 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   border-radius:50%; display:grid; place-items:center; padding:0;
   backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.4);
 }
-.visor button:hover{background:rgba(22,34,30,.95); border-color:rgba(255,255,255,.55)}
+/* El `:hover` se queda pegado en táctil —no hay puntero que se retire— y deja
+   el botón con fondo distinto después de tocarlo. Solo se aplica donde hay
+   puntero real. */
+@media (hover:hover){
+  .visor button:hover{background:rgba(22,34,30,.95); border-color:rgba(255,255,255,.55)}
+}
 .visor button:focus-visible{outline:3px solid var(--acento-vivo); outline-offset:2px}
+/* Reacción al toque, en lugar del recuadro gris del navegador. */
+.visor button:active{background:rgba(22,34,30,.99); transform:scale(.94)}
+.visor-nav:active{transform:translateY(-50%) scale(.94)}
 .visor-cerrar{top:16px; right:16px; width:44px; height:44px; font-size:18px}
 .visor-nav{top:50%; transform:translateY(-50%); width:52px; height:52px; font-size:32px; line-height:1}
 .visor-nav.anterior{left:16px}
@@ -436,14 +450,20 @@ button, .boton{
   font:inherit; font-size:14px; font-weight:600; cursor:pointer;
   transition:background .15s ease, transform .12s ease, box-shadow .15s ease;
   box-shadow:var(--sombra-1);
+  /* Quita el recuadro gris que los navegadores móviles pintan al tocar. */
+  -webkit-tap-highlight-color:transparent;
 }
 .boton{display:inline-block; text-decoration:none; line-height:1.5}
-button:hover, .boton:hover{background:#094c42; color:#fff; text-decoration:none; box-shadow:var(--sombra-2)}
+/* Los estados de hover solo donde hay puntero: en táctil se quedan pegados
+   después del toque y el botón parece seleccionado. */
+@media (hover:hover){
+  button:hover, .boton:hover{background:#094c42; color:#fff; text-decoration:none; box-shadow:var(--sombra-2)}
+  button.suave:hover, .boton.suave:hover{background:#e2ddd4; color:var(--tinta)}
+  button.peligro:hover{background:#9d4325}
+}
 button:active, .boton:active{transform:translateY(1px)}
 button.suave, .boton.suave{background:#eeeae3; color:var(--tinta); box-shadow:none}
-button.suave:hover, .boton.suave:hover{background:#e2ddd4; color:var(--tinta)}
 button.peligro{background:var(--ladrillo)}
-button.peligro:hover{background:#9d4325}
 
 /* ─────────────────────────── Composición ─────────────────────────── */
 
