@@ -86,6 +86,9 @@
             imagen.src = origen.dataset.grande;
             imagen.alt = origen.dataset.pie || '';
             pie.textContent = origen.dataset.pie || '';
+            // Con una sola foto no hay a dónde ir: mostrar flechas que no hacen
+            // nada hace parecer que el visor está roto.
+            visor.classList.toggle('una-sola', miniaturas.length < 2);
             visor.hidden = false;
             document.body.style.overflow = 'hidden';                // no scrollear detrás
           }
@@ -119,6 +122,20 @@
             else if (e.key === 'ArrowLeft') mostrar(actual - 1);
             else if (e.key === 'ArrowRight') mostrar(actual + 1);
           });
+
+          // Deslizar en táctil: en un celular es el gesto natural para pasar de
+          // foto, y las flechas son objetivos pequeños con el pulgar.
+          var inicioX = null;
+          visor.addEventListener('touchstart', function (e) {
+            inicioX = e.changedTouches[0].clientX;
+          }, {passive: true});
+          visor.addEventListener('touchend', function (e) {
+            if (inicioX === null) return;
+            var recorrido = e.changedTouches[0].clientX - inicioX;
+            inicioX = null;
+            if (Math.abs(recorrido) < 45) return;      // umbral: no confundir con un toque
+            mostrar(recorrido < 0 ? actual + 1 : actual - 1);
+          }, {passive: true});
         })();
       </script>
 

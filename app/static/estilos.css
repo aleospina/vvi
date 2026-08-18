@@ -314,15 +314,21 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 @keyframes acercar{from{transform:scale(.96); opacity:0} to{transform:none; opacity:1}}
 
 .visor button{
-  position:absolute; background:rgba(255,255,255,.13); color:#fff;
+  position:absolute; z-index:2;            /* siempre por encima de la imagen */
+  background:rgba(22,34,30,.72); color:#fff;
+  border:1px solid rgba(255,255,255,.28);
   border-radius:50%; display:grid; place-items:center; padding:0;
-  backdrop-filter:blur(6px); box-shadow:none;
+  backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.4);
 }
-.visor button:hover{background:rgba(255,255,255,.26)}
-.visor-cerrar{top:16px; right:16px; width:42px; height:42px; font-size:17px}
-.visor-nav{top:50%; transform:translateY(-50%); width:48px; height:48px; font-size:30px; line-height:1}
-.visor-nav.anterior{left:14px}
-.visor-nav.siguiente{right:14px}
+.visor button:hover{background:rgba(22,34,30,.95); border-color:rgba(255,255,255,.55)}
+.visor button:focus-visible{outline:3px solid var(--acento-vivo); outline-offset:2px}
+.visor-cerrar{top:16px; right:16px; width:44px; height:44px; font-size:18px}
+.visor-nav{top:50%; transform:translateY(-50%); width:52px; height:52px; font-size:32px; line-height:1}
+.visor-nav.anterior{left:16px}
+.visor-nav.siguiente{right:16px}
+/* Una sola foto: las flechas no llevan a ninguna parte y hacen parecer que el
+   visor no responde. */
+.visor.una-sola .visor-nav{display:none}
 .visor-pie{
   position:absolute; bottom:18px; left:0; right:0; margin:0; text-align:center;
   color:rgba(255,255,255,.72); font-size:12.5px; letter-spacing:.02em;
