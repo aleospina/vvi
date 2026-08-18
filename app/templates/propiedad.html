@@ -9,13 +9,23 @@
 <p class="leyenda"><a href="/dashboard/propiedades">← Volver a la cartera</a></p>
 
 {% if p.es_referencia %}
-<div class="aviso-caja">
+<div class="aviso-caja error">
+  {% if p.fuente == 'demo' %}
+  <h3>Inmueble de demostración — no existe</h3>
+  <p>
+    Es un registro <strong>inventado</strong> para poblar pruebas. No corresponde a
+    ninguna publicación real y no tiene propietario. El bot puede mostrarlo, pero el
+    sistema <strong>bloquea registrar una venta o comisión</strong> sobre él. Púrgalo
+    antes de operar.
+  </p>
+  {% else %}
   <h3>Inmueble de referencia</h3>
   <p>
-    Es un aviso real de un tercero cargado para probar. Puedes corregir sus datos y el
-    bot puede mostrarlo, pero <strong>el sistema bloquea registrar una venta o comisión
-    sobre él</strong>, porque no hay mandato de comercialización.
+    Es un aviso real de un tercero cargado para probar. El bot puede mostrarlo, pero
+    <strong>el sistema bloquea registrar una venta o comisión sobre él</strong>, porque
+    no hay mandato de comercialización.
   </p>
+  {% endif %}
 </div>
 {% endif %}
 
@@ -384,6 +394,20 @@
           </p>
         {% endif %}
       </div>
+    </div>
+
+    <div class="panel">
+      <h2 style="margin-top:0">Eliminar</h2>
+      <p class="leyenda">
+        Borra el inmueble con sus fotos y comentarios. <strong>No se puede deshacer.</strong>
+        Si solo quieres que el bot deje de ofrecerlo, usa <em>Inactivar</em>: conserva el
+        historial. Un inmueble con venta registrada no se puede borrar, para no destruir
+        la trazabilidad de la comisión.
+      </p>
+      <form method="post" action="/dashboard/propiedades/{{ p.id }}/eliminar"
+            onsubmit="return confirm('¿Eliminar {{ p.id }} de forma definitiva? Se borran también sus fotos y comentarios.');">
+        <button class="peligro">Eliminar este inmueble</button>
+      </form>
     </div>
     {% endif %}
   </div>

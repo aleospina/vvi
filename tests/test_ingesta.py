@@ -292,3 +292,84 @@ class TestReactivar:
         ingesta.reactivar(db, p, actor="operador")
         acciones = [r.accion for r in db.query(LogAuditoria).all()]
         assert "inmueble_reactivado" in acciones
+
+
+class TestEliminarInmueble:
+    def test_borra_con_sus_fotos_y_comentarios(self, db):
+        from app.models import ComentarioPropiedad, FotoPropiedad
+
+        p = ingesta.ingerir_una(db, publicacion())
+        p.comentarios.append(ComentarioPropiedad(autor="invitado", rol="invitado", texto="hola"))
+        db.flush()
+
+        ingesta.eliminar_inmueble(db, p, actor="operador")
+        assert db.get(Propiedad, p.id) is None
+        assert db.query(ComentarioPropiedad).count() == 0
+        assert db.query(FotoPropiedad).count() == 0
+
+    def test_conserva_la_solicitud_sin_puntero(self, db, prospecto_consentido):
+        """Una petición de visita es evidencia del titular: no se tira."""
+        from app.models import Solicitud
+
+        p = ingesta.ingerir_una(db, publicacion())
+        s = Solicitud(prospecto_id=prospecto_consentido.id, propiedad_id=p.id, tipo="visita")
+        db.add(s)
+        db.flush()
+
+        ingesta.eliminar_inmueble(db, p, actor="operador")
+        db.refresh(s)
+        assert s.id is not None
+        assert s.propiedad_id is None
+
+    def test_se_niega_si_hay_venta(self, db, prospecto_consentido):
+        """Borrarlo exigiría destruir el registro de comisión."""
+        from app.models import EstadoProspecto
+        from app.services import commission, leads
+
+        leads.cambiar_estado(db, prospecto_consentido, EstadoProspecto.CALIFICADO)
+        leads.cambiar_estado(db, prospecto_consentido, EstadoProspecto.EMPAREJADO)
+        p = ingesta.ingerir_una(db, publicacion())
+        commission.confirmar_venta(
+            db, prospecto=prospecto_consentido, propiedad=p,
+            precio_venta=380_000_000, operador="op",
+        )
+        with pytest.raises(ingesta.TieneVenta, match="comisión"):
+            ingesta.eliminar_inmueble(db, p, actor="operador")
+        assert db.get(Propiedad, p.id) is not None
+
+    def test_purgar_no_se_atora_con_emparejamientos(self, db, prospecto_consentido):
+        """Regresión: la clave foránea abortaba el purgado completo."""
+        from app.models import Emparejamiento
+
+        p = ingesta.ingerir_una(
+            db, publicacion(fuente=FuentePropiedad.DEMO.value, mandato=False)
+        )
+        db.add(Emparejamiento(prospecto_id=prospecto_consentido.id, propiedad_id=p.id, puntaje=1))
+        db.flush()
+
+        assert ingesta.purgar_referencias(db, actor="operador") == 1
+        assert db.get(Propiedad, p.id) is None
+
+
+class TestCarteraDemo:
+    def test_los_inmuebles_demo_no_son_vendibles(self, db):
+        """Son inventados: el bloqueo de venta debe cubrirlos igual que a referencia."""
+        p = ingesta.ingerir_una(
+            db, publicacion(fuente=FuentePropiedad.DEMO.value, mandato=False)
+        )
+        assert p.es_referencia          # cae en FUENTES_SIN_MANDATO
+        assert p in ingesta.referencias(db)
+
+    def test_el_catalogo_demo_es_coherente(self):
+        from app.demo import CARTERA
+        from app.services.ingesta import PRECIO_MAXIMO, PRECIO_MINIMO
+
+        assert len(CARTERA) == 30
+        assert len({fila[0] for fila in CARTERA}) == 30      # ids únicos
+        for pid, ciudad, zona, tipo, hab, banos, area, precio, desc in CARTERA:
+            assert ciudad in ("Medellín", "Pereira"), pid
+            assert ingesta.normalizar_tipo(tipo) == tipo, pid
+            assert PRECIO_MINIMO <= precio <= PRECIO_MAXIMO, pid
+            assert zona and desc, pid
+            # Un lote no tiene habitaciones; una vivienda sí.
+            assert (hab == 0) == (tipo == "lote"), pid

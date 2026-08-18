@@ -142,14 +142,15 @@
 
 {% if puede_editar and referencias %}
 <div class="aviso-caja">
-  <h3>{{ referencias | length }} inmueble{{ '' if referencias | length == 1 else 's' }} de referencia en cartera</h3>
+  <h3>{{ referencias | length }} inmueble{{ '' if referencias | length == 1 else 's' }} no vendible{{ '' if referencias | length == 1 else 's' }} en cartera</h3>
   <p>
-    Son avisos reales de terceros cargados para probar. <strong>No tienen mandato</strong>,
-    así que el sistema bloquea registrar una venta sobre ellos. Púrgalos antes de salir a
-    producción para que no se mezclen con tu inventario.
+    Inmuebles de <strong>demostración</strong> (inventados) o de <strong>referencia</strong>
+    (avisos reales de terceros). Ninguno tiene mandato, así que el sistema bloquea
+    registrar una venta sobre ellos. Púrgalos antes de operar para que no se mezclen con
+    tu inventario real.
   </p>
   <form method="post" action="/dashboard/propiedades/purgar-referencias" style="margin-top:10px">
-    <button class="peligro">Purgar los {{ referencias | length }} de referencia</button>
+    <button class="peligro">Purgar los {{ referencias | length }} no vendibles</button>
   </form>
 </div>
 {% endif %}
@@ -205,7 +206,9 @@
             {{ p.estado.replace('_', ' ') }}
           </span>
           {% if p.es_referencia %}
-            <span class="insignia aviso" title="Aviso de un tercero: no vendible">referencia</span>
+            <span class="insignia aviso" title="Sin mandato: no puede venderse ni generar comisión">
+              {{ 'demo · inventado' if p.fuente == 'demo' else 'referencia' }}
+            </span>
           {% endif %}
           {% if not p.externo_id %}
             <span class="insignia apagada" title="Sin identificador de origen verificable">sin origen</span>

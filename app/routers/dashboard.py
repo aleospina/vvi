@@ -483,6 +483,16 @@ def editar_propiedad(
     return RedirectResponse(f"/dashboard/propiedades/{propiedad_id}", status_code=303)
 
 
+@router.post("/propiedades/{propiedad_id}/eliminar")
+def eliminar_propiedad(propiedad_id: str, quien: Operador, db: Session = Depends(get_db)):
+    """Borra el inmueble con sus fotos y comentarios. Solo el operador."""
+    try:
+        ingesta.eliminar_inmueble(db, _propiedad(db, propiedad_id), actor=quien)
+    except ingesta.TieneVenta as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return RedirectResponse("/dashboard/propiedades", status_code=303)
+
+
 @router.post("/propiedades/purgar-referencias")
 def purgar_referencias(quien: Operador, db: Session = Depends(get_db)):
     """Elimina de un golpe todo lo cargado como referencia (antes de producción)."""

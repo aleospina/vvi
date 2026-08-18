@@ -31,17 +31,20 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.client import cliente
 from app.models import (
     FUENTES_SIN_MANDATO,
+    Emparejamiento,
     EstadoPropiedad,
     FuentePropiedad,
     Propiedad,
+    Solicitud,
     TipoInmueble,
+    Venta,
 )
 from app.security.crypto import indice_ciego
 from app.services.compliance import auditar
@@ -420,6 +423,53 @@ def referencias(db: Session) -> list[Propiedad]:
     )
 
 
+class TieneVenta(ValueError):
+    """El inmueble sostiene una venta con comisión atribuida."""
+
+
+def _desligar(db: Session, ids: list[str]) -> None:
+    """Suelta las referencias que impiden borrar un inmueble.
+
+    Las solicitudes se conservan con el puntero en nulo —una petición de visita
+    es evidencia de que un titular pidió contacto, y eso no se tira—. Los
+    emparejamientos sí se borran: su clave foránea no admite nulo y sin el
+    inmueble no significan nada.
+    """
+    db.execute(
+        update(Solicitud).where(Solicitud.propiedad_id.in_(ids)).values(propiedad_id=None)
+    )
+    db.execute(delete(Emparejamiento).where(Emparejamiento.propiedad_id.in_(ids)))
+
+
+def eliminar_inmueble(db: Session, propiedad: Propiedad, actor: str) -> None:
+    """Borra un inmueble de la cartera, con sus fotos y comentarios.
+
+    Se niega si tiene una venta registrada: la clave foránea de `Venta` no admite
+    nulo, así que borrarlo exigiría destruir el registro de comisión y su
+    trazabilidad. Para retirarlo de circulación sin perder historia está
+    `inactivar`.
+    """
+    venta = db.scalar(select(Venta).where(Venta.propiedad_id == propiedad.id))
+    if venta is not None:
+        raise TieneVenta(
+            f"{propiedad.id} tiene la venta {venta.codigo} registrada con una comisión "
+            f"atribuida. Bórrala primero o usa «Inactivar» para retirarlo de la cartera "
+            f"sin perder el historial."
+        )
+
+    detalle = (
+        f"{propiedad.tipo} en {propiedad.zona}, {propiedad.ciudad} por {propiedad.precio}. "
+        f"fuente={propiedad.fuente}"
+    )
+    _desligar(db, [propiedad.id])
+    db.delete(propiedad)          # arrastra fotos y comentarios por cascada
+    db.flush()
+    auditar(
+        db, actor=actor, accion="inmueble_eliminado", entidad="propiedad",
+        entidad_id=propiedad.id, detalle=detalle,
+    )
+
+
 def purgar_referencias(db: Session, actor: str) -> int:
     """Borra de un golpe todo lo cargado como referencia.
 
@@ -429,11 +479,16 @@ def purgar_referencias(db: Session, actor: str) -> int:
     tuyos mezclados con tu inventario.
     """
     a_borrar = referencias(db)
+    if not a_borrar:
+        return 0
+    # Igual que en el borrado individual: hay que soltar emparejamientos y
+    # solicitudes antes, o la clave foránea aborta el purgado completo.
+    _desligar(db, [p.id for p in a_borrar])
     for p in a_borrar:
         auditar(
             db, actor=actor, accion="referencia_purgada", entidad="propiedad",
             entidad_id=p.id,
-            detalle=f"{p.tipo} en {p.zona}, {p.ciudad}. Carga de prueba eliminada.",
+            detalle=f"{p.tipo} en {p.zona}, {p.ciudad}. fuente={p.fuente}",
         )
         db.delete(p)
     db.flush()

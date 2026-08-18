@@ -136,11 +136,17 @@ class FuentePropiedad(str, enum.Enum):
     #: Aviso real de un tercero, cargado para probar el sistema. No hay mandato,
     #: así que no se puede vender ni genera comisión. Se purga antes de producción.
     REFERENCIA = "referencia"
+    #: Inmueble **inventado** para poblar demostraciones. No existe: ni se vende
+    #: ni se muestra a un comprador real sin purgarlo antes.
+    DEMO = "demo"
 
 
 #: Fuentes que NO habilitan comercialización. Están aquí y no en una condición
 #: suelta para que cualquier control nuevo tenga un único lugar donde mirar.
-FUENTES_SIN_MANDATO = frozenset({FuentePropiedad.REFERENCIA.value})
+#: Todo lo que caiga aquí queda bloqueado para venta y entra en el purgado.
+FUENTES_SIN_MANDATO = frozenset(
+    {FuentePropiedad.REFERENCIA.value, FuentePropiedad.DEMO.value}
+)
 
 
 class Canal(str, enum.Enum):
