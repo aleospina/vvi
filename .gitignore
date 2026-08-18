@@ -17,3 +17,6 @@ venv/
 
 # Imágenes subidas por propietarios y operadores
 app/static/fotos/
+
+# QR de pareo de WhatsApp: es una credencial de sesión
+deploy/evolution/qr.png

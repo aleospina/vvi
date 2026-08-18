@@ -55,6 +55,39 @@
 
 ---
 
+## ADR-02b — WhatsApp en Fase 2 vía Evolution API (revisión parcial de ADR-02)
+
+**Contexto.** ADR-02 pospuso WhatsApp a Fase 2 y rechazó las librerías no oficiales. El piloto con Telegram validó el flujo, pero confirmó lo previsto: en el público objetivo colombiano, vendedores y compradores están en WhatsApp y no en Telegram. La verificación de Meta Business + WABA sigue tomando días y no puede bloquear la validación de mercado.
+
+**Decisión.** Habilitar WhatsApp mediante **Evolution API** como gateway, con integración `WHATSAPP-BAILEYS` en desarrollo y piloto controlado, y migración a `WHATSAPP-BUSINESS` (Cloud API oficial) en cuanto salga el WABA.
+
+**Justificación.**
+- Evolution expone **la misma API HTTP** para ambas integraciones: el adaptador de VVI (`channels/whatsapp_evo.py`, `routers/whatsapp.py`) no cambia al migrar. El compromiso con Baileys es de infraestructura, no de código.
+- Permite empezar a conversar con usuarios reales mientras corre la verificación de Meta, que es espera, no trabajo.
+- El gateway vive fuera del proceso de VVI: si Evolution cae o el número se pierde, la API, el dashboard y el canal de Telegram siguen operando.
+
+**Condiciones de uso — no negociables mientras la integración sea Baileys.**
+1. **Número dedicado**, nunca el corporativo ni uno cuya pérdida tenga costo.
+2. **Solo inbound**: se responde a quien escribe primero. Sin listas, sin difusión, sin primer contacto (coherente con ADR-01, y además es lo que evita el baneo).
+3. **Ritmo humano**: presencia "escribiendo…" y retardo antes de cada respuesta.
+4. **Lista blanca en desarrollo** (`EVOLUTION_NUMEROS_PRUEBA`): mientras se prueba sobre un número personal, el bot solo responde a los números declarados. Sin ella, cualquier contacto del titular del teléfono entra al flujo de consentimiento sin haber pedido nada.
+5. Evolution configurado con `DATABASE_SAVE_DATA_NEW_MESSAGE=false`: su base de datos no es la de VVI y queda fuera del cifrado y de la política de retención (RNF-06).
+
+**Implicaciones.**
+- ✅ Canal donde de verdad está el usuario, sin esperar la verificación de Meta.
+- ➖ La integración Baileys **no es oficial**: riesgo real de baneo del número, sesión frágil (pareo por QR) y ruptura ante cambios de protocolo. Es un puente, no la arquitectura final.
+- ➖ Tres servicios nuevos que operar (Evolution, Postgres, Redis) y una segunda base de datos con implicaciones de cumplimiento.
+- ➕ El identificador de canal en WhatsApp **es el teléfono**, es decir PII. Se guarda con el mismo índice ciego HMAC y cifrado Fernet que el resto (RF-17); los identificadores pendientes de consentimiento viven en memoria solo como hash.
+- ➕ La máquina de consentimiento y los derechos de habeas data se movieron a `channels/conversacion.py`, compartidos por todos los canales: un derecho del titular se arregla una vez, no una por canal.
+
+**Alternativas rechazadas.**
+- *Baileys embebido en un servicio propio:* rechazada; el mismo riesgo de ToS sin la salida a la API oficial que da Evolution.
+- *Esperar al WABA antes de tocar WhatsApp:* rechazada; la espera de verificación no aporta aprendizaje de producto, y el trabajo de integración se puede hacer en paralelo.
+- *Seguir solo con Telegram:* rechazada; el piloto mostró que la penetración del canal es el techo de la conversión.
+
+
+---
+
 ## ADR-03 — Clasificación de prospectos: híbrido reglas + LLM (no ML entrenado)
 
 **Contexto.** Hay que identificar intención de compra y extraer datos (ciudad, tipo, presupuesto) en 72 h, sin dataset propio.

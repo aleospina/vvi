@@ -36,6 +36,31 @@ class Settings(BaseSettings):
     # Canal
     telegram_bot_token: str = ""
 
+    # Canal WhatsApp vía Evolution API (ADR-02b). Con `evolution_url` vacío el
+    # canal no se monta y la app arranca igual, como ya ocurre con Telegram.
+    evolution_url: str = ""
+    evolution_api_key: str = ""
+    evolution_instancia: str = "vvi"
+    #: Segmento secreto de la ruta del webhook. Evolution no firma sus envíos
+    #: con HMAC, así que la ruta impredecible es la primera capa de defensa.
+    evolution_webhook_token: str = ""
+    #: Host público desde el que Evolution alcanza a VVI. Vacío = DASHBOARD_URL.
+    #: En desarrollo con Evolution en Docker y VVI en el host hay que poner
+    #: `http://host.docker.internal:8000`: para el contenedor, `localhost` es él
+    #: mismo. Es el error de configuración más común de esta integración.
+    evolution_webhook_base: str = ""
+    #: Pausa simulada de escritura antes de responder, en milisegundos. Un bot
+    #: que contesta en 200 ms es la señal más obvia de automatización.
+    evolution_delay_ms: int = 1200
+    #: Lista blanca de números para pruebas, separados por coma. Con al menos uno,
+    #: el bot **solo** responde a esos y calla ante cualquier otro.
+    #:
+    #: Es lo que hace viable probar con un número personal: mientras el teléfono
+    #: esté vinculado, todo el que le escriba llega al webhook. Sin esta lista, un
+    #: familiar recibiría el aviso de IA y la solicitud de autorización, y su
+    #: mensaje entraría al motor. Vacía = responde a todo el mundo (producción).
+    evolution_numeros_prueba: str = ""
+
     # LLM
     llm_provider: str = "kimi"  # kimi | claude | reglas
     moonshot_api_key: str = ""
@@ -80,6 +105,19 @@ class Settings(BaseSettings):
 
     # Reglas duras de negocio (ADR-03)
     ciudades_cobertura: tuple[str, ...] = ("Medellín", "Pereira")
+
+    @property
+    def numeros_prueba(self) -> frozenset[str]:
+        """Lista blanca normalizada a dígitos: `+57 300 123 4567` → `573001234567`."""
+        return frozenset(
+            "".join(c for c in n if c.isdigit())
+            for n in self.evolution_numeros_prueba.split(",")
+            if any(c.isdigit() for c in n)
+        )
+
+    @property
+    def tiene_whatsapp(self) -> bool:
+        return bool(self.evolution_url and self.evolution_api_key and self.evolution_webhook_token)
 
     @property
     def tiene_llm(self) -> bool:

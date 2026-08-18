@@ -6,12 +6,15 @@ import logging
 import secrets
 from typing import Annotated
 
+import httpx
+
 from fastapi import (
     APIRouter,
     Depends,
     File,
     Form,
     HTTPException,
+    Query,
     Request,
     UploadFile,
     status,
@@ -35,6 +38,7 @@ from app.models import (
     TipoInmueble,
     Venta,
 )
+from app.channels import whatsapp_evo
 from app.channels.gateway import pesos
 from app.security.crypto import enmascarar, indice_ciego
 from app.security.sesion import (
@@ -284,14 +288,39 @@ def atender(solicitud_id: int, quien: Operador, db: Session = Depends(get_db)):
 
 
 @router.get("/propiedades", response_class=HTMLResponse)
-def cartera(request: Request, quien: Cualquiera, db: Session = Depends(get_db)):
+def cartera(
+    request: Request,
+    quien: Cualquiera,
+    tipo: str = Query("", description="casa | apartamento | lote. Vacío = toda la cartera."),
+    municipio: str = Query("", description="Medellín, Envigado, Dosquebradas… Vacío = todos."),
+    db: Session = Depends(get_db),
+):
+    # Un valor inventado en la URL no debe vaciar la cartera en silencio: se
+    # ignora y se muestra todo, que es lo que el operador espera al ver la
+    # pestaña "Todos" resaltada.
+    tipo = tipo.strip().lower()
+    if tipo not in {t.value for t in TipoInmueble}:
+        tipo = ""
+
+    municipios = portfolio.conteo_por_municipio(db)
+    municipio = municipio.strip()
+    if municipio and municipio not in {m for _, m, _ in municipios}:
+        municipio = ""
+
     return plantillas.TemplateResponse(
         request,
         "propiedades.html",
         _base(
             request,
             quien,
-            propiedades=portfolio.listar(db),
+            propiedades=portfolio.listar(db, tipo=tipo or None, municipio=municipio or None),
+            tipo_activo=tipo,
+            municipio_activo=municipio,
+            municipios=municipios,
+            # El conteo por tipo va sobre la cartera completa, no sobre lo
+            # filtrado: si dijera "0" en las pestañas que no están activas, el
+            # filtro parecería no tener nada detrás.
+            conteo_tipos=portfolio.conteo_por_tipo(db),
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
             almacenamiento=fotos.diagnostico(db),
@@ -652,3 +681,107 @@ def auditoria(request: Request, quien: Operador, db: Session = Depends(get_db)):
         "auditoria.html",
         _base(request, quien, registros=registros, integra=integra, roto_en=roto_en),
     )
+
+
+# ─────────────────────────── Canal WhatsApp (ADR-02b) ───────────────────────────
+#
+# Solo operador: el QR de vinculación es una credencial de sesión de WhatsApp.
+# Quien lo escanea queda con el número en la mano, así que el invitado de solo
+# lectura no debe verlo siquiera.
+
+
+@router.get("/whatsapp", response_class=HTMLResponse)
+def whatsapp(request: Request, quien: Operador):
+    """Estado del canal y vinculación del número."""
+    return plantillas.TemplateResponse(
+        request,
+        "whatsapp.html",
+        _base(
+            request,
+            quien,
+            configurado=settings.tiene_whatsapp,
+            instancia=settings.evolution_instancia,
+            evolution_url=settings.evolution_url,
+            url_webhook=whatsapp_evo.url_webhook() if settings.tiene_whatsapp else "",
+            numeros_prueba=sorted(settings.numeros_prueba),
+            estado=whatsapp_evo.estado_conexion(),
+        ),
+    )
+
+
+@router.get("/whatsapp/estado")
+def whatsapp_estado(quien: Operador):
+    """Estado en JSON, para que la página se actualice sola mientras se escanea."""
+    return {"estado": whatsapp_evo.estado_conexion()}
+
+
+@router.post("/whatsapp/vincular", response_class=HTMLResponse)
+def whatsapp_vincular(request: Request, quien: Operador, db: Session = Depends(get_db)):
+    """Crea la instancia si hace falta, fija el webhook y muestra el QR.
+
+    Es idempotente a propósito: el operador va a apretar este botón cada vez que
+    el canal se caiga, y no tiene por qué saber si la instancia ya existía.
+    """
+    if not settings.tiene_whatsapp:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "El canal no está configurado: faltan EVOLUTION_URL, EVOLUTION_API_KEY "
+            "o EVOLUTION_WEBHOOK_TOKEN en el .env.",
+        )
+
+    contexto = {
+        "configurado": True,
+        "instancia": settings.evolution_instancia,
+        "evolution_url": settings.evolution_url,
+        "url_webhook": whatsapp_evo.url_webhook(),
+        "numeros_prueba": sorted(settings.numeros_prueba),
+    }
+
+    try:
+        alta = whatsapp_evo.crear_instancia()
+        whatsapp_evo.configurar_webhook()
+        datos = whatsapp_evo.qr_de_conexion()
+    except httpx.HTTPError as e:
+        log.warning("No se pudo vincular WhatsApp: %s", e)
+        return plantillas.TemplateResponse(
+            request,
+            "whatsapp.html",
+            _base(
+                request, quien, **contexto,
+                estado="error",
+                error=(
+                    f"No se pudo hablar con Evolution API en {settings.evolution_url}. "
+                    "¿Está levantado el contenedor?"
+                ),
+            ),
+        )
+
+    auditar(
+        db, actor=quien, accion="whatsapp_vinculacion_iniciada", entidad="canal",
+        entidad_id=settings.evolution_instancia, detalle=f"instancia {alta}",
+    )
+
+    return plantillas.TemplateResponse(
+        request,
+        "whatsapp.html",
+        _base(
+            request, quien, **contexto,
+            estado=whatsapp_evo.estado_conexion(),
+            qr=whatsapp_evo.qr_data_uri(datos),
+            codigo_pareo=datos.get("pairingCode"),
+        ),
+    )
+
+
+@router.post("/whatsapp/desvincular")
+def whatsapp_desvincular(quien: Operador, db: Session = Depends(get_db)):
+    """Cierra la sesión de WhatsApp. El número queda libre; la instancia, en pie."""
+    try:
+        whatsapp_evo.desvincular()
+    except httpx.HTTPError as e:
+        log.warning("No se pudo desvincular WhatsApp: %s", e)
+    auditar(
+        db, actor=quien, accion="whatsapp_desvinculado", entidad="canal",
+        entidad_id=settings.evolution_instancia,
+    )
+    return RedirectResponse("/dashboard/whatsapp", status_code=303)

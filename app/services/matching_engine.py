@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.llm.client import cliente
 from app.models import Emparejamiento, Propiedad, Prospecto
 from app.services.nlu_engine import normalizar
-from app.services.portfolio import como_dict
+from app.services.portfolio import como_dict, municipio_de, plano
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +70,26 @@ def _puntuar(p: Propiedad, perfil: dict) -> float:
     return round(puntaje, 2)
 
 
+def _del_municipio(candidatas: list[Propiedad], perfil: dict) -> list[Propiedad]:
+    """Acota a un municipio concreto del área metropolitana.
+
+    `ciudad` es la plaza de cobertura y mete en el mismo saco a Pereira y
+    Dosquebradas, o a Medellín, Envigado y Sabaneta. Pero quien pregunta por
+    "apartamentos en Dosquebradas" no quiere ver Pereira, y quien pregunta por
+    Pereira no quiere Dosquebradas: son municipios distintos y el comprador los
+    vive como tales.
+
+    El municipio de cada inmueble se deduce de su zona (`portfolio.municipio_de`),
+    con la convención "Barrio, Municipio" de la cartera. Sin municipio en el
+    perfil no se filtra nada: la búsqueda sigue siendo de toda la plaza.
+    """
+    municipio = perfil.get("municipio")
+    if not municipio:
+        return candidatas
+    objetivo = plano(municipio)
+    return [p for p in candidatas if plano(municipio_de(p)) == objetivo]
+
+
 def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Match]:
     """Filtra la cartera por los criterios del prospecto y rankea (RF-09)."""
     # El presupuesto filtra, pero no habilita: quién decide si ya hay datos para
@@ -98,7 +118,7 @@ def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Mat
     if perfil.get("habitaciones"):
         consulta = consulta.where(Propiedad.habitaciones >= int(perfil["habitaciones"]))
 
-    candidatas = list(db.scalars(consulta))
+    candidatas = _del_municipio(list(db.scalars(consulta)), perfil)
     matches = [Match(propiedad=p, puntaje=_puntuar(p, perfil)) for p in candidatas]
     matches.sort(key=lambda m: (-m.puntaje, m.propiedad.precio))
     return matches[:limite]
@@ -112,15 +132,19 @@ def conteo(db: Session, perfil: dict) -> tuple[int, int]:
     """
     if not (perfil.get("ciudad") and perfil.get("tipo")):
         return 0, 0
-    total = db.scalar(
-        select(func.count())
-        .select_from(Propiedad)
-        .where(
-            Propiedad.ciudad == perfil["ciudad"],
-            Propiedad.tipo == perfil["tipo"],
-            Propiedad.estado == "disponible",
+    # El total cuenta el mismo universo que se muestra: si la búsqueda es de
+    # Dosquebradas, decir "tengo 8 en total" contando Pereira haría creer que el
+    # bot esconde inmuebles que en realidad son de otro municipio.
+    de_la_plaza = list(
+        db.scalars(
+            select(Propiedad).where(
+                Propiedad.ciudad == perfil["ciudad"],
+                Propiedad.tipo == perfil["tipo"],
+                Propiedad.estado == "disponible",
+            )
         )
-    ) or 0
+    )
+    total = len(_del_municipio(de_la_plaza, perfil))
     return len(buscar(db, perfil, limite=total or 1)), total
 
 

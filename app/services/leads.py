@@ -118,6 +118,7 @@ def historial(prospecto: Prospecto) -> list[dict]:
 def perfil(prospecto: Prospecto) -> dict:
     return {
         "ciudad": prospecto.ciudad,
+        "municipio": prospecto.municipio,
         "zona": prospecto.zona,
         "tipo": prospecto.tipo,
         "presupuesto_min": prospecto.presupuesto_min,
@@ -130,7 +131,7 @@ def perfil(prospecto: Prospecto) -> dict:
 def aplicar_analisis(db: Session, prospecto: Prospecto, analisis: Analisis) -> Prospecto:
     """Vuelca slots y score del clasificador sobre el prospecto (RF-05/06)."""
     for campo in (
-        "ciudad", "zona", "tipo", "presupuesto_min", "presupuesto_max",
+        "ciudad", "municipio", "zona", "tipo", "presupuesto_min", "presupuesto_max",
         "habitaciones", "plazo_compra",
     ):
         valor = analisis.slots.get(campo)
@@ -259,6 +260,21 @@ def solicitar_handoff(
             detalle=f"canales={','.join(canales)}",
         )
     return solicitud
+
+
+def tiene_solicitud_pendiente(db: Session, prospecto: Prospecto) -> bool:
+    """¿Ya hay un handoff en la cola del operador para este titular?
+
+    El LLM sigue marcando `pide_visita` en los turnos siguientes porque la
+    petición está en el historial. Sin esta comprobación, cada mensaje posterior
+    crea otra solicitud y otro aviso al asesor: el mismo comprador aparece
+    cuatro veces en la cola y el asesor deja de mirar los avisos.
+    """
+    return db.scalar(
+        select(Solicitud.id)
+        .where(Solicitud.prospecto_id == prospecto.id, Solicitud.estado == "pendiente")
+        .limit(1)
+    ) is not None
 
 
 def atender_solicitud(db: Session, solicitud: Solicitud, actor: str) -> Solicitud:

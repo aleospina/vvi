@@ -43,6 +43,15 @@ def _limpiar_bd_temporal() -> None:
 
 atexit.register(_limpiar_bd_temporal)
 os.environ["TELEGRAM_BOT_TOKEN"] = ""
+# El canal de WhatsApp se configura por completo en los tests que lo usan. Sin
+# neutralizarlo aquí, los tests heredan el .env del desarrollador: una lista
+# blanca real (EVOLUTION_NUMEROS_PRUEBA con un número de verdad) filtra los
+# números ficticios y once tests fallan por una causa que no está en el código.
+os.environ["EVOLUTION_URL"] = ""
+os.environ["EVOLUTION_API_KEY"] = ""
+os.environ["EVOLUTION_WEBHOOK_TOKEN"] = ""
+os.environ["EVOLUTION_WEBHOOK_BASE"] = ""
+os.environ["EVOLUTION_NUMEROS_PRUEBA"] = ""
 os.environ["MOONSHOT_API_KEY"] = ""
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["LLM_PROVIDER"] = "reglas"

@@ -73,6 +73,9 @@ CAMPANAS_SEMILLA = [
 #: toca tablas existentes, y el MVP no usa Alembic (ADR-04: SQLite y sin
 #: dependencias extra), así que las agregamos aquí de forma idempotente.
 COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
+    "prospectos": [
+        ("municipio", "VARCHAR(64)"),
+    ],
     "propiedades": [
         ("fuente", "VARCHAR(40) DEFAULT 'manual'"),
         ("externo_id", "VARCHAR(120)"),

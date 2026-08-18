@@ -287,6 +287,164 @@ class TestConversacionCompleta:
         assert prospecto_consentido.estado == "visita"
         assert len(prospecto_consentido.solicitudes) == 1
 
+    def test_el_handoff_no_pregunta_y_confirma_a_la_vez(self, db, prospecto_consentido):
+        """RF-12: pedir asesor cierra el turno; no puede quedar una pregunta abierta.
+
+        Ocurrió en producción: el bot preguntó "¿me confirmas tu nombre y un
+        número de contacto?" y en el mismo segundo respondió "ya le pasé tus
+        datos a un asesor". El comprador no sabía si contestar o esperar.
+        """
+        r = gateway.procesar(db, prospecto_consentido, "Asesor")
+        db.commit()
+
+        assert r.handoff is True
+        assert len(r.textos) == 1, f"el handoff debe hablar solo: {r.textos}"
+        assert "asesor" in r.textos[0].lower()
+        assert "?" not in r.textos[0], "no se le puede pedir nada más al comprador"
+
+    def test_el_handoff_convive_con_los_inmuebles(self, db, prospecto_consentido):
+        """Mostrar opciones y pasar al asesor no se contradice: solo preguntar sí."""
+        gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira hasta 420 millones")
+        r = gateway.procesar(db, prospecto_consentido, "Quiero agendar una visita")
+        db.commit()
+
+        assert r.handoff is True
+        assert r.matches, "debe seguir mostrando la cartera emparejada"
+        assert any("asesor" in t.lower() for t in r.textos)
+
+    def test_con_ciudad_y_tipo_lista_todo_numerado_y_separado(self, db, prospecto_consentido):
+        """Una pregunta concreta merece el inventario completo, no una terna.
+
+        Recortar a tres cuando el comprador pide "apartamentos en Medellín"
+        hacía parecer que la cartera estaba casi vacía.
+        """
+        from app.models import Propiedad
+        from app.services.portfolio import municipio_de
+
+        # Por municipio, no por ciudad: un apartamento en Bello no es de Medellín.
+        hay = sum(
+            1
+            for p in db.query(Propiedad).filter(
+                Propiedad.ciudad == "Medellín", Propiedad.tipo == "apartamento"
+            )
+            if municipio_de(p) == "Medellín"
+        )
+
+        r = gateway.procesar(db, prospecto_consentido, "Apartamentos en Medellín")
+        db.commit()
+
+        assert len(r.matches) == hay, f"debe listar los {hay} que hay, no {len(r.matches)}"
+        texto = r.textos[0]
+        assert texto.startswith("Tengo "), texto[:60]
+        assert "apartamentos" in texto and "Medellín" in texto
+
+        # Numeración con punto y cada inmueble en su propio bloque.
+        for i in range(1, len(r.matches) + 1):
+            assert f"\n{i}. *" in f"\n{texto}", f"falta el ítem {i}"
+        assert "\n\n1. *" in f"\n\n{texto}", "los ítems van separados por línea en blanco"
+        assert ") *" not in texto, "la numeración vieja con paréntesis no debe volver"
+
+    def test_el_municipio_acota_la_busqueda(self, db, prospecto_consentido):
+        """Pereira y Dosquebradas son municipios distintos para el comprador.
+
+        `ciudad` los mete en el mismo saco porque es la plaza de cobertura, pero
+        quien pide Dosquebradas no quiere ver Pereira, ni al revés.
+        """
+        from app.models import Propiedad
+        from app.services.portfolio import municipio_de
+
+        db.add(
+            Propiedad(
+                id="MUN-DOS-1", ciudad="Pereira", zona="Los Naranjos, Dosquebradas",
+                tipo="apartamento", habitaciones=2, banos=1, area_m2=55,
+                precio=155_000_000, estado="disponible", descripcion="En Dosquebradas",
+            )
+        )
+        db.add(
+            Propiedad(
+                id="MUN-PER-1", ciudad="Pereira", zona="Centro", tipo="apartamento",
+                habitaciones=2, banos=1, area_m2=58, precio=195_000_000,
+                estado="disponible", descripcion="En Pereira",
+            )
+        )
+        db.flush()
+
+        r = gateway.procesar(db, prospecto_consentido, "Apartamentos en Dosquebradas")
+        db.commit()
+
+        assert r.matches, "debe encontrar el de Dosquebradas"
+        assert all(municipio_de(m.propiedad) == "Dosquebradas" for m in r.matches), [
+            m.propiedad.zona for m in r.matches
+        ]
+        assert "Dosquebradas" in r.textos[0], "el encabezado nombra el municipio preguntado"
+
+    def test_cambiar_de_municipio_reemplaza_el_filtro(self, db, prospecto_consentido):
+        """El municipio del turno nuevo manda: no se acumula con el anterior."""
+        from app.services.portfolio import municipio_de
+
+        gateway.procesar(db, prospecto_consentido, "Casas en Dosquebradas")
+        r = gateway.procesar(db, prospecto_consentido, "Casas en Pereira")
+        db.commit()
+
+        assert prospecto_consentido.municipio == "Pereira"
+        if r.matches:
+            assert all(municipio_de(m.propiedad) == "Pereira" for m in r.matches)
+
+    def test_el_perfil_difuso_sigue_recibiendo_la_terna_curada(self, db, prospecto_consentido):
+        """Sin tipo definido no hay lista que valga: se curan tres con su frase."""
+        r = gateway.procesar(db, prospecto_consentido, "Busco algo en Medellín")
+        db.commit()
+
+        if r.matches:
+            assert len(r.matches) <= 3
+            assert "Con eso en mente" in r.textos[0]
+
+    def test_pedir_asesor_dos_veces_no_duplica_la_solicitud(self, db, prospecto_consentido):
+        """El asesor no puede ver al mismo comprador cuatro veces en la cola.
+
+        `pide_visita` sigue en true en los turnos siguientes porque la petición
+        queda en el historial; sin deduplicar, cada mensaje posterior creaba otra
+        solicitud y otro aviso.
+        """
+        gateway.procesar(db, prospecto_consentido, "Asesor")
+        gateway.procesar(db, prospecto_consentido, "Asesor")
+        gateway.procesar(db, prospecto_consentido, "Quiero hablar con alguien")
+        db.commit()
+
+        assert len(prospecto_consentido.solicitudes) == 1
+
+    def test_con_asesor_en_camino_el_bot_sigue_mostrando_cartera(self, db, prospecto_consentido):
+        """Regresión: tras pedir asesor, el bot dejó de responder a las búsquedas.
+
+        Se quedaba repitiendo "ya le pasé tus datos" ante cualquier pregunta, y
+        el comprador perdía el catálogo justo cuando más ganas tiene de mirarlo.
+        """
+        gateway.procesar(db, prospecto_consentido, "Asesor")
+        r = gateway.procesar(db, prospecto_consentido, "Casas en Pereira hasta 420 millones")
+        db.commit()
+
+        assert r.matches, f"debe seguir emparejando: {r.textos}"
+        assert len(prospecto_consentido.solicitudes) == 1
+
+    def test_reinsistir_recuerda_sin_crear_otra_solicitud(self, db, prospecto_consentido):
+        gateway.procesar(db, prospecto_consentido, "Asesor")
+        r = gateway.procesar(db, prospecto_consentido, "Asesor")
+        db.commit()
+
+        junto = " ".join(r.textos).lower()
+        assert "ya está con el asesor" in junto, junto
+        assert "ya le pasé tus datos" not in junto, "repetirlo sugiere una solicitud nueva"
+        assert len(prospecto_consentido.solicitudes) == 1
+
+    def test_nunca_se_le_piden_nombre_ni_telefono(self, db, prospecto_consentido):
+        """El canal ya entrega ambos: pedirlos es PII innecesaria en texto libre."""
+        for mensaje in ("Asesor", "Quiero que me llamen", "Busco casa"):
+            r = gateway.procesar(db, prospecto_consentido, mensaje)
+            junto = " ".join(r.textos).lower()
+            assert "número de contacto" not in junto, mensaje
+            assert "tu nombre" not in junto, mensaje
+        db.commit()
+
     def test_fuera_de_alcance_se_dice_con_transparencia(self, db, prospecto_consentido):
         """CU-4: no forzamos el contacto fuera de cobertura."""
         r = gateway.procesar(db, prospecto_consentido, "Busco casa en Cali de 600 millones")

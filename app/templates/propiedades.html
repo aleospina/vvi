@@ -195,7 +195,55 @@
   </ul>
 </div>
 {% else %}
-<h2>Cartera · {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}</h2>
+{# Los filtros son enlaces y no un formulario: así cada combinación tiene su
+   propia URL, se puede compartir con el asesor y el botón «atrás» funciona. #}
+{% macro url_filtro(t, m) %}/dashboard/propiedades{% if t or m %}?{% if t %}tipo={{ t | urlencode }}{% endif %}{% if t and m %}&amp;{% endif %}{% if m %}municipio={{ m | urlencode }}{% endif %}{% endif %}{% endmacro %}
+
+<div class="filtros">
+  <div class="filtro">
+    <span class="filtro-titulo">Tipo</span>
+    <a class="pastilla {{ 'activa' if not tipo_activo }}" href="{{ url_filtro('', municipio_activo) }}">
+      Todos <em>{{ conteo_tipos.values() | sum }}</em>
+    </a>
+    {% for clave, etiqueta in [('casa', 'Casas'), ('apartamento', 'Apartamentos'), ('lote', 'Lotes')] %}
+      {% if conteo_tipos.get(clave) %}
+      <a class="pastilla {{ 'activa' if tipo_activo == clave }}" href="{{ url_filtro(clave, municipio_activo) }}">
+        {{ etiqueta }} <em>{{ conteo_tipos[clave] }}</em>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div class="filtro">
+    <span class="filtro-titulo">Municipio</span>
+    <a class="pastilla {{ 'activa' if not municipio_activo }}" href="{{ url_filtro(tipo_activo, '') }}">Todos</a>
+    {% for ciudad, muni, n in municipios %}
+      <a class="pastilla {{ 'activa' if municipio_activo == muni }}" href="{{ url_filtro(tipo_activo, muni) }}"
+         title="{{ 'Cabecera' if muni == ciudad else 'Área metropolitana de ' + ciudad }}">
+        {{ muni }} <em>{{ n }}</em>
+      </a>
+    {% endfor %}
+  </div>
+</div>
+
+<h2>
+  {% if tipo_activo or municipio_activo %}
+    {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}
+    {%- if tipo_activo %} · {{ tipo_activo }}{% endif %}
+    {%- if municipio_activo %} · {{ municipio_activo }}{% endif %}
+  {% else %}
+    Cartera · {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}
+  {% endif %}
+</h2>
+
+{% if not propiedades %}
+<div class="aviso-caja">
+  <p>
+    No hay inmuebles con ese filtro. <a href="/dashboard/propiedades">Ver toda la cartera</a>.
+  </p>
+</div>
+{% endif %}
+
 <div class="inmuebles">
   {% for p in propiedades %}
     <article class="inmueble">

@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block titulo %}WhatsApp{% endblock %}
+
+{% block contenido %}
+<h1>Canal de WhatsApp</h1>
+<p class="leyenda">
+  WhatsApp entra por un gateway aparte (Evolution API) que se vincula a un número real,
+  como lo hace WhatsApp Web. Esta pantalla es donde se vincula y donde se ve si sigue vivo.
+</p>
+
+<div class="aviso-caja">
+  <h3>Número dedicado, solo inbound</h3>
+  <p>
+    Esta integración <strong>no es la API oficial de Meta</strong>: WhatsApp puede
+    restringir el número. Vincula un <strong>número dedicado</strong>, nunca el
+    corporativo, y responde solo a quien escribe primero — nada de difusión ni de primer
+    contacto. Es un puente hasta tener la cuenta de WhatsApp Business verificada
+    (<strong>ADR-02b</strong>).
+  </p>
+</div>
+
+{% if error %}
+<div class="aviso-caja"><p><strong>⚠️ {{ error }}</strong></p></div>
+{% endif %}
+
+{% if numeros_prueba %}
+<div class="aviso-caja">
+  <h3>Modo pruebas activo <span class="chip tibio">{{ numeros_prueba | length }} número(s)</span></h3>
+  <p>
+    El bot <strong>solo responde</strong> a: {% for n in numeros_prueba %}<code>{{ n }}</code>{{ ", " if not loop.last }}{% endfor %}.
+    A cualquier otro número lo ignora en silencio — no le contesta ni guarda su mensaje.
+    Es lo que hace seguro vincular un teléfono personal.
+  </p>
+  <p class="leyenda">
+    Se controla con <code>EVOLUTION_NUMEROS_PRUEBA</code> en el <code>.env</code>.
+    Vacío = responde a todo el mundo (producción).
+  </p>
+</div>
+{% elif configurado %}
+<div class="aviso-caja">
+  <h3>Sin lista de pruebas <span class="chip caido">responde a todos</span></h3>
+  <p>
+    Cualquiera que le escriba a este número recibirá el flujo del bot. Si el número
+    vinculado es personal, pon los tuyos en <code>EVOLUTION_NUMEROS_PRUEBA</code> antes
+    de seguir.
+  </p>
+</div>
+{% endif %}
+
+{% if not configurado %}
+  <div class="panel">
+    <h2>El canal no está configurado</h2>
+    <p>Faltan variables en el archivo <code>.env</code>. Genera los secretos y reinicia:</p>
+    <pre><code>python -c "import secrets; print('EVOLUTION_API_KEY=' + secrets.token_urlsafe(32))"
+python -c "import secrets; print('EVOLUTION_WEBHOOK_TOKEN=' + secrets.token_urlsafe(32))"
+
+EVOLUTION_URL="http://localhost:8080"
+EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</code></pre>
+    <p class="leyenda">
+      Después levanta el gateway:
+      <code>docker compose --env-file .env -f deploy/evolution/docker-compose.yml up -d</code>
+    </p>
+  </div>
+{% else %}
+
+<div class="panel">
+  <h2>
+    Estado
+    <span class="chip {{ 'conectado' if estado == 'open' else ('caido' if estado == 'close' else 'frio') }}" id="estado">
+      {% if estado == 'open' %}conectado
+      {% elif estado == 'connecting' %}conectando…
+      {% elif estado == 'close' %}desconectado
+      {% else %}{{ estado }}{% endif %}
+    </span>
+  </h2>
+  <table>
+    <tbody>
+      <tr><th>Instancia</th><td><code>{{ instancia }}</code></td></tr>
+      <tr><th>Evolution API</th><td><code>{{ evolution_url }}</code></td></tr>
+      <tr>
+        <th>Webhook declarado</th>
+        <td>
+          <code>{{ url_webhook }}</code>
+          <p class="leyenda">
+            Es la dirección por la que Evolution le entrega los mensajes a VVI. Si
+            Evolution corre en Docker y VVI en el host, aquí no puede decir
+            <code>localhost</code>: para el contenedor, eso es él mismo.
+          </p>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="acciones-foto">
+    <form method="post" action="/dashboard/whatsapp/vincular" style="display:inline">
+      <button type="submit">
+        {% if estado == 'open' %}Regenerar vinculación{% else %}Vincular número (QR){% endif %}
+      </button>
+    </form>
+    {% if estado == 'open' %}
+    <form method="post" action="/dashboard/whatsapp/desvincular" style="display:inline"
+          onsubmit="return confirm('Se cerrará la sesión de WhatsApp y el canal dejará de responder. ¿Seguro?')">
+      <button class="suave" type="submit">Desvincular</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+{% if qr or codigo_pareo %}
+<div class="panel">
+  <h2>Vincular el número</h2>
+  <p class="leyenda">
+    En el teléfono: <strong>WhatsApp → Ajustes → Dispositivos vinculados → Vincular un
+    dispositivo</strong>. El código vence en pocos minutos; si expira, vuelve a pulsar
+    «Vincular número».
+  </p>
+  {% if qr %}
+    <img src="{{ qr }}" alt="Código QR para vincular WhatsApp" width="280" height="280">
+  {% endif %}
+  {% if codigo_pareo %}
+    <p>O escribe este código de pareo en el teléfono: <code>{{ codigo_pareo }}</code></p>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="panel">
+  <h2>Si el canal se cae</h2>
+  <p>
+    La sesión de WhatsApp puede cerrarse sola: si desvinculan el dispositivo desde el
+    teléfono, si el número se restringe o tras una caída larga del gateway. Cuando pasa,
+    VVI avisa al asesor por Telegram y por correo — canales independientes, porque avisar
+    de que WhatsApp murió usando WhatsApp no sirve de nada.
+  </p>
+  <p class="leyenda">
+    Mientras el canal está caído, el resto del sistema sigue operando con normalidad:
+    Telegram, la landing de captación, la cartera y el CRM no dependen de él.
+  </p>
+</div>
+
+<script>
+  // Mientras el operador escanea, el estado cambia en el gateway, no en esta
+  // página. Sin este sondeo habría que recargar a mano para saber si funcionó.
+  (function () {
+    var chip = document.getElementById('estado');
+    if (!chip) return;
+    var etiquetas = {open: 'conectado', connecting: 'conectando…', close: 'desconectado'};
+    setInterval(function () {
+      fetch('/dashboard/whatsapp/estado', {credentials: 'same-origin'})
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          var previo = chip.textContent.trim();
+          chip.textContent = etiquetas[d.estado] || d.estado;
+          chip.className = 'chip ' + (d.estado === 'open' ? 'conectado' : (d.estado === 'close' ? 'caido' : 'frio'));
+          // Al conectar, recargar cambia los botones y quita el QR ya usado.
+          if (d.estado === 'open' && previo !== 'conectado') location.reload();
+        })
+        .catch(function () { /* el gateway no responde: el chip se queda como está */ });
+    }, 4000);
+  })();
+</script>
+
+{% endif %}
+{% endblock %}

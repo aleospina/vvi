@@ -153,6 +153,7 @@ class Canal(str, enum.Enum):
     """Canales de entrada. Todos inbound / opt-in (ADR-01)."""
 
     TELEGRAM = "telegram"
+    WHATSAPP = "whatsapp"        # Evolution API (ADR-02b)
     LANDING = "landing"           # formulario web con casilla de consentimiento
     META_LEAD_ADS = "meta_lead_ads"   # Instagram / Facebook (formulario opt-in)
     MERCADO_LIBRE = "mercado_libre"   # el comprador pregunta en la publicación
@@ -331,6 +332,11 @@ class Prospecto(Base):
 
     # Slots de calificación (RF-05)
     ciudad: Mapped[str | None] = mapped_column(String(64))
+    #: Municipio concreto del área metropolitana: Dosquebradas, Envigado…
+    #: `ciudad` guarda la plaza de cobertura (Medellín o Pereira) porque de ella
+    #: dependen las reglas duras; el municipio es lo que el comprador dijo y lo
+    #: que de verdad delimita su búsqueda.
+    municipio: Mapped[str | None] = mapped_column(String(64))
     zona: Mapped[str | None] = mapped_column(String(80))
     tipo: Mapped[str | None] = mapped_column(String(20))
     presupuesto_min: Mapped[int | None] = mapped_column(Integer)

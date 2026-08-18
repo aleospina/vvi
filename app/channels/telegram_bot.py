@@ -1,10 +1,10 @@
-"""Bot de Telegram: canal único del MVP (RF-01, ADR-02).
+"""Bot de Telegram: adaptador de transporte (RF-01, ADR-02).
 
-Long-polling, sin infraestructura ni verificación de negocio. El bot es una capa
-delgada: toda la lógica conversacional vive en `gateway`.
-
-Cumplimiento: los chats que aún no han autorizado el tratamiento viven solo en
-memoria (`_PENDIENTES`); nada de ellos toca la base de datos.
+Long-polling, sin infraestructura ni verificación de negocio. Este módulo es una
+capa delgada de traducción: convierte updates de Telegram en llamadas a
+`conversacion` y devuelve los textos que le entreguen. La máquina de
+consentimiento, los derechos de habeas data y el acceso a la base de datos viven
+en `conversacion`, compartidos con los demás canales.
 """
 
 from __future__ import annotations
@@ -25,26 +25,13 @@ from telegram.ext import (
 )
 
 from app.config import settings
-from app.db import sesion
-from app.llm.prompts import PLANTILLAS
-from app.models import Canal, Direccion
-from app.channels import gateway
-from app.channels.gateway import MensajeEntrante
-from app.security.crypto import enmascarar
-from app.services import leads
-from app.services.compliance import (
-    revocar_y_anonimizar,
-    tiene_consentimiento_vigente,
-)
-from app.services.nlu_engine import es_afirmativo, es_negativo
+from app.models import Canal
+from app.channels import conversacion
+from app.channels.gateway import mensaje_bienvenida
 
 log = logging.getLogger(__name__)
 
 CANAL = Canal.TELEGRAM.value
-
-#: Chats a los que ya se les envió el aviso de IA y esperan respuesta de
-#: consentimiento. Solo en memoria y solo el identificador de chat.
-_PENDIENTES: set[str] = set()
 
 TECLADO_CONSENTIMIENTO = InlineKeyboardMarkup(
     [
@@ -54,86 +41,6 @@ TECLADO_CONSENTIMIENTO = InlineKeyboardMarkup(
         ]
     ]
 )
-
-
-# ─────────────────────────── Trabajo síncrono con la BD ───────────────────────────
-
-
-def _aceptar_consentimiento(cid: str, nombre: str | None, usuario: str | None) -> list[str]:
-    with sesion() as db:
-        entrante = MensajeEntrante(
-            canal=CANAL, canal_id=cid, texto="", nombre=nombre, usuario_canal=usuario,
-            red_origen="telegram",
-        )
-        prospecto = gateway.alta_con_consentimiento(
-            db, entrante, evidencia=f"telegram:chat_id_hash · respuesta afirmativa del titular"
-        )
-        salidas = [
-            "¡Gracias! Tu autorización quedó registrada. 🔐",
-            PLANTILLAS["calificacion"],
-        ]
-        for s in salidas:
-            leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, s)
-        return salidas
-
-
-def _turno(cid: str, texto: str, nombre: str | None, usuario: str | None) -> list[str]:
-    """Un turno completo de conversación. Se ejecuta fuera del bucle asíncrono."""
-    with sesion() as db:
-        prospecto = leads.buscar_por_canal(db, CANAL, cid)
-
-        if prospecto is not None and tiene_consentimiento_vigente(prospecto):
-            return gateway.procesar(db, prospecto, texto).textos
-
-    # A partir de aquí no hay consentimiento vigente: nada se persiste.
-    if cid in _PENDIENTES:
-        if es_afirmativo(texto):
-            _PENDIENTES.discard(cid)
-            return _aceptar_consentimiento(cid, nombre, usuario)
-        if es_negativo(texto):
-            _PENDIENTES.discard(cid)
-            return [gateway.rechazo_consentimiento()]
-        return [
-            "Necesito tu autorización explícita para continuar. ¿Autorizas el "
-            "tratamiento de tus datos? Responde *Sí* o *No*."
-        ]
-
-    _PENDIENTES.add(cid)
-    return [gateway.mensaje_bienvenida()]
-
-
-def _mis_datos(cid: str) -> str:
-    """Derecho de consulta del titular (habeas data)."""
-    with sesion() as db:
-        p = leads.buscar_por_canal(db, CANAL, cid)
-        if p is None:
-            return "No tengo ningún dato tuyo almacenado. 🙌"
-        return (
-            f"*Tus datos en {settings.empresa_nombre}* (código {p.codigo})\n\n"
-            f"• Nombre: {enmascarar(p.nombre)}\n"
-            f"• Usuario: {enmascarar(p.usuario_canal)}\n"
-            f"• Teléfono: {enmascarar(p.telefono)}\n"
-            f"• Ciudad: {p.ciudad or '—'} · Tipo: {p.tipo or '—'}\n"
-            f"• Presupuesto: {gateway.pesos(p.presupuesto_max) if p.presupuesto_max else '—'}\n"
-            f"• Estado: {p.estado}\n"
-            f"• Autorización: {'vigente desde ' + p.consentimiento_ts.strftime('%d/%m/%Y') if p.consentimiento_ts else 'no otorgada'}\n\n"
-            f"Tus datos de contacto están cifrados. Política: {settings.politica_privacidad_url}\n"
-            "Para eliminarlos escribe /borrar."
-        )
-
-
-def _borrar_datos(cid: str) -> str:
-    with sesion() as db:
-        p = leads.buscar_por_canal(db, CANAL, cid)
-        if p is None:
-            return "No tengo datos tuyos que eliminar. 🙌"
-        revocar_y_anonimizar(db, p, actor=f"titular:{p.codigo}")
-        _PENDIENTES.discard(cid)
-        return (
-            "Listo: eliminé tus datos de contacto y revoqué la autorización. "
-            "Queda únicamente el registro de auditoría exigido por la ley, sin datos "
-            "que te identifiquen. Si algún día quieres volver, escribe /start."
-        )
 
 
 # ─────────────────────────── Handlers ───────────────────────────
@@ -152,8 +59,8 @@ async def _responder(update: Update, textos: list[str], teclado=None) -> None:
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cid = str(update.effective_chat.id)
-    _PENDIENTES.add(cid)
-    await _responder(update, [gateway.mensaje_bienvenida()], TECLADO_CONSENTIMIENTO)
+    conversacion.marcar_pendiente(CANAL, cid)
+    await _responder(update, [mensaje_bienvenida()], TECLADO_CONSENTIMIENTO)
 
 
 async def cmd_ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -172,29 +79,17 @@ async def cmd_ayuda(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cmd_misdatos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cid = str(update.effective_chat.id)
-    await _responder(update, [await asyncio.to_thread(_mis_datos, cid)])
+    await _responder(update, [await asyncio.to_thread(conversacion.mis_datos, CANAL, cid)])
 
 
 async def cmd_borrar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cid = str(update.effective_chat.id)
-    await _responder(update, [await asyncio.to_thread(_borrar_datos, cid)])
-
-
-def _pedir_asesor(cid: str) -> str:
-    with sesion() as db:
-        p = leads.buscar_por_canal(db, CANAL, cid)
-        if p is None or not tiene_consentimiento_vigente(p):
-            return (
-                "Para pasarte con un asesor necesito primero tu autorización. "
-                "Escribe /start y seguimos. 🙌"
-            )
-        leads.solicitar_handoff(db, p, tipo="asesor", detalle="Solicitado con /asesor")
-        return PLANTILLAS["handoff"].format(empresa=settings.empresa_nombre)
+    await _responder(update, [await asyncio.to_thread(conversacion.borrar_datos, CANAL, cid)])
 
 
 async def cmd_asesor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     cid = str(update.effective_chat.id)
-    await _responder(update, [await asyncio.to_thread(_pedir_asesor, cid)])
+    await _responder(update, [await asyncio.to_thread(conversacion.pedir_asesor, CANAL, cid)])
 
 
 async def cmd_chatid(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -228,13 +123,15 @@ async def on_consentimiento(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     usuario = update.effective_user
 
     if consulta.data == "consent:si":
-        _PENDIENTES.discard(cid)
         textos = await asyncio.to_thread(
-            _aceptar_consentimiento, cid, usuario.full_name, usuario.username
+            conversacion.aceptar_consentimiento,
+            CANAL,
+            cid,
+            nombre=usuario.full_name,
+            usuario=usuario.username,
         )
     else:
-        _PENDIENTES.discard(cid)
-        textos = [gateway.rechazo_consentimiento()]
+        textos = conversacion.rechazar_consentimiento(CANAL, cid)
 
     await _responder(update, textos)
 
@@ -249,7 +146,12 @@ async def on_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await context.bot.send_chat_action(chat_id=cid, action="typing")
     try:
         textos = await asyncio.to_thread(
-            _turno, cid, texto, usuario.full_name, usuario.username
+            conversacion.turno,
+            CANAL,
+            cid,
+            texto,
+            nombre=usuario.full_name,
+            usuario=usuario.username,
         )
     except Exception:
         log.exception("Error procesando mensaje de Telegram")
@@ -257,7 +159,7 @@ async def on_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
             "Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"
         ]
 
-    teclado = TECLADO_CONSENTIMIENTO if cid in _PENDIENTES else None
+    teclado = TECLADO_CONSENTIMIENTO if conversacion.esta_pendiente(CANAL, cid) else None
     await _responder(update, textos, teclado)
 
 

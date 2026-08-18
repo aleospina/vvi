@@ -122,3 +122,26 @@ def notificar_solicitud(solicitud: Solicitud, prospecto: Prospecto) -> list[str]
             solicitud.id,
         )
     return enviados
+
+
+def avisar_operador(asunto: str, cuerpo: str) -> list[str]:
+    """Aviso operativo al asesor, sin prospecto de por medio.
+
+    Lo usa el canal de WhatsApp cuando la sesión se cae: si ese canal muere,
+    avisar por ese mismo canal no sirve de nada, así que el aviso sale por
+    Telegram y correo, que son independientes.
+    """
+    if not settings.notificaciones_activas:
+        return []
+
+    enviados: list[str] = []
+    for canal, envio in (
+        ("telegram", lambda: _enviar_telegram(cuerpo)),
+        ("correo", lambda: _enviar_correo(asunto, cuerpo)),
+    ):
+        try:
+            if envio():
+                enviados.append(canal)
+        except Exception as exc:  # noqa: BLE001 - degradación deliberada
+            log.warning("No se pudo avisar al operador por %s: %s", canal, exc)
+    return enviados

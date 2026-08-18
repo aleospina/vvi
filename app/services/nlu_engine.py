@@ -32,6 +32,7 @@ CIUDADES = {
     "sabaneta": "Medellín",
     "itagui": "Medellín",
     "bello": "Medellín",
+    "la estrella": "Medellín",
     "poblado": "Medellín",
     "laureles": "Medellín",
     "belen": "Medellín",
@@ -40,6 +41,21 @@ CIUDADES = {
     "cerritos": "Pereira",
     "pinares": "Pereira",
     "alamos": "Pereira",
+}
+
+#: Cuáles de esas claves son un **municipio** y no un barrio. La distinción
+#: importa: "apartamentos en Pereira" no debe traer Dosquebradas, pero
+#: "apartamentos en Laureles" sí es una búsqueda dentro de Medellín y no puede
+#: acotarse a un municipio que no existe.
+MUNICIPIOS = {
+    "medellin": "Medellín",
+    "envigado": "Envigado",
+    "sabaneta": "Sabaneta",
+    "itagui": "Itagüí",
+    "bello": "Bello",
+    "la estrella": "La Estrella",
+    "pereira": "Pereira",
+    "dosquebradas": "Dosquebradas",
 }
 
 #: Ciudades que el comprador puede nombrar y que hoy NO cubrimos. Reconocerlas es
@@ -160,6 +176,13 @@ def extraer_slots(texto: str) -> dict:
     for clave, ciudad in CIUDADES.items():
         if re.search(rf"\b{clave}\b", plano):
             slots["ciudad"] = ciudad
+            # El municipio es lo que de verdad acota la búsqueda. Nombrar la
+            # cabecera ("apartamentos en Pereira") lo fija en la cabecera y así
+            # deja fuera Dosquebradas; nombrar un municipio del área lo fija en
+            # ese. Sin esto, `ciudad` los mete a todos en el mismo saco y el
+            # comprador recibe inmuebles de un municipio por el que no preguntó.
+            if clave in MUNICIPIOS:
+                slots["municipio"] = MUNICIPIOS[clave]
             if clave not in ("medellin", "pereira"):
                 slots["zona"] = clave.capitalize()
             break
@@ -233,15 +256,34 @@ def pide_sin_tope(texto: str) -> bool:
     return any(p in plano for p in SIN_TOPE)
 
 
-def es_afirmativo(texto: str) -> bool:
+def _respuesta_plana(texto: str) -> str:
+    """Normaliza una respuesta corta para compararla contra una lista cerrada.
+
+    La puntuación interna se trata como separador, no como vocabulario nuevo:
+    "Sí, autorizo" y "sí autorizo" son la misma respuesta. Importa desde que
+    WhatsApp es un canal: allí no hay botones fiables, así que el consentimiento
+    llega escrito a mano y con la coma que pone cualquiera.
+
+    Las listas siguen siendo de coincidencia exacta a propósito: la autorización
+    debe ser inequívoca, y "no sé si autorizo" no puede colarse como un sí.
+    """
     plano = normalizar(texto).strip(" .!¡¿?")
-    return plano in {"si", "si acepto", "acepto", "claro", "dale", "ok", "listo",
-                     "de acuerdo", "autorizo", "si autorizo", "sip", "yes", "s"}
+    for signo in (",", ";", ":"):
+        plano = plano.replace(signo, " ")
+    return " ".join(plano.split())
+
+
+def es_afirmativo(texto: str) -> bool:
+    return _respuesta_plana(texto) in {
+        "si", "si acepto", "acepto", "claro", "dale", "ok", "listo",
+        "de acuerdo", "autorizo", "si autorizo", "sip", "yes", "s",
+    }
 
 
 def es_negativo(texto: str) -> bool:
-    plano = normalizar(texto).strip(" .!¡¿?")
-    return plano in {"no", "no acepto", "nope", "negativo", "no autorizo", "n"}
+    return _respuesta_plana(texto) in {
+        "no", "no acepto", "nope", "negativo", "no autorizo", "n",
+    }
 
 
 # ─────────────────────────── Reglas duras ───────────────────────────

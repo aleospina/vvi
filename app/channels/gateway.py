@@ -30,6 +30,7 @@ from app.services.nlu_engine import (
     analizar,
     pide_listado_completo,
     pide_sin_tope,
+    pide_visita,
     pregunta_siguiente,
 )
 from app.services.portfolio import precio_minimo
@@ -150,10 +151,41 @@ def _nota_filtro(perfil: dict, en_rango: int, total: int) -> str:
     return nota
 
 
-def _formatear_matches(matches: list[Match]) -> str:
-    encabezado = PLANTILLAS["matches_encabezado"].format(n=len(matches))
+def _plural(tipo: str, n: int) -> str:
+    """'apartamento' → 'apartamentos'. Los tres tipos pluralizan con -s."""
+    return f"{tipo}s" if n != 1 else tipo
+
+
+def _formatear_matches(
+    matches: list[Match], *, listado: bool = False, municipio: str | None = None
+) -> str:
+    """Arma el mensaje de resultados.
+
+    Dos formas para dos intenciones distintas. La curada (tres opciones) lleva
+    la frase de venta de cada inmueble, porque el trabajo ahí es convencer. El
+    listado completo la omite: con ocho fichas, esas frases convierten el
+    mensaje en un muro y el comprador deja de leer justo cuando por fin tiene
+    todo el inventario delante.
+
+    En ambas, cada inmueble va en su propio bloque separado por una línea en
+    blanco: en un chat, un párrafo continuo con ocho direcciones no se lee.
+    """
+    if listado and matches:
+        primera = matches[0].propiedad
+        encabezado = PLANTILLAS["matches_encabezado_listado"].format(
+            n=len(matches),
+            tipos=_plural(primera.tipo, len(matches)),
+            # El municipio que preguntó, no la plaza de cobertura: a quien pide
+            # Dosquebradas, "Tengo 2 apartamentos en Pereira" le suena a error.
+            ciudad=municipio or primera.ciudad,
+        )
+        plantilla = PLANTILLAS["matches_item_listado"]
+    else:
+        encabezado = PLANTILLAS["matches_encabezado"].format(n=len(matches))
+        plantilla = PLANTILLAS["matches_item"]
+
     items = [
-        PLANTILLAS["matches_item"].format(
+        plantilla.format(
             i=i,
             zona=m.propiedad.zona,
             ciudad=m.propiedad.ciudad,
@@ -188,6 +220,34 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     listado = pide_listado_completo(texto) or pide_sin_tope(texto)
     respuesta = Respuesta(prospecto=prospecto)
 
+    # Con ciudad y tipo sobre la mesa la pregunta ya es concreta ("apartamentos
+    # en Pereira") y lo que corresponde es enseñar el inventario completo, no
+    # una terna curada ni otra pregunta. Pedir el presupuesto antes de mostrar
+    # nada es lo que hacía parecer que la cartera estaba vacía; el presupuesto
+    # se afina después, con los inmuebles ya delante.
+    perfil_actual = leads.perfil(prospecto)
+    listar_todo = listado or bool(perfil_actual.get("ciudad") and perfil_actual.get("tipo"))
+
+    # El handoff se decide ANTES de redactar el turno. Si el mensaje va a
+    # terminar con "ya le pasé tus datos al asesor", el turno no puede además
+    # pedirle nada al comprador: quedaría sin saber si debe responder o esperar.
+    #
+    # `pide_visita` sigue en true en los turnos siguientes, porque la petición
+    # está en el historial que ve el LLM. Por eso el handoff solo se dispara
+    # cuando NO hay ya una solicitud en la cola: si no, cada mensaje posterior
+    # crearía otra solicitud, otro aviso al asesor, y el comprador dejaría de
+    # recibir respuestas a lo que en realidad está preguntando.
+    handoff_en_cola = leads.tiene_solicitud_pendiente(db, prospecto)
+    puede_handoff = prospecto.estado_enum not in (
+        EstadoProspecto.VENDIDO,
+        EstadoProspecto.PERDIDO,
+    )
+    hara_handoff = analisis.pide_visita and puede_handoff and not handoff_en_cola
+    # Para el recordatorio se mira SOLO el mensaje de ahora, no el análisis
+    # acumulado: si no, el aviso se pegaría a cada respuesta durante el resto
+    # de la conversación.
+    repite_peticion = pide_visita(texto) and puede_handoff and handoff_en_cola
+
     # 1) Regla dura: fuera de cobertura, se dice con transparencia (CU-4).
     if analisis.motivo_fuera_alcance:
         respuesta.textos.append(
@@ -199,17 +259,18 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # 2) Faltan datos para emparejar: una sola pregunta. Salvo que el comprador
     #    haya pedido ver la cartera de frente y ya sepamos ciudad y tipo: ahí
     #    mostrarla y preguntar después es mejor que negarle el catálogo.
-    elif analisis.faltan_datos and not (
-        listado and analisis.slots.get("ciudad") and analisis.slots.get("tipo")
-    ):
-        respuesta.textos.append(
-            analisis.respuesta_sugerida or pregunta_siguiente(analisis.faltan_datos)
-        )
+    elif analisis.faltan_datos and not listar_todo:
+        # Callado si el turno acaba en handoff: el asesor humano preguntará lo
+        # que falte. La pregunta del bot solo compite con el cierre.
+        if not hara_handoff:
+            respuesta.textos.append(
+                analisis.respuesta_sugerida or pregunta_siguiente(analisis.faltan_datos)
+            )
 
     # 3) Emparejar contra la cartera.
     else:
-        perfil = leads.perfil(prospecto)
-        limite = matching_engine.TOPE_LISTADO if listado else matching_engine.TOPE_RESULTADOS
+        perfil = perfil_actual
+        limite = matching_engine.TOPE_LISTADO if listar_todo else matching_engine.TOPE_RESULTADOS
         matches = matching_engine.emparejar(db, prospecto, perfil, limite)
         if matches:
             leads.marcar_emparejado(db, prospecto)
@@ -217,23 +278,37 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
             en_rango, total = matching_engine.conteo(db, perfil)
             respuesta.textos.append(
                 "\n\n".join(
-                    filter(None, [_formatear_matches(matches), _nota_filtro(perfil, en_rango, total)])
+                    filter(
+                        None,
+                        [
+                            _formatear_matches(
+                                matches,
+                                listado=listar_todo,
+                                municipio=perfil.get("municipio"),
+                            ),
+                            _nota_filtro(perfil, en_rango, total),
+                        ],
+                    )
                 )
             )
         else:
             respuesta.textos.append(PLANTILLAS["sin_matches"])
 
     # 4) Handoff a humano si lo pidió (RF-12).
-    if analisis.pide_visita and prospecto.estado_enum not in (
-        EstadoProspecto.VENDIDO,
-        EstadoProspecto.PERDIDO,
-    ):
+    if hara_handoff:
         propiedad_id = respuesta.matches[0].propiedad.id if respuesta.matches else None
         leads.solicitar_handoff(
             db, prospecto, tipo="visita", propiedad_id=propiedad_id, detalle=texto[:400]
         )
         respuesta.handoff = True
         respuesta.textos.append(PLANTILLAS["handoff"].format(empresa=settings.empresa_nombre))
+
+    # Ya hay un asesor en camino: se lo recordamos una línea y seguimos
+    # atendiéndolo. Mientras espera puede seguir mirando la cartera, que es
+    # justo cuando más ganas tiene de mirarla.
+    elif repite_peticion:
+        respuesta.handoff = True
+        respuesta.textos.append(PLANTILLAS["handoff_en_cola"])
 
     for salida in respuesta.textos:
         leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, salida)

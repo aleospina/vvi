@@ -63,6 +63,62 @@ completo sin gastar un peso.
 Habla con [@BotFather](https://t.me/BotFather), crea el bot, copia el token en
 `TELEGRAM_BOT_TOKEN` y reinicia. El bot usa long-polling: no necesitas dominio ni TLS.
 
+### Activar WhatsApp (Evolution API)
+Canal de Fase 2 (**ADR-02b**). WhatsApp entra por un gateway aparte —Evolution API—
+que habla el protocolo de WhatsApp Web con Baileys y le pega a un webhook de VVI.
+
+> **Advertencia.** La integración Baileys **no es oficial**: puede provocar el baneo del
+> número. Usa un **número dedicado**, nunca el corporativo, y responde solo a quien
+> escribe primero. Es un puente hasta tener el WABA; ese día se cambia `integration` a
+> `WHATSAPP-BUSINESS` en Evolution y el código de VVI **no cambia**.
+
+```bash
+# 1. Secretos en .env
+python -c "import secrets; print('EVOLUTION_API_KEY=' + secrets.token_urlsafe(32))"
+python -c "import secrets; print('EVOLUTION_WEBHOOK_TOKEN=' + secrets.token_urlsafe(32))"
+
+# En desarrollo, además:  EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"
+# Evolution corre en Docker y VVI en el host: `localhost` desde el contenedor
+# es el propio contenedor. Es el error de configuración más común de todo esto.
+
+# 2. Levantar el gateway (Evolution + Postgres + Redis)
+docker compose --env-file .env -f deploy/evolution/docker-compose.yml up -d
+```
+
+**Modo pruebas (obligatorio si el número es personal).** Con al menos un número en
+`EVOLUTION_NUMEROS_PRUEBA`, el bot **solo responde a esos** y calla ante cualquier otro:
+ni le contesta ni guarda su mensaje. Mientras un teléfono esté vinculado, todo el que le
+escriba llega al webhook — sin esta lista, un familiar recibiría el aviso de IA y la
+solicitud de autorización.
+
+```bash
+EVOLUTION_NUMEROS_PRUEBA="573001234567,573109876543"   # indicativo incluido
+```
+
+**Vincular el número:** entra a **`/dashboard/whatsapp`** (solo operador), pulsa
+«Vincular número» y escanea el QR desde *WhatsApp → Ajustes → Dispositivos vinculados*.
+La página sondea el estado sola y se recarga al conectar. Desde ahí también se
+desvincula, y ambas acciones quedan en la bitácora de auditoría.
+
+Si el dashboard no está a mano, el mismo procedimiento por consola:
+
+```bash
+python deploy/evolution/configurar.py             # crea, apunta el webhook y saca el QR
+python deploy/evolution/configurar.py --estado    # → open | connecting | close
+curl http://127.0.0.1:8000/health                 # → "canal_whatsapp": true
+```
+
+Cuando la sesión se cae, VVI avisa al asesor **por Telegram y correo** — no por
+WhatsApp, que es justo el canal que murió.
+
+Con `EVOLUTION_URL` vacío el canal no se monta y la app arranca igual, como pasa con
+Telegram. El webhook queda en `/webhooks/whatsapp/{EVOLUTION_WEBHOOK_TOKEN}`: la ruta es
+secreta y además se verifica el `apikey` que Evolution manda en el cuerpo, porque
+Evolution no firma sus envíos con HMAC.
+
+Los tests del canal (`tests/test_whatsapp.py`) corren **sin WhatsApp conectado**: el
+webhook es un POST con JSON, así que el flujo completo se verifica con payloads reales.
+
 ### Activar el LLM
 Pon `MOONSHOT_API_KEY` (Kimi K2.6, primario) y/o `ANTHROPIC_API_KEY` (Claude, fallback).
 El orden lo controla `LLM_PROVIDER`. Si el primario falla, se usa el otro; si fallan ambos,
@@ -73,7 +129,7 @@ se degrada a reglas sin romper la conversación.
 ## Arquitectura
 
 ```
-Entrada (Telegram · landing · Lead Ads · ML · manual)
+Entrada (Telegram · WhatsApp · landing · Lead Ads · ML · manual)
         ↓
   channel_gateway ──► ¿consentimiento vigente? ──no──► aviso IA + solicitud de autorización
         │ sí

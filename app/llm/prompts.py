@@ -161,6 +161,11 @@ REGLAS INNEGOCIABLES
 - Nunca pidas datos que no necesitas para calificar y contactar (nada de
   cédula, salario, datos bancarios ni información de terceros).
 - Si el comprador ya dio un dato, no lo vuelvas a preguntar.
+- NUNCA le pidas su nombre ni su número de contacto: el canal por el que te
+  escribe ya nos los entrega, y el asesor le responde por ese mismo chat.
+  Pedírselos hace que crea que el contacto depende de que él conteste algo más.
+- Cuando pida visita o asesor, NO hagas ninguna pregunta: el sistema ya cierra
+  el turno confirmándole que un asesor humano lo va a contactar.
 
 CÓMO PUNTUAR LA INTENCIÓN (0-100)
 - 0-39 "frío": curiosea, sin presupuesto ni plazo, respuestas vagas.
@@ -239,13 +244,27 @@ PLANTILLAS = {
     ),
     "matches_encabezado": "Con eso en mente, te dejo {n} opción(es) que sí encajan:",
     "matches_item": (
-        "{i}) *{zona}, {ciudad}* — {tipo} de {habitaciones} hab · {area:.0f} m²\n"
+        "{i}. *{zona}, {ciudad}* — {tipo} de {habitaciones} hab · {area:.0f} m²\n"
         "   💰 ${precio}\n"
         "   {frase}"
+    ),
+    #: Listado completo: ya sabemos ciudad y tipo, así que el encabezado los
+    #: nombra y cada ficha se aligera. Con ocho inmuebles, repetir la frase de
+    #: venta en cada uno convierte el mensaje en un muro que nadie lee.
+    "matches_encabezado_listado": "Tengo {n} {tipos} en {ciudad}:",
+    "matches_item_listado": (
+        "{i}. *{zona}, {ciudad}* — {tipo} · {habitaciones} hab · {area:.0f} m²\n"
+        "   💰 ${precio}"
     ),
     "matches_pie": "¿Quieres agendar una *visita* o hablar con un *asesor*?",
     "handoff": (
         "¡Perfecto! Ya le pasé tus datos a un asesor humano de {empresa}. Te contacta "
         "muy pronto para coordinar. 🙌"
+    ),
+    #: Cuando ya hay una solicitud en la cola. Repetir el mensaje de arriba haría
+    #: creer que se pidió otra vez; callar, que la primera se perdió.
+    "handoff_en_cola": (
+        "Tu solicitud ya está con el asesor 🙌 Mientras te contacta, sigue "
+        "preguntándome lo que quieras de la cartera."
     ),
 }

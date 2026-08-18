@@ -1,0 +1,81 @@
+# Evolution API para desarrollo (ADR-02b).
+#
+# Levanta el gateway de WhatsApp junto a su Postgres y su Redis. La app de VVI
+# NO va aquí: corre en el host con `python run.py`, y Evolution le pega al
+# webhook a través de `host.docker.internal`.
+#
+#   docker compose --env-file .env -f deploy/evolution/docker-compose.yml up -d
+#   python deploy/evolution/configurar.py          # crea la instancia y el webhook
+#
+# ADVERTENCIA (ADR-02b): la integración Baileys no es oficial. Usar un número
+# dedicado, responder solo a quien escribe primero, y nada de envíos masivos.
+
+name: vvi-evolution
+
+services:
+  evolution:
+    image: evoapicloud/evolution-api:latest
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+    environment:
+      SERVER_URL: http://localhost:8080
+      # Debe coincidir con EVOLUTION_API_KEY del .env de VVI.
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?define EVOLUTION_API_KEY en el entorno}
+      LOG_LEVEL: ERROR,WARN,INFO
+      DEL_INSTANCE: "false"
+
+      DATABASE_ENABLED: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:evolution@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: vvi
+
+      # Minimización de datos (RF-17). Evolution guarda en SU propia base, que
+      # el cifrado y la política de retención de VVI no alcanzan. Solo se
+      # persiste lo imprescindible para que la sesión sobreviva a un reinicio:
+      # las credenciales de la instancia. Los mensajes y contactos NO.
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: vvi
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      CACHE_LOCAL_ENABLED: "false"
+
+      # Nombre con el que aparece la sesión en "Dispositivos vinculados".
+      CONFIG_SESSION_PHONE_CLIENT: VVI
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "10"
+    volumes:
+      - evolution_instances:/evolution/instances
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: evolution
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - evolution_redis:/data
+
+volumes:
+  evolution_instances:
+  evolution_pg:
+  evolution_redis:

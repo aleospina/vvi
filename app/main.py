@@ -14,7 +14,7 @@ from app import __version__
 from app.config import RAIZ, settings
 from app.db import inicializar
 from app.channels.telegram_bot import aviso_de_red, construir_app
-from app.routers import api, captacion, dashboard
+from app.routers import api, captacion, dashboard, whatsapp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -41,6 +41,9 @@ async def ciclo_vida(app: FastAPI):
             "Sin llaves de LLM: la clasificación funciona solo con reglas. "
             "Configura MOONSHOT_API_KEY o ANTHROPIC_API_KEY para la versión completa."
         )
+
+    if settings.tiene_whatsapp:
+        log.info("Canal WhatsApp activo (Evolution API en %s).", settings.evolution_url)
 
     bot = construir_app()
     app.state.bot = bot
@@ -119,6 +122,7 @@ app.mount("/static", StaticFiles(directory=str(RAIZ / "app" / "static")), name="
 app.include_router(api.router)
 app.include_router(captacion.router)
 app.include_router(dashboard.router)
+app.include_router(whatsapp.router)
 
 
 @app.get("/", include_in_schema=False)
@@ -132,6 +136,9 @@ def salud():
         "estado": "ok",
         "version": __version__,
         "canal_telegram": bool(settings.telegram_bot_token),
+        # Solo si está configurado: consultar el estado real a Evolution en
+        # cada healthcheck de la plataforma sería una llamada de red por minuto.
+        "canal_whatsapp": settings.tiene_whatsapp,
         "llm": settings.llm_provider if settings.tiene_llm else "reglas",
         "comision_pct": settings.comision_pct,
         "ciudades": list(settings.ciudades_cobertura),
