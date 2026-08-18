@@ -27,7 +27,9 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
-from app.config import settings
+from sqlalchemy import select
+
+from app.config import RAIZ, settings
 from app.models import FotoPropiedad, Propiedad
 from app.services.compliance import auditar
 
@@ -174,6 +176,30 @@ def guardar(
             entidad_id=propiedad.id, detalle=f"{len(guardadas)} imagen(es)",
         )
     return guardadas
+
+
+def diagnostico(db: Session) -> dict:
+    """Estado del almacenamiento de imágenes.
+
+    Existe porque el fallo típico del despliegue es mudo: si el directorio de
+    fotos no cae dentro del volumen, los registros sobreviven al redespliegue
+    pero los archivos no, y el inmueble aparece con el nombre y sin imagen. Sin
+    esto hay que deducirlo mirando síntomas.
+    """
+    registradas = list(db.scalars(select(FotoPropiedad)))
+    faltantes = [f.archivo for f in registradas if not (DIRECTORIO / f.archivo).exists()]
+    # Si el directorio está dentro del árbol del código, cada despliegue lo
+    # reemplaza: es efímero aunque el servicio tenga un volumen montado.
+    try:
+        efimero = DIRECTORIO.resolve().is_relative_to(RAIZ.resolve())
+    except (OSError, ValueError):
+        efimero = False
+    return {
+        "directorio": str(DIRECTORIO),
+        "efimero": efimero,
+        "registradas": len(registradas),
+        "faltantes": faltantes,
+    }
 
 
 def eliminar(db: Session, foto: FotoPropiedad, actor: str) -> None:

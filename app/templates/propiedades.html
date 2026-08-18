@@ -7,6 +7,30 @@
   El bot solo puede ofrecer inmuebles que estén aquí. Nunca inventa propiedades ni precios.
 </p>
 
+{% if almacenamiento.efimero or almacenamiento.faltantes %}
+<div class="aviso-caja error">
+  <h3>⚠️ Las fotos no están en almacenamiento persistente</h3>
+  {% if almacenamiento.efimero %}
+  <p>
+    Las imágenes se guardan en <code>{{ almacenamiento.directorio }}</code>, que está
+    <strong>dentro del árbol del código</strong>: cada despliegue lo reemplaza y las fotos
+    de los propietarios se pierden, aunque el inmueble siga en la base. Apunta la variable
+    <code>FOTOS_DIR</code> al volumen (por ejemplo <code>/data/fotos</code>) y reinicia.
+  </p>
+  {% endif %}
+  {% if almacenamiento.faltantes %}
+  <p style="margin-top:8px">
+    <strong>{{ almacenamiento.faltantes | length }} de {{ almacenamiento.registradas }}</strong>
+    imagen(es) registradas ya no tienen archivo en disco. Esos inmuebles se muestran sin
+    foto y hay que volver a subirlas.
+  </p>
+  {% endif %}
+  <p class="leyenda" style="margin-top:8px">
+    Base de datos: <code>{{ base_datos }}</code>
+  </p>
+</div>
+{% endif %}
+
 {% if pendientes %}
 <div class="panel">
   <h2 style="margin-top:0">Pendientes de validación ({{ pendientes | length }})</h2>

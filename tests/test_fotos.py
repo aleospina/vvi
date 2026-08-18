@@ -244,3 +244,27 @@ class TestReordenar:
         fotos.eliminar(db, b, actor="operador")
         db.refresh(propiedad)
         assert [f.orden for f in propiedad.fotos] == [0, 1]
+
+
+class TestDiagnostico:
+    """El fallo de despliegue es mudo: registros vivos, archivos borrados."""
+
+    def test_detecta_directorio_efimero(self, db):
+        d = fotos.diagnostico(db)
+        # En desarrollo el directorio vive dentro del árbol del código.
+        assert d["efimero"] is True
+        assert str(fotos.DIRECTORIO) == d["directorio"]
+
+    def test_directorio_fuera_del_codigo_no_es_efimero(self, db, tmp_path, monkeypatch):
+        monkeypatch.setattr(fotos, "DIRECTORIO", tmp_path / "fotos")
+        assert fotos.diagnostico(db)["efimero"] is False
+
+    def test_delata_archivos_perdidos(self, db, propiedad):
+        foto = fotos.guardar(db, propiedad, [ArchivoFalso("a.jpg", JPG)])[0]
+        assert fotos.diagnostico(db)["faltantes"] == []
+
+        # Simula el redespliegue: el registro queda, el archivo desaparece.
+        (fotos.DIRECTORIO / foto.archivo).unlink()
+        d = fotos.diagnostico(db)
+        assert d["faltantes"] == [foto.archivo]
+        assert d["registradas"] == 1

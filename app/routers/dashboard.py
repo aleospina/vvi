@@ -258,6 +258,8 @@ def cartera(request: Request, quien: Operador, db: Session = Depends(get_db)):
             propiedades=portfolio.listar(db),
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
+            almacenamiento=fotos.diagnostico(db),
+            base_datos=settings.database_url,
         ),
     )
 
