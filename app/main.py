@@ -109,6 +109,12 @@ app = FastAPI(
     lifespan=ciclo_vida,
 )
 
+# El montaje de fotos va PRIMERO: Starlette resuelve rutas en orden, y si
+# `/static` se monta antes, tapa a `/static/fotos` y las imágenes del volumen
+# darían 404. El directorio se crea al arrancar porque StaticFiles exige que
+# exista, y en un despliegue nuevo el volumen viene vacío.
+settings.ruta_fotos.mkdir(parents=True, exist_ok=True)
+app.mount("/static/fotos", StaticFiles(directory=str(settings.ruta_fotos)), name="fotos")
 app.mount("/static", StaticFiles(directory=str(RAIZ / "app" / "static")), name="static")
 app.include_router(api.router)
 app.include_router(captacion.router)

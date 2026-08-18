@@ -28,6 +28,10 @@ class Settings(BaseSettings):
 
     # Almacenamiento
     database_url: str = f"sqlite:///{(RAIZ / 'data' / 'vvi.db').as_posix()}"
+    #: Dónde se guardan las fotos de los inmuebles. Vacío = junto al código.
+    #: En un despliegue hay que apuntarlo al volumen persistente, o cada
+    #: publicación borraría las imágenes de los propietarios.
+    fotos_dir: str = ""
 
     # Canal
     telegram_bot_token: str = ""
@@ -75,6 +79,11 @@ class Settings(BaseSettings):
     @property
     def tiene_llm(self) -> bool:
         return bool(self.moonshot_api_key or self.anthropic_api_key)
+
+    @property
+    def ruta_fotos(self) -> Path:
+        """Directorio de fotos ya resuelto, con el valor por defecto aplicado."""
+        return Path(self.fotos_dir) if self.fotos_dir else RAIZ / "app" / "static" / "fotos"
 
 
 @lru_cache(maxsize=1)

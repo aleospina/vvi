@@ -187,6 +187,52 @@ leads sin opt-in y los casos de uso CU-1 a CU-4 de punta a punta.
 
 ---
 
+## Despliegue en Railway
+
+La aplicación necesita **proceso continuo y disco persistente**: el bot escucha por
+long-polling, la base es SQLite en archivo y las fotos se guardan en disco. Por eso no
+funciona en plataformas serverless (Vercel, Netlify): allí el sistema de archivos es
+efímero y no hay procesos de fondo.
+
+**1. Crear el servicio.** En Railway: *New Project → Deploy from GitHub repo* y elegir
+este repositorio. `railway.toml` ya trae el comando de arranque y el healthcheck.
+
+**2. Montar un volumen.** *Settings → Volumes*, punto de montaje `/data`. Sin esto,
+cada despliegue borra la base de datos y las fotos de los propietarios.
+
+**3. Variables de entorno.** Copiar las del `.env` local y ajustar estas:
+
+| Variable | Valor |
+|---|---|
+| `DATABASE_URL` | `sqlite:////data/vvi.db` (cuatro barras: ruta absoluta) |
+| `FOTOS_DIR` | `/data/fotos` |
+| `DASHBOARD_URL` | la URL pública que asigne Railway |
+| `DASHBOARD_PASSWORD` | una clave real, **no** la de ejemplo |
+| `FERNET_KEY`, `HMAC_KEY` | las mismas del entorno de origen |
+
+> Las llaves de cifrado son las que abren la PII ya guardada. Si se generan nuevas, los
+> datos existentes quedan ilegibles de forma irreversible. Genera un par nuevo solo si
+> empiezas con una base vacía: `python -m app.security.crypto`.
+
+**4. Una sola réplica.** SQLite sobre un volumen no admite escritores concurrentes; dos
+instancias corromperían el archivo. `railway.toml` fija `numReplicas = 1`.
+
+**5. Después del primer despliegue.** Escribirle `/chatid` al bot desde la cuenta del
+asesor y poner el número en `ASESOR_TELEGRAM_CHAT_ID`, para que lleguen los avisos de
+solicitudes.
+
+### Respaldos
+
+SQLite corre en modo WAL: `vvi.db` puede pesar unos pocos KB mientras `vvi.db-wal` tiene
+casi todos los datos. **Copiar solo el `.db` produce un respaldo vacío.** Copiar los tres
+archivos (`.db`, `-wal`, `-shm`) o ejecutar antes:
+
+```sql
+PRAGMA wal_checkpoint(TRUNCATE);
+```
+
+---
+
 ## Limitaciones conocidas (MVP de 72 h)
 
 - **Un solo canal conversacional**: Telegram. WhatsApp Cloud API queda para Fase 2 por los

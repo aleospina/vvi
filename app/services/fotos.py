@@ -27,13 +27,14 @@ from pathlib import Path
 from PIL import Image, ImageOps
 from sqlalchemy.orm import Session
 
-from app.config import RAIZ
+from app.config import settings
 from app.models import FotoPropiedad, Propiedad
 from app.services.compliance import auditar
 
 log = logging.getLogger(__name__)
 
-DIRECTORIO = RAIZ / "app" / "static" / "fotos"
+#: Configurable para poder apuntarlo al volumen persistente del despliegue.
+DIRECTORIO = settings.ruta_fotos
 
 MAX_BYTES = 6 * 1024 * 1024      # 6 MB de entrada por imagen
 MAX_POR_INMUEBLE = 12

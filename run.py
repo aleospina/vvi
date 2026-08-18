@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import argparse
+import os
 
 import uvicorn
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="VVI — Vendedor Virtual Inmobiliario")
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    # En local se escucha solo en la máquina; una plataforma de despliegue
+    # necesita 0.0.0.0 y el puerto que ella asigna en $PORT, o el enrutador
+    # nunca alcanza el proceso y el servicio queda como caído.
+    parser.add_argument("--host", default=os.getenv("HOST", "127.0.0.1"))
+    parser.add_argument("--port", type=int, default=int(os.getenv("PORT", "8000")))
     parser.add_argument("--reload", action="store_true", help="Recarga en caliente (desarrollo)")
     args = parser.parse_args()
 
