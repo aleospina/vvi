@@ -326,7 +326,16 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   object-fit:contain; border-radius:var(--radio-s);
   box-shadow:0 24px 60px rgba(0,0,0,.5);
   animation:acercar .22s cubic-bezier(.2,.7,.3,1);
+  /* Sin esto, arrastrar sobre la foto selecciona el pie o inicia el arrastre
+     nativo de imagen del navegador, y el gesto se pierde. */
+  user-select:none; -webkit-user-select:none; -webkit-user-drag:none;
+  touch-action:pan-y;              /* deja el gesto horizontal para nosotros */
 }
+
+/* El gesto se anuncia con el cursor; en táctil no se ve pero no molesta. */
+.visor{cursor:grab}
+.visor.arrastrando{cursor:grabbing}
+.visor.arrastrando img{transition:none}
 @keyframes acercar{from{transform:scale(.96); opacity:0} to{transform:none; opacity:1}}
 
 .visor button{
@@ -345,22 +354,13 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 .visor button:focus-visible{outline:3px solid var(--acento-vivo); outline-offset:2px}
 /* Reacción al toque, en lugar del recuadro gris del navegador. */
 .visor button:active{background:rgba(22,34,30,.99); transform:scale(.94)}
-.visor-nav:active{transform:translateY(-50%) scale(.94)}
 .visor-cerrar{top:16px; right:16px; width:44px; height:44px; font-size:18px}
-.visor-nav{top:50%; transform:translateY(-50%); width:52px; height:52px; font-size:32px; line-height:1}
-.visor-nav.anterior{left:16px}
-.visor-nav.siguiente{right:16px}
-/* Una sola foto: las flechas no llevan a ninguna parte y hacen parecer que el
-   visor no responde. */
-.visor.una-sola .visor-nav{display:none}
 .visor-pie{
   position:absolute; bottom:18px; left:0; right:0; margin:0; text-align:center;
   color:rgba(255,255,255,.72); font-size:12.5px; letter-spacing:.02em;
 }
 @media (max-width:600px){
-  .visor-nav{width:40px; height:40px; font-size:24px}
-  .visor-nav.anterior{left:6px}
-  .visor-nav.siguiente{right:6px}
+  .visor-cerrar{top:10px; right:10px; width:40px; height:40px}
 }
 
 input[type=file]{

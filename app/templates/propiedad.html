@@ -58,9 +58,7 @@
 
       <div class="visor" id="visor" hidden role="dialog" aria-modal="true" aria-label="Foto ampliada">
         <button type="button" class="visor-cerrar" data-accion="cerrar" aria-label="Cerrar">✕</button>
-        <button type="button" class="visor-nav anterior" data-accion="anterior" aria-label="Anterior">‹</button>
-        <img id="visor-img" src="" alt="">
-        <button type="button" class="visor-nav siguiente" data-accion="siguiente" aria-label="Siguiente">›</button>
+        <img id="visor-img" src="" alt="" draggable="false">
         <p class="visor-pie" id="visor-pie"></p>
       </div>
       <script>
@@ -85,10 +83,10 @@
             var origen = miniaturas[actual].querySelector('.ampliar');
             imagen.src = origen.dataset.grande;
             imagen.alt = origen.dataset.pie || '';
-            pie.textContent = origen.dataset.pie || '';
-            // Con una sola foto no hay a dónde ir: mostrar flechas que no hacen
-            // nada hace parecer que el visor está roto.
-            visor.classList.toggle('una-sola', miniaturas.length < 2);
+            // El pie es la única pista de que hay más fotos, ahora que no hay
+            // flechas: sin él el gesto sería invisible.
+            pie.textContent = (origen.dataset.pie || '')
+              + (miniaturas.length > 1 ? ' · arrastra o usa ← → para cambiar' : '');
             visor.hidden = false;
             document.body.style.overflow = 'hidden';                // no scrollear detrás
           }
@@ -111,10 +109,8 @@
 
           visor.addEventListener('click', function (e) {
             var accion = e.target.dataset ? e.target.dataset.accion : null;
-            if (accion === 'anterior') mostrar(actual - 1);
-            else if (accion === 'siguiente') mostrar(actual + 1);
-            else if (accion === 'cerrar') cerrar();
-            // Clic en el fondo cierra, pero no si viene de un deslizamiento que
+            if (accion === 'cerrar') cerrar();
+            // Clic en el fondo cierra, pero no si viene de un arrastre que
             // terminó fuera de la imagen: cambiar de foto no debe cerrar el visor.
             else if (e.target === visor && !deslizo) cerrar();
             deslizo = false;
@@ -127,20 +123,36 @@
             else if (e.key === 'ArrowRight') mostrar(actual + 1);
           });
 
-          // Deslizar en táctil: en un celular es el gesto natural para pasar de
-          // foto, y las flechas son objetivos pequeños con el pulgar.
+          // Arrastrar para cambiar de foto. Pointer Events cubren dedo y ratón
+          // con un solo camino, así que el mismo gesto funciona en el celular y
+          // en el portátil, donde no hay pantalla que tocar.
           var inicioX = null;
-          visor.addEventListener('touchstart', function (e) {
-            inicioX = e.changedTouches[0].clientX;
-          }, {passive: true});
-          visor.addEventListener('touchend', function (e) {
+          var UMBRAL = 45;                       // no confundir un toque con un arrastre
+
+          visor.addEventListener('pointerdown', function (e) {
+            if (e.target.dataset && e.target.dataset.accion) return;   // no en el botón cerrar
+            inicioX = e.clientX;
+            visor.classList.add('arrastrando');
+          });
+
+          function terminar(e) {
+            visor.classList.remove('arrastrando');
             if (inicioX === null) return;
-            var recorrido = e.changedTouches[0].clientX - inicioX;
+            var recorrido = e.clientX - inicioX;
             inicioX = null;
-            if (Math.abs(recorrido) < 45) return;      // umbral: no confundir con un toque
-            deslizo = true;                            // que el clic siguiente no cierre
+            if (Math.abs(recorrido) < UMBRAL) return;
+            deslizo = true;                      // que el clic siguiente no cierre
             mostrar(recorrido < 0 ? actual + 1 : actual - 1);
-          }, {passive: true});
+          }
+          visor.addEventListener('pointerup', terminar);
+          visor.addEventListener('pointercancel', function () {
+            visor.classList.remove('arrastrando');
+            inicioX = null;
+          });
+
+          // Sin esto el navegador inicia su propio arrastre de imagen y el gesto
+          // se pierde a medio camino.
+          visor.addEventListener('dragstart', function (e) { e.preventDefault(); });
         })();
       </script>
 
