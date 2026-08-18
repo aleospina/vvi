@@ -28,11 +28,17 @@ import base64
 import hashlib
 import hmac
 import logging
+import secrets
 import time
 
+from app.config import settings
 from app.security.crypto import _cargar_hmac
 
 log = logging.getLogger(__name__)
+
+#: Roles del panel. `operador` modifica; `invitado` solo mira y comenta.
+OPERADOR = "operador"
+INVITADO = "invitado"
 
 COOKIE = "vvi_sesion"
 #: Ocho horas: una jornada del operador sin volver a autenticarse.
@@ -66,6 +72,38 @@ def crear_token(usuario: str, duracion: int = DURACION_SEGUNDOS) -> str:
     expira = int(time.time()) + duracion
     carga = f"{_b64(usuario)}.{expira}"
     return f"{carga}.{_firmar(carga.encode('ascii'))}"
+
+
+def rol_de(usuario: str) -> str | None:
+    """Rol del usuario, o None si ya no corresponde a ninguna cuenta.
+
+    Se deriva en cada petición en vez de guardarse en la cookie: así, si se
+    cambia o deshabilita una cuenta en la configuración, las sesiones abiertas
+    pierden el acceso de inmediato en lugar de sobrevivir hasta vencer.
+    """
+    if not usuario:
+        return None
+    if secrets.compare_digest(usuario, settings.dashboard_user):
+        return OPERADOR
+    # Sin contraseña configurada, la cuenta de invitado no existe.
+    if settings.invitado_password and secrets.compare_digest(usuario, settings.invitado_user):
+        return INVITADO
+    return None
+
+
+def credenciales_validas(usuario: str, clave: str) -> str | None:
+    """Devuelve el rol si el par usuario/clave es correcto; si no, None."""
+    if secrets.compare_digest(usuario, settings.dashboard_user) and secrets.compare_digest(
+        clave, settings.dashboard_password
+    ):
+        return OPERADOR
+    if (
+        settings.invitado_password
+        and secrets.compare_digest(usuario, settings.invitado_user)
+        and secrets.compare_digest(clave, settings.invitado_password)
+    ):
+        return INVITADO
+    return None
 
 
 def validar_token(token: str | None) -> str | None:

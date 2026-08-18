@@ -27,6 +27,7 @@ from app.models import (
     EstadoProspecto,
     FotoPropiedad,
     FuentePropiedad,
+    ComentarioPropiedad,
     LogAuditoria,
     Propiedad,
     Prospecto,
@@ -36,9 +37,18 @@ from app.models import (
 )
 from app.channels.gateway import pesos
 from app.security.crypto import enmascarar, indice_ciego
-from app.security.sesion import COOKIE, DURACION_SEGUNDOS, crear_token, validar_token
+from app.security.sesion import (
+    COOKIE,
+    DURACION_SEGUNDOS,
+    INVITADO,
+    OPERADOR,
+    credenciales_validas,
+    crear_token,
+    rol_de,
+    validar_token,
+)
 from app.services import commission, fotos, ingesta, leads, portfolio, prospecting
-from app.services.compliance import verificar_cadena
+from app.services.compliance import auditar, verificar_cadena
 
 log = logging.getLogger(__name__)
 
@@ -48,31 +58,49 @@ plantillas.env.filters["pesos"] = pesos
 plantillas.env.filters["enmascarar"] = enmascarar
 
 
-def credenciales_validas(usuario: str, clave: str) -> bool:
-    """compare_digest en ambos campos: no revela cuál de los dos falló."""
-    return secrets.compare_digest(usuario, settings.dashboard_user) and secrets.compare_digest(
-        clave, settings.dashboard_password
-    )
-
-
-def operador(request: Request) -> str:
-    """Exige sesión vigente. Sin ella, manda al formulario de ingreso.
+def _sesion(request: Request) -> tuple[str, str]:
+    """(usuario, rol) de la sesión vigente. Sin ella, al formulario de ingreso.
 
     Se responde con una redirección y no con 401 a propósito: un 401 haría que
     el navegador abriera su propio diálogo de credenciales, que es justo el
     comportamiento sin cierre de sesión del que venimos.
     """
     usuario = validar_token(request.cookies.get(COOKIE))
-    if usuario is None:
+    rol = rol_de(usuario) if usuario else None
+    if usuario is None or rol is None:
         raise HTTPException(
             status.HTTP_303_SEE_OTHER,
             "Sesión no iniciada",
             headers={"Location": "/dashboard/login"},
         )
+    return usuario, rol
+
+
+def cualquiera(request: Request) -> str:
+    """Solo exige sesión. Vale para operador e invitado: vistas y comentarios."""
+    return _sesion(request)[0]
+
+
+def operador(request: Request) -> str:
+    """Exige rol de operador. Es la barrera de todo lo que modifica datos.
+
+    Vive en una dependencia y no en comprobaciones dispersas para que añadir una
+    ruta de escritura sin protegerla sea un olvido visible: si no pide `Operador`,
+    no compila la intención.
+    """
+    usuario, rol = _sesion(request)
+    if rol != OPERADOR:
+        log.warning("El invitado %r intentó una acción de escritura", usuario[:40])
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Tu cuenta es de solo lectura: puedes consultar la cartera y comentar, "
+            "pero no modificar inmuebles ni fotos.",
+        )
     return usuario
 
 
 Operador = Annotated[str, Depends(operador)]
+Cualquiera = Annotated[str, Depends(cualquiera)]
 
 
 def _prospecto(db: Session, codigo: str) -> Prospecto:
@@ -83,9 +111,14 @@ def _prospecto(db: Session, codigo: str) -> Prospecto:
 
 
 def _base(request: Request, quien: str, **extra) -> dict:
+    rol = rol_de(quien)
     return {
         "request": request,
         "operador": quien,
+        "rol": rol,
+        # Las plantillas deciden qué mostrar con esto. La barrera real está en
+        # las dependencias del router: ocultar un botón no protege una ruta.
+        "puede_editar": rol == OPERADOR,
         "empresa": settings.empresa_nombre,
         "comision_pct": settings.comision_pct,
         **extra,
@@ -111,7 +144,8 @@ def login_envio(
     usuario: str = Form(...),
     clave: str = Form(...),
 ):
-    if not credenciales_validas(usuario, clave):
+    rol = credenciales_validas(usuario, clave)
+    if rol is None:
         log.warning("Intento de ingreso fallido al dashboard con usuario %r", usuario[:40])
         return plantillas.TemplateResponse(
             request,
@@ -125,7 +159,9 @@ def login_envio(
             status_code=401,
         )
 
-    respuesta = RedirectResponse("/dashboard", status_code=303)
+    # El invitado no alcanza el tablero de prospectos: entra por la cartera.
+    destino = "/dashboard" if rol == OPERADOR else "/dashboard/propiedades"
+    respuesta = RedirectResponse(destino, status_code=303)
     respuesta.set_cookie(
         COOKIE,
         crear_token(usuario),
@@ -248,7 +284,7 @@ def atender(solicitud_id: int, quien: Operador, db: Session = Depends(get_db)):
 
 
 @router.get("/propiedades", response_class=HTMLResponse)
-def cartera(request: Request, quien: Operador, db: Session = Depends(get_db)):
+def cartera(request: Request, quien: Cualquiera, db: Session = Depends(get_db)):
     return plantillas.TemplateResponse(
         request,
         "propiedades.html",
@@ -327,9 +363,9 @@ def importar_aviso(
 
 @router.get("/propiedades/{propiedad_id}", response_class=HTMLResponse)
 def ficha_propiedad(
-    propiedad_id: str, request: Request, quien: Operador, db: Session = Depends(get_db)
+    propiedad_id: str, request: Request, quien: Cualquiera, db: Session = Depends(get_db)
 ):
-    """Ficha editable. Es donde el operador corrige lo que el LLM dedujo mal."""
+    """Ficha del inmueble. Es donde el operador corrige lo que el LLM dedujo mal."""
     return plantillas.TemplateResponse(
         request,
         "propiedad.html",
@@ -341,6 +377,48 @@ def ficha_propiedad(
             ciudades=settings.ciudades_cobertura,
         ),
     )
+
+
+@router.post("/propiedades/{propiedad_id}/comentarios")
+def comentar_propiedad(
+    propiedad_id: str,
+    request: Request,
+    quien: Cualquiera,
+    texto: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Añade un comentario al hilo. Es lo único que el invitado puede escribir."""
+    propiedad = _propiedad(db, propiedad_id)
+    contenido = texto.strip()
+    if not contenido:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El comentario está vacío.")
+
+    propiedad.comentarios.append(
+        ComentarioPropiedad(autor=quien, rol=rol_de(quien) or INVITADO, texto=contenido[:2000])
+    )
+    db.flush()
+    auditar(
+        db, actor=quien, accion="comentario_agregado", entidad="propiedad",
+        entidad_id=propiedad_id, detalle=contenido[:120],
+    )
+    return RedirectResponse(f"/dashboard/propiedades/{propiedad_id}#comentarios", status_code=303)
+
+
+@router.post("/propiedades/{propiedad_id}/comentarios/{comentario_id}/eliminar")
+def eliminar_comentario(
+    propiedad_id: str, comentario_id: int, quien: Operador, db: Session = Depends(get_db)
+):
+    """Solo el operador borra comentarios: moderar es una acción de escritura."""
+    comentario = db.get(ComentarioPropiedad, comentario_id)
+    if comentario is None or comentario.propiedad_id != propiedad_id:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Comentario no encontrado")
+    db.delete(comentario)
+    db.flush()
+    auditar(
+        db, actor=quien, accion="comentario_eliminado", entidad="propiedad",
+        entidad_id=propiedad_id, detalle=f"de {comentario.autor}",
+    )
+    return RedirectResponse(f"/dashboard/propiedades/{propiedad_id}#comentarios", status_code=303)
 
 
 @router.post("/propiedades/{propiedad_id}/editar")

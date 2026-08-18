@@ -18,16 +18,22 @@
     <span class="sub">Vendedor Virtual Inmobiliario</span>
   </div>
   {% set ruta = request.url.path %}
+  {# El invitado solo ve Cartera: las demás pantallas exponen conversaciones y
+     datos de contacto de titulares reales. #}
   <nav>
+    {% if puede_editar %}
     <a href="/dashboard" class="{{ 'activo' if ruta == '/dashboard' }}">Prospectos</a>
+    {% endif %}
     <a href="/dashboard/propiedades" class="{{ 'activo' if ruta.startswith('/dashboard/propiedades') }}">Cartera</a>
+    {% if puede_editar %}
     <a href="/dashboard/captacion" class="{{ 'activo' if ruta.startswith('/dashboard/captacion') }}">Captación</a>
     <a href="/dashboard/auditoria" class="{{ 'activo' if ruta.startswith('/dashboard/auditoria') }}">Auditoría</a>
     <a href="/docs">API</a>
+    {% endif %}
   </nav>
   <div class="quien">
     {% if operador %}
-      <span>{{ operador }}</span>
+      <span>{{ operador }}{% if not puede_editar %} <span class="chip frio">solo lectura</span>{% endif %}</span>
       <form method="post" action="/dashboard/logout" style="display:inline">
         <button class="suave" type="submit">Cerrar sesión</button>
       </form>

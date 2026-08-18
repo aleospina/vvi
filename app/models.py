@@ -218,6 +218,11 @@ class Propiedad(Base):
         cascade="all, delete-orphan",
         order_by="FotoPropiedad.orden, FotoPropiedad.id",
     )
+    comentarios: Mapped[list["ComentarioPropiedad"]] = relationship(
+        back_populates="propiedad",
+        cascade="all, delete-orphan",
+        order_by="ComentarioPropiedad.creado_en",
+    )
 
     @property
     def es_referencia(self) -> bool:
@@ -263,6 +268,36 @@ class FotoPropiedad(Base):
         """Versión liviana, para tarjetas y galería. Convención de nombre."""
         base = self.archivo.rsplit(".", 1)[0]
         return f"/static/fotos/{base}-min.jpg"
+
+
+class ComentarioPropiedad(Base):
+    """Hilo de comentarios sobre un inmueble.
+
+    Es la vía por la que una cuenta de solo lectura puede aportar sin tocar la
+    cartera: pregunta o señala algo, y un operador responde en el mismo hilo.
+    El texto lo escribe personal del negocio, no un titular, así que no es PII
+    de un tercero y no va cifrado.
+    """
+
+    __tablename__ = "comentarios_propiedad"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    propiedad_id: Mapped[str] = mapped_column(
+        ForeignKey("propiedades.id", ondelete="CASCADE"), index=True
+    )
+    autor: Mapped[str] = mapped_column(String(80))
+    #: Rol del autor al escribir. Se guarda en el momento porque un usuario puede
+    #: cambiar de rol después, y el hilo debe leerse como ocurrió.
+    rol: Mapped[str] = mapped_column(String(20), default="invitado")
+    texto: Mapped[str] = mapped_column(Text)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora)
+
+    propiedad: Mapped[Propiedad] = relationship(back_populates="comentarios")
+
+    @property
+    def es_respuesta(self) -> bool:
+        """Los comentarios del operador son las respuestas del hilo."""
+        return self.rol == "operador"
 
 
 class Prospecto(Base):

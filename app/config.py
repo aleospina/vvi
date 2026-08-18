@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Dashboard
     dashboard_user: str = "operador"
     dashboard_password: str = "cambia-esta-clave"
+    #: Cuenta de solo lectura: ve la cartera y comenta, no modifica nada. No
+    #: alcanza prospectos ni auditoría, que contienen datos personales.
+    #: Con la contraseña vacía, la cuenta queda deshabilitada.
+    invitado_user: str = "invitado"
+    invitado_password: str = ""
     #: URL pública del dashboard, para los enlaces que van en las notificaciones.
     dashboard_url: str = "http://127.0.0.1:8000"
 

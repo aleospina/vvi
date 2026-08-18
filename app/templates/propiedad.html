@@ -40,17 +40,20 @@
                  data-pie="Foto {{ loop.index }} de {{ p.fotos | length }} · {{ p.id }}">
             {% if loop.first %}<span class="insignia viva">portada</span>{% endif %}
             <div class="acciones-foto">
+              {% if not puede_editar %}<span></span>{% endif %}
               <button type="button" class="ampliar" data-grande="{{ f.url }}"
                       data-pie="Foto {{ loop.index }} de {{ p.fotos | length }} · {{ p.id }}"
                       title="Ver en tamaño real" aria-label="Ampliar foto {{ loop.index }}">⤢</button>
-              {% if not loop.first %}
+              {% if puede_editar and not loop.first %}
               <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos/{{ f.id }}/portada">
                 <button title="Hacer portada">★</button>
               </form>
               {% endif %}
+              {% if puede_editar %}
               <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos/{{ f.id }}/eliminar">
                 <button class="peligro" title="Eliminar esta foto">✕</button>
               </form>
+              {% endif %}
             </div>
           </figure>
         {% endfor %}
@@ -200,7 +203,7 @@
       <p class="leyenda">Sin fotos. La tarjeta muestra el marcador gris.</p>
       {% endif %}
 
-      {% if p.fotos | length < 12 %}
+      {% if puede_editar and p.fotos | length < 12 %}
       <form method="post" action="/dashboard/propiedades/{{ p.id }}/fotos"
             enctype="multipart/form-data" class="linea" style="margin-top:14px">
         <div style="flex:1 1 260px">
@@ -212,6 +215,7 @@
       {% endif %}
     </div>
 
+    {% if puede_editar %}
     <div class="panel">
       <h2 style="margin-top:0">Editar datos</h2>
       <p class="leyenda">
@@ -279,9 +283,56 @@
         <button style="margin-top:16px">Guardar cambios</button>
       </form>
     </div>
+    {% endif %}
+
+    <div class="panel" id="comentarios">
+      <h2 style="margin-top:0">
+        Comentarios
+        <span class="leyenda" style="font:inherit; font-weight:400">· {{ p.comentarios | length }}</span>
+      </h2>
+      <p class="leyenda">
+        {% if puede_editar %}
+          Preguntas y observaciones sobre este inmueble. Responde aquí mismo.
+        {% else %}
+          Deja tu observación o pregunta sobre este inmueble y un administrador te responde.
+        {% endif %}
+      </p>
+
+      {% if p.comentarios %}
+      <div class="hilo">
+        {% for c in p.comentarios %}
+          <article class="comentario {{ 'respuesta' if c.es_respuesta else '' }}">
+            <header>
+              <strong>{{ c.autor }}</strong>
+              <span class="chip {{ 'tibio' if c.es_respuesta else 'frio' }}">{{ c.rol }}</span>
+              <time>{{ c.creado_en.strftime('%d/%m/%Y %H:%M') }}</time>
+              {% if puede_editar %}
+              <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios/{{ c.id }}/eliminar">
+                <button class="suave" title="Eliminar comentario">✕</button>
+              </form>
+              {% endif %}
+            </header>
+            <p>{{ c.texto }}</p>
+          </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="leyenda">Todavía no hay comentarios.</p>
+      {% endif %}
+
+      <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios" style="margin-top:14px">
+        <div class="campo" style="margin-bottom:10px">
+          <label for="texto">{{ 'Responder' if puede_editar else 'Tu comentario' }}</label>
+          <textarea name="texto" id="texto" rows="3" required maxlength="2000" style="width:100%"
+                    placeholder="Ej.: ¿el precio incluye parqueadero? La foto 3 parece de otro inmueble."></textarea>
+        </div>
+        <button>Publicar comentario</button>
+      </form>
+    </div>
   </div>
 
   <div>
+    {% if puede_editar %}
     <div class="panel">
       <h2 style="margin-top:0">Procedencia</h2>
       <p class="leyenda">
@@ -300,7 +351,9 @@
         <em>Evidencia:</em> {{ p.mandato_evidencia or '—' }}
       </p>
     </div>
+    {% endif %}
 
+    {% if puede_editar %}
     <div class="panel">
       <h2 style="margin-top:0">Estado</h2>
       <p class="leyenda">
@@ -332,6 +385,7 @@
         {% endif %}
       </div>
     </div>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

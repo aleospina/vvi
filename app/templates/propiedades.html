@@ -7,7 +7,7 @@
   El bot solo puede ofrecer inmuebles que estén aquí. Nunca inventa propiedades ni precios.
 </p>
 
-{% if almacenamiento.efimero or almacenamiento.faltantes %}
+{% if puede_editar and (almacenamiento.efimero or almacenamiento.faltantes) %}
 <div class="aviso-caja error">
   <h3>⚠️ Las fotos no están en almacenamiento persistente</h3>
   {% if almacenamiento.efimero %}
@@ -31,7 +31,7 @@
 </div>
 {% endif %}
 
-{% if pendientes %}
+{% if puede_editar and pendientes %}
 <div class="panel">
   <h2 style="margin-top:0">Pendientes de validación ({{ pendientes | length }})</h2>
   <p class="leyenda">
@@ -77,6 +77,7 @@
 </div>
 {% endif %}
 
+{% if puede_editar %}
 <div class="panel">
   <h2 style="margin-top:0">Importar aviso con IA</h2>
   <p class="leyenda">
@@ -137,7 +138,9 @@
   </script>
 </div>
 
-{% if referencias %}
+{% endif %}
+
+{% if puede_editar and referencias %}
 <div class="aviso-caja">
   <h3>{{ referencias | length }} inmueble{{ '' if referencias | length == 1 else 's' }} de referencia en cartera</h3>
   <p>
@@ -151,6 +154,7 @@
 </div>
 {% endif %}
 
+{% if puede_editar %}
 <div class="panel">
   <h2 style="margin-top:0">Agregar propiedad</h2>
   <form method="post" action="/dashboard/propiedades" class="linea">
@@ -172,6 +176,8 @@
     <button>Agregar</button>
   </form>
 </div>
+
+{% endif %}
 
 {% if not propiedades %}
 <div class="aviso-caja">
@@ -224,8 +230,8 @@
       {% if p.propietario %}<div class="origen">{{ p.propietario }}</div>{% endif %}
 
       <div class="pie">
-        <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">Editar</a>
-        {% if p.estado == 'disponible' %}
+        <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">{{ 'Editar' if puede_editar else 'Ver' }}</a>
+        {% if puede_editar and p.estado == 'disponible' %}
           <form method="post" action="/dashboard/propiedades/{{ p.id }}/inactivar">
             <button class="suave">Inactivar</button>
           </form>
