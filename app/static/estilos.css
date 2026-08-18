@@ -291,6 +291,48 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 }
 @media (hover:none){.acciones-foto{opacity:1}}
 
+.miniatura img.ampliar{cursor:zoom-in}
+
+/* ─────────────────────────── Visor de fotos ─────────────────────────── */
+
+.visor{
+  position:fixed; inset:0; z-index:100;
+  display:flex; align-items:center; justify-content:center;
+  background:rgba(10,18,16,.92);
+  padding:clamp(12px, 4vw, 48px);
+  animation:aparecer .18s ease;
+}
+.visor[hidden]{display:none}
+@keyframes aparecer{from{opacity:0} to{opacity:1}}
+
+.visor img{
+  max-width:100%; max-height:88vh;
+  object-fit:contain; border-radius:var(--radio-s);
+  box-shadow:0 24px 60px rgba(0,0,0,.5);
+  animation:acercar .22s cubic-bezier(.2,.7,.3,1);
+}
+@keyframes acercar{from{transform:scale(.96); opacity:0} to{transform:none; opacity:1}}
+
+.visor button{
+  position:absolute; background:rgba(255,255,255,.13); color:#fff;
+  border-radius:50%; display:grid; place-items:center; padding:0;
+  backdrop-filter:blur(6px); box-shadow:none;
+}
+.visor button:hover{background:rgba(255,255,255,.26)}
+.visor-cerrar{top:16px; right:16px; width:42px; height:42px; font-size:17px}
+.visor-nav{top:50%; transform:translateY(-50%); width:48px; height:48px; font-size:30px; line-height:1}
+.visor-nav.anterior{left:14px}
+.visor-nav.siguiente{right:14px}
+.visor-pie{
+  position:absolute; bottom:18px; left:0; right:0; margin:0; text-align:center;
+  color:rgba(255,255,255,.72); font-size:12.5px; letter-spacing:.02em;
+}
+@media (max-width:600px){
+  .visor-nav{width:40px; height:40px; font-size:24px}
+  .visor-nav.anterior{left:6px}
+  .visor-nav.siguiente{right:6px}
+}
+
 input[type=file]{
   padding:9px 12px; background:#fbfaf7; border-style:dashed; cursor:pointer;
   font-size:13px;
@@ -404,9 +446,15 @@ button.peligro:hover{background:#9d4325}
 
 dl.ficha{display:grid; grid-template-columns:auto 1fr; gap:9px 16px; margin:0; font-size:14px}
 dl.ficha dt{color:var(--tinta-2); font-size:12.5px; font-weight:600}
-dl.ficha dd{margin:0}
+dl.ficha dd{margin:0; min-width:0}
 
-code{font-family:var(--mono); font-size:12.5px; background:#f2efe9; padding:1px 6px; border-radius:4px}
+code{
+  font-family:var(--mono); font-size:12.5px; background:#f2efe9;
+  padding:1px 6px; border-radius:4px;
+  /* Las URL de los webhooks no tienen espacios donde cortar, así que sin esto
+     se salen de la tarjeta en móvil en vez de seguir hacia abajo. */
+  overflow-wrap:anywhere; word-break:break-word;
+}
 code.hash{font-size:11px; color:var(--tinta-3); background:none; padding:0}
 
 footer{
@@ -447,4 +495,8 @@ footer .aviso{color:var(--tinta-3)}
   h1{font-size:25px}
   table{display:block; overflow-x:auto; white-space:nowrap}
   .inmuebles{grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
+  /* En una columna angosta, la rejilla etiqueta/valor deja al valor sin ancho
+     útil. Apilados, la URL dispone de todo el ancho de la tarjeta. */
+  dl.ficha{grid-template-columns:1fr; gap:3px}
+  dl.ficha dd{margin-bottom:10px}
 }
