@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
-from app.models import Canal, Direccion, EstadoProspecto, Prospecto
+from app.models import Canal, Direccion, Prospecto
 from app.services import leads, matching_engine
 from app.services.compliance import (
     aviso_ia,
@@ -307,16 +307,21 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # cuando NO hay ya una solicitud en la cola: si no, cada mensaje posterior
     # crearía otra solicitud, otro aviso al asesor, y el comprador dejaría de
     # recibir respuestas a lo que en realidad está preguntando.
+    #
+    # Un estado terminal no cancela la petición. Antes, un lead en `vendido` o
+    # `perdido` que pedía visita no disparaba nada: el turno se iba al bloque 3
+    # y le repetía el catálogo, así que el comprador quedaba pidiendo un asesor
+    # que nadie iba a llamar. La máquina de estados no necesitaba esa guardia
+    # —`solicitar_handoff` ya decide por su cuenta si el estado puede moverse, y
+    # desde un terminal no lo mueve—, y quien vuelve después de cerrada la
+    # ficha, comprador o lead dado por perdido, es justo a quien más conviene
+    # pasarle un humano.
     handoff_en_cola = leads.tiene_solicitud_pendiente(db, prospecto)
-    puede_handoff = prospecto.estado_enum not in (
-        EstadoProspecto.VENDIDO,
-        EstadoProspecto.PERDIDO,
-    )
-    hara_handoff = analisis.pide_visita and puede_handoff and not handoff_en_cola
+    hara_handoff = analisis.pide_visita and not handoff_en_cola
     # Para el recordatorio se mira SOLO el mensaje de ahora, no el análisis
     # acumulado: si no, el aviso se pegaría a cada respuesta durante el resto
     # de la conversación.
-    repite_peticion = pide_visita(texto) and puede_handoff and handoff_en_cola
+    repite_peticion = pide_visita(texto) and handoff_en_cola
 
     # Contestar "visita" o "asesor" a la pregunta del pie —"¿Quieres agendar una
     # *visita* o hablar con un *asesor*?"— no es una búsqueda nueva: es la

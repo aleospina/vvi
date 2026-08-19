@@ -422,6 +422,31 @@ class TestConversacionCompleta:
         assert not r.matches, "el tipo ya estaba en el perfil: no cambia la búsqueda"
         assert len(r.textos) == 1, f"el handoff debe hablar solo: {r.textos}"
 
+    @pytest.mark.parametrize("terminal", ["vendido", "perdido"])
+    def test_un_lead_cerrado_que_pide_visita_llega_al_asesor(
+        self, db, prospecto_consentido, terminal
+    ):
+        """Un estado terminal no puede tragarse la petición en silencio.
+
+        Encontrado en la base de producción: el lead tenía una venta registrada
+        en pruebas, así que quedó en `vendido`. Desde ahí, cada "quiero agendar
+        una visita al lote" volvía a listar los cinco lotes de Pereira y no
+        creaba solicitud ninguna: el comprador pedía un asesor que nadie iba a
+        llamar. Quien vuelve después de cerrada la ficha es justo a quien más
+        conviene pasarle un humano.
+        """
+        gateway.procesar(db, prospecto_consentido, "Busco lote en Pereira hasta 700 millones")
+        prospecto_consentido.estado = terminal
+        db.flush()
+
+        r = gateway.procesar(db, prospecto_consentido, "quiero agendar una visita al lote")
+        db.commit()
+
+        assert r.handoff is True, "la petición no puede desaparecer"
+        assert not r.matches, "y tampoco puede contestarse repitiendo el catálogo"
+        assert len(prospecto_consentido.solicitudes) == 1
+        assert prospecto_consentido.estado == terminal, "el estado terminal no se mueve"
+
     def test_el_handoff_convive_con_los_inmuebles(self, db, prospecto_consentido):
         """Mostrar opciones y pasar al asesor no se contradice: solo preguntar sí.
 
