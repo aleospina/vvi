@@ -414,6 +414,21 @@ class TestVista:
         assert 'data-conectado="1"' in r.text, "conectado, el botón debe pedir confirmación"
         assert "desvincula el teléfono" in r.text, "hay que advertir lo que cuesta"
 
+    def test_el_boton_de_vincular_es_visible(self, panel, monkeypatch):
+        """El botón estuvo invisible en escritorio desde que existe la pantalla.
+
+        Iba envuelto en `acciones-foto`, la clase de los controles que flotan
+        sobre una miniatura de la cartera: `position:absolute` y `opacity:0`
+        hasta que hay hover sobre la miniatura. Aquí no hay ninguna, así que el
+        botón estaba en el DOM —se copiaba con el texto de la página— pero no se
+        veía ni se podía pulsar. En móvil sí salía, por `@media (hover:none)`,
+        que es lo que hacía el fallo tan difícil de creer.
+        """
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "close")
+        r = panel.get("/dashboard/whatsapp")
+        assert "acciones-foto" not in r.text, "esa clase esconde el botón fuera de una miniatura"
+        assert 'id="btn-qr"' in r.text
+
     def test_con_el_canal_caido_el_boton_no_pregunta_nada(self, panel, monkeypatch):
         """Sin sesión que perder, la confirmación solo sería un clic de más."""
         monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "close")

@@ -91,7 +91,13 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
     </tbody>
   </table>
 
-  <div class="acciones-foto">
+  {# `fila`, y no la clase de los controles que flotan sobre una miniatura de la
+     cartera: esa vive en position:absolute con opacity:0 hasta que hay hover
+     sobre la miniatura. Aquí no existe ninguna, así que el botón quedaba
+     invisible e impulsable en escritorio y solo aparecía en táctil, por la regla
+     @media (hover:none). El comentario va en Jinja y no en HTML para que el test
+     que vigila esto no tropiece con su propia explicación. #}
+  <div class="fila">
     <form method="post" action="/dashboard/whatsapp/vincular" style="display:inline">
       <button type="submit" id="btn-qr"
               data-conectado="{{ '1' if estado == 'open' else '' }}">Generar QR</button>
