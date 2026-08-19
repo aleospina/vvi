@@ -48,6 +48,7 @@ from app.models import (
 )
 from app.security.crypto import indice_ciego
 from app.services.compliance import auditar
+from app.services import geografia
 from app.services.nlu_engine import CIUDADES
 from app.services.portfolio import siguiente_codigo
 
@@ -118,14 +119,9 @@ def _normalizar(texto: str) -> str:
     return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn").strip()
 
 
-#: Municipios del área metropolitana que comercialmente operamos como una ciudad.
-ALIAS_CIUDAD = {
-    "medellin": "Medellín", "envigado": "Medellín", "sabaneta": "Medellín",
-    "itagui": "Medellín", "bello": "Medellín", "la estrella": "Medellín",
-    "caldas": "Medellín", "copacabana": "Medellín", "girardota": "Medellín",
-    "pereira": "Pereira", "dosquebradas": "Pereira", "la virginia": "Pereira",
-    "santa rosa de cabal": "Pereira",
-}
+# Los municipios y sus plazas viven en `app.services.geografia`, que es la
+# única lista. Antes este diccionario mapeaba municipio → plaza, y por eso un
+# inmueble de Envigado se guardaba como "Medellín": se perdía dónde estaba.
 
 #: Barrios y corregimientos con ciudad inequívoca, tomados del motor
 #: conversacional para no mantener dos listas en paralelo.
@@ -145,15 +141,13 @@ ALIAS_TIPO = {
 
 
 def normalizar_ciudad(valor: str) -> str | None:
-    """Mapea un municipio a la ciudad de cobertura, o None si está fuera."""
-    plano = _normalizar(valor)
-    if plano in ALIAS_CIUDAD:
-        return ALIAS_CIUDAD[plano]
-    # La fuente puede traer "Envigado, Antioquia" o "Medellín (Antioquia)".
-    for alias, ciudad in ALIAS_CIUDAD.items():
-        if re.search(rf"\b{re.escape(alias)}\b", plano):
-            return ciudad
-    return None
+    """Municipio canónico para `Propiedad.ciudad`, o None si no es de la región.
+
+    Devuelve el municipio y no la plaza: un inmueble de Envigado se guarda como
+    Envigado. A quién puede ofrecérsele es otra pregunta, y la responde
+    `geografia.plaza_de` en el emparejamiento.
+    """
+    return geografia.normalizar_municipio(valor)
 
 
 def ciudad_por_zona(valor: str) -> str | None:
@@ -161,8 +155,8 @@ def ciudad_por_zona(valor: str) -> str | None:
 
     Reutiliza el diccionario del motor conversacional: los barrios que nombra un
     comprador son los mismos que aparecen en un aviso, y no tiene sentido
-    mantener dos listas que se desincronizan. `ALIAS_CIUDAD` solo cubre
-    municipios; esto cubre 'Cerritos', 'Laureles', 'El Poblado'…
+    mantener dos listas que se desincronizan. `geografia` solo cubre municipios;
+    esto cubre 'Cerritos', 'Laureles', 'El Poblado'…
     """
     plano = _normalizar(valor)
     if not plano:
@@ -196,7 +190,11 @@ def validar(pub: Publicacion) -> str | None:
         return "sin mandato de comercialización"
     if not pub.mandato_evidencia.strip():
         return "mandato sin evidencia registrada"
-    if normalizar_ciudad(pub.ciudad) is None:
+    # La ingesta automática exige plaza, no solo un municipio existente: un
+    # aviso de Urrao que entra solo no se lo puede ofrecer el bot a nadie, y
+    # colarlo en la cartera lo vuelve inventario fantasma. El operador sí puede
+    # cargar a mano fuera de plaza, porque sabe lo que está haciendo.
+    if geografia.plaza_de(pub.ciudad) is None:
         return f"ciudad fuera de cobertura: {pub.ciudad or '(vacía)'}"
     if normalizar_tipo(pub.tipo) is None:
         return f"tipo de inmueble no reconocido: {pub.tipo or '(vacío)'}"

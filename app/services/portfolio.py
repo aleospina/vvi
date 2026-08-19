@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import EstadoPropiedad, FuentePropiedad, Propiedad, TipoInmueble
+from app.services.geografia import municipios_de_plaza, plaza_de
 from app.services.compliance import auditar
 
 
@@ -42,15 +43,27 @@ def obtener(db: Session, propiedad_id: str) -> Propiedad | None:
 
 
 def precio_minimo(db: Session, ciudad: str | None = None) -> int | None:
-    """Piso de precio de la cartera; alimenta la regla dura de presupuesto."""
+    """Piso de precio de la cartera; alimenta la regla dura de presupuesto.
+
+    `ciudad` puede ser una plaza ("Medellín") o un municipio suelto: si es plaza
+    se expande a los suyos, o el piso saldría de un universo más pequeño que el
+    que el emparejamiento va a ofrecer y el bot descartaría compradores que sí
+    alcanzaban algo.
+    """
     consulta = select(func.min(Propiedad.precio)).where(Propiedad.estado == "disponible")
     if ciudad:
-        consulta = consulta.where(Propiedad.ciudad == ciudad)
+        consulta = consulta.where(Propiedad.ciudad.in_(municipios_de_plaza(ciudad) or (ciudad,)))
     return db.scalar(consulta)
 
 
 def siguiente_codigo(db: Session, ciudad: str) -> str:
-    prefijo = f"PROP-{'MED' if ciudad == 'Medellín' else 'PER'}"
+    """Código correlativo por plaza, no por municipio.
+
+    Un inmueble de Sabaneta sigue siendo PROP-MED-xxx: la numeración agrupa por
+    plaza, y abrir un prefijo por municipio fragmentaría la serie en decenas de
+    contadores casi vacíos.
+    """
+    prefijo = f"PROP-{'MED' if plaza_de(ciudad) != 'Pereira' else 'PER'}"
     total = db.scalar(
         select(func.count()).select_from(Propiedad).where(Propiedad.id.like(f"{prefijo}%"))
     )
@@ -187,7 +200,10 @@ def conteo_por_municipio(db: Session, *, tipo: str | None = None) -> list[tuple[
     objetivo = plano(tipo) if tipo else ""
     conteo: dict[tuple[str, str], int] = {}
     for p in db.scalars(select(Propiedad)):
-        clave = (p.ciudad, municipio_de(p))
+        # Se agrupa por plaza y no por `ciudad`: desde que `ciudad` guarda el
+        # municipio, agrupar por ella pondría a cada municipio en su propio
+        # grupo y la fila de pestañas perdería el orden por área metropolitana.
+        clave = (plaza_de(p.ciudad) or p.ciudad, municipio_de(p))
         cuenta = not objetivo or plano(p.tipo) == objetivo
         # La clave se crea aunque el inmueble no cuente para el tipo elegido:
         # el municipio sigue siendo una opción del filtro, solo que en cero.

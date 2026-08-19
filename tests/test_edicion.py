@@ -35,6 +35,19 @@ def cli():
 _contador = itertools.count()
 
 
+def _borrar(propiedad_id: str) -> None:
+    """Saca de la base compartida el inmueble que creó un test."""
+    db = SessionLocal()
+    try:
+        db.query(Propiedad).filter(Propiedad.id == propiedad_id).delete(
+            synchronize_session=False
+        )
+        db.commit()
+    finally:
+        db.close()
+
+
+
 def _crear(fuente: str = FuentePropiedad.CAPTACION_PROPIETARIO.value, *, marca: str = "") -> str:
     """Inserta un inmueble nuevo en la base que usa la app y devuelve su id.
 
@@ -134,10 +147,10 @@ class TestValidacion:
     @pytest.mark.parametrize(
         ("campo", "valor"),
         [
-            ("ciudad", "Bogotá"),       # fuera de cobertura
-            ("tipo", "bodega"),         # tipo inexistente
-            ("precio", "500000"),       # irrisorio
-            ("precio", "90000000000"),  # absurdo
+            ("ciudad", "Bogotá"),   # fuera de Antioquia y Risaralda
+            ("tipo", "bodega"),     # tipo inexistente
+            ("precio", "0"),        # no es un precio
+            ("precio", "-5000"),    # tampoco
         ],
     )
     def test_datos_invalidos_se_rechazan(self, cli, campo, valor):
@@ -146,6 +159,32 @@ class TestValidacion:
         r = cli.post(f"/dashboard/propiedades/{pid}/editar", data={**FORM, campo: valor})
         assert r.status_code == 400
         assert _leer(pid).precio == antes  # no se guardó nada
+
+    @pytest.mark.parametrize("precio", ["500000", "90000000000", "385500000"])
+    def test_el_precio_es_el_que_ponga_el_operador(self, cli, precio):
+        """El rango razonable de la ingesta ataja a un extractor que leyó mal un
+        aviso. Aquí hay una persona con el inmueble delante: un lote de medio
+        millón o una finca de 90.000 millones son suyos, no del formulario."""
+        pid = _crear()
+        r = cli.post(f"/dashboard/propiedades/{pid}/editar", data={**FORM, "precio": precio})
+        assert r.status_code == 303
+        assert _leer(pid).precio == int(precio)
+
+    @pytest.mark.parametrize(
+        ("escrito", "guardado"),
+        [("Sabaneta", "Sabaneta"), ("itagui", "Itagüí"), ("Urrao", "Urrao"),
+         ("Santa Rosa", "Santa Rosa de Cabal"), ("Envigado, Antioquia", "Envigado")],
+    )
+    def test_se_puede_editar_a_cualquier_municipio_de_la_region(self, cli, escrito, guardado):
+        pid = _crear()
+        try:
+            r = cli.post(f"/dashboard/propiedades/{pid}/editar", data={**FORM, "ciudad": escrito})
+            assert r.status_code == 303
+            assert _leer(pid).ciudad == guardado
+        finally:
+            # Se borra: los tests comparten la base de la app y dejar un inmueble
+            # en Sabaneta rompe a quien cuenta municipios dando por hecho el suyo.
+            _borrar(pid)
 
 
 class TestProcedenciaBlindada:

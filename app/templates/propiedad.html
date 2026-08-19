@@ -234,12 +234,12 @@
       <form method="post" action="/dashboard/propiedades/{{ p.id }}/editar">
         <div class="linea">
           <div>
-            <label for="ciudad">Ciudad</label>
-            <select name="ciudad" id="ciudad" required>
-              {% for c in ciudades %}
-                <option value="{{ c }}" {% if c == p.ciudad %}selected{% endif %}>{{ c }}</option>
-              {% endfor %}
-            </select>
+            <label for="ciudad">Municipio</label>
+            <input name="ciudad" id="ciudad" list="municipios" required
+                   value="{{ p.ciudad }}" autocomplete="off" style="width:170px">
+            <datalist id="municipios">
+              {% for c in ciudades %}<option value="{{ c }}"></option>{% endfor %}
+            </datalist>
           </div>
           <div style="flex:1 1 200px">
             <label for="zona">Barrio o zona</label>
@@ -258,8 +258,10 @@
         <div class="linea" style="margin-top:12px">
           <div>
             <label for="precio">Precio (COP)</label>
+            {# Ni mínimo de 20 millones ni saltos de millón: el precio es el que
+               tenga el inmueble, y el navegador no es quién para discutirlo. #}
             <input type="number" name="precio" id="precio" value="{{ p.precio }}"
-                   required min="20000000" step="1000000">
+                   required min="1" step="1">
           </div>
           <div><label for="habitaciones">Hab.</label>
             <input type="number" name="habitaciones" id="habitaciones" value="{{ p.habitaciones }}" min="0" max="20" style="width:70px"></div>

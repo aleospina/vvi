@@ -160,8 +160,12 @@
   <h2 style="margin-top:0">Agregar propiedad</h2>
   <form method="post" action="/dashboard/propiedades" class="linea">
     <div>
-      <label for="ciudad">Ciudad</label>
-      <select name="ciudad" id="ciudad"><option>Medellín</option><option>Pereira</option></select>
+      {# Campo libre con sugerencias y no un <select>: son 139 municipios y el
+         operador escribe más rápido de lo que busca en una lista larga. La
+         validación real está en el servidor, que es la que no se puede saltar. #}
+      <label for="ciudad">Municipio</label>
+      <input name="ciudad" id="ciudad" list="municipios" required value="Medellín"
+             autocomplete="off" placeholder="Sabaneta" style="width:170px">
     </div>
     <div><label for="zona">Zona</label><input name="zona" id="zona" required placeholder="Laureles"></div>
     <div>
@@ -171,11 +175,22 @@
     <div><label for="habitaciones">Hab.</label><input type="number" name="habitaciones" id="habitaciones" value="0" min="0" style="width:70px"></div>
     <div><label for="banos">Baños</label><input type="number" name="banos" id="banos" value="0" min="0" style="width:70px"></div>
     <div><label for="area_m2">Área m²</label><input type="number" name="area_m2" id="area_m2" value="0" min="0" step="0.1" style="width:90px"></div>
-    <div><label for="precio">Precio (COP)</label><input type="number" name="precio" id="precio" required min="1" step="1000000"></div>
+    {# Sin `step`: con step=1000000 el navegador rechazaba 385.500.000 por no
+       ser múltiplo exacto, y el operador no entendía por qué no podía guardar. #}
+    <div><label for="precio">Precio (COP)</label><input type="number" name="precio" id="precio" required min="1" step="1" style="width:150px"></div>
     <div><label for="propietario">Propietario</label><input name="propietario" id="propietario"></div>
     <div style="flex:1 1 260px"><label for="descripcion">Descripción</label><input name="descripcion" id="descripcion" style="width:100%"></div>
     <button>Agregar</button>
   </form>
+  <datalist id="municipios">
+    {% for m in ciudades %}<option value="{{ m }}"></option>{% endfor %}
+  </datalist>
+  <p class="leyenda" style="margin-top:10px">
+    Cualquier municipio de Antioquia o Risaralda. El bot solo ofrece los de las dos
+    áreas metropolitanas —Valle de Aburrá y Pereira, Dosquebradas, Santa Rosa de Cabal,
+    La Virginia—; el resto se guarda y se ve aquí, pero no sale por el canal
+    conversacional. Un barrio o corregimiento (Cerritos, Laureles) va en <em>Zona</em>.
+  </p>
 </div>
 
 {% endif %}

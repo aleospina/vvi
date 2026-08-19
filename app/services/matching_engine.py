@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.llm.client import cliente
 from app.models import Emparejamiento, Propiedad, Prospecto
 from app.services.nlu_engine import normalizar
+from app.services.geografia import municipios_de_plaza
 from app.services.portfolio import como_dict, municipio_de, plano
 
 log = logging.getLogger(__name__)
@@ -70,6 +71,19 @@ def _puntuar(p: Propiedad, perfil: dict) -> float:
     return round(puntaje, 2)
 
 
+def _de_la_plaza(perfil: dict) -> tuple[str, ...]:
+    """Municipios que cuentan como la plaza que pidió el comprador.
+
+    `Propiedad.ciudad` guarda el municipio real desde que la cartera dejó de
+    forzar todo a "Medellín" o "Pereira". Comparar por igualdad escondería
+    Envigado a quien busca en Medellín, así que la plaza se expande.
+
+    Si el perfil trae un municipio suelto que no es plaza, se usa tal cual.
+    """
+    pedida = perfil.get("ciudad") or ""
+    return municipios_de_plaza(pedida) or (pedida,)
+
+
 def _del_municipio(candidatas: list[Propiedad], perfil: dict) -> list[Propiedad]:
     """Acota a un municipio concreto del área metropolitana.
 
@@ -103,7 +117,11 @@ def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Mat
     consulta = (
         select(Propiedad)
         .where(
-            Propiedad.ciudad == perfil["ciudad"],
+            # `ciudad` guarda el municipio, así que la plaza que pidió el
+            # comprador se expande a los suyos: quien dice "Medellín" tiene que
+            # ver Envigado y Sabaneta, que para él son el mismo mercado. Luego
+            # `_del_municipio` acota si nombró uno concreto.
+            Propiedad.ciudad.in_(_de_la_plaza(perfil)),
             Propiedad.tipo == perfil["tipo"],
             Propiedad.estado == "disponible",
             Propiedad.precio >= piso,
@@ -138,7 +156,7 @@ def conteo(db: Session, perfil: dict) -> tuple[int, int]:
     de_la_plaza = list(
         db.scalars(
             select(Propiedad).where(
-                Propiedad.ciudad == perfil["ciudad"],
+                Propiedad.ciudad.in_(_de_la_plaza(perfil)),
                 Propiedad.tipo == perfil["tipo"],
                 Propiedad.estado == "disponible",
             )
@@ -202,7 +220,7 @@ def contexto_cartera(db: Session, perfil: dict, limite: int = 8) -> str:
     """Resumen textual de la cartera pertinente, para anclar al LLM (RF-07)."""
     consulta = select(Propiedad).where(Propiedad.estado == "disponible")
     if perfil.get("ciudad"):
-        consulta = consulta.where(Propiedad.ciudad == perfil["ciudad"])
+        consulta = consulta.where(Propiedad.ciudad.in_(_de_la_plaza(perfil)))
     if perfil.get("tipo"):
         consulta = consulta.where(Propiedad.tipo == perfil["tipo"])
     filas = list(db.scalars(consulta.order_by(Propiedad.precio).limit(limite)))

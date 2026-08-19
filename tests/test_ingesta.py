@@ -10,7 +10,7 @@ from __future__ import annotations
 import pytest
 
 from app.models import EstadoPropiedad, FuentePropiedad, Propiedad
-from app.services import ingesta, matching_engine
+from app.services import geografia, ingesta, matching_engine
 from app.services.ingesta import MandatoAusente, Publicacion
 
 
@@ -34,10 +34,17 @@ def publicacion(**cambios) -> Publicacion:
 
 
 class TestNormalizacion:
-    def test_municipio_del_area_metropolitana_mapea_a_la_ciudad(self):
-        assert ingesta.normalizar_ciudad("Envigado") == "Medellín"
-        assert ingesta.normalizar_ciudad("dosquebradas") == "Pereira"
+    def test_el_municipio_se_guarda_como_lo_que_es(self):
+        """Ya no se aplasta contra la plaza: Envigado se guarda Envigado."""
+        assert ingesta.normalizar_ciudad("Envigado") == "Envigado"
+        assert ingesta.normalizar_ciudad("dosquebradas") == "Dosquebradas"
         assert ingesta.normalizar_ciudad("Medellín, Antioquia") == "Medellín"
+
+    def test_la_plaza_sigue_agrupando_el_area_metropolitana(self):
+        """Lo que se perdía al aplastar, ahora lo responde `plaza_de`."""
+        assert geografia.plaza_de("Envigado") == "Medellín"
+        assert geografia.plaza_de("dosquebradas") == "Pereira"
+        assert geografia.plaza_de("Urrao") is None, "fuera del área: el bot no lo ofrece"
 
     def test_ciudad_fuera_de_cobertura_no_mapea(self):
         assert ingesta.normalizar_ciudad("Bogotá") is None
@@ -100,7 +107,7 @@ class TestValidacion:
 class TestIngesta:
     def test_ingerir_normaliza_y_queda_pendiente(self, db):
         p = ingesta.ingerir_una(db, publicacion())
-        assert p.ciudad == "Medellín"      # Envigado se mapeó
+        assert p.ciudad == "Envigado"      # se guarda el municipio, no la plaza
         assert p.tipo == "apartamento"     # "apto" se normalizó
         assert p.estado == EstadoPropiedad.PENDIENTE.value
         assert p.mandato is True

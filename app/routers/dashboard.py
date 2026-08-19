@@ -51,7 +51,9 @@ from app.security.sesion import (
     rol_de,
     validar_token,
 )
-from app.services import commission, fotos, ingesta, leads, portfolio, prospecting
+from app.services import (
+    commission, fotos, geografia, ingesta, leads, portfolio, prospecting,
+)
 from app.services.compliance import auditar, verificar_cadena
 
 log = logging.getLogger(__name__)
@@ -326,6 +328,7 @@ def cartera(
             # Con la cartera vacía no hay nada que filtrar y la vista muestra
             # el instructivo de carga en lugar de las pestañas.
             total_cartera=len(portfolio.listar(db)),
+            ciudades=geografia.MUNICIPIOS,
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
             almacenamiento=fotos.diagnostico(db),
@@ -408,7 +411,7 @@ def ficha_propiedad(
             quien,
             p=_propiedad(db, propiedad_id),
             tipos=[t.value for t in TipoInmueble],
-            ciudades=settings.ciudades_cobertura,
+            ciudades=geografia.MUNICIPIOS,
         ),
     )
 
@@ -487,16 +490,16 @@ def editar_propiedad(
     if ciudad_ok is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"'{ciudad}' está fuera de la cobertura ({' y '.join(settings.ciudades_cobertura)}).",
+            f"'{ciudad}' no es un municipio de Antioquia ni de Risaralda.",
         )
     tipo_ok = ingesta.normalizar_tipo(tipo)
     if tipo_ok is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo no reconocido: '{tipo}'.")
-    if not ingesta.PRECIO_MINIMO <= precio <= ingesta.PRECIO_MAXIMO:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"El precio {precio:,} está fuera del rango razonable.".replace(",", "."),
-        )
+    # El precio lo pone el operador tal cual: el rango razonable de la ingesta
+    # existe para atajar un extractor que leyó mal un aviso, no para discutirle
+    # a quien tiene el inmueble delante. Solo se rechaza lo que no es un precio.
+    if precio <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El precio debe ser mayor que cero.")
 
     cambios = {
         "ciudad": ciudad_ok, "zona": zona.strip()[:80], "tipo": tipo_ok,
@@ -628,10 +631,23 @@ def crear_propiedad(
     propietario: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ciudad_ok = ingesta.normalizar_ciudad(ciudad)
+    if ciudad_ok is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"'{ciudad}' no es un municipio de Antioquia ni de Risaralda.",
+        )
+    tipo_ok = ingesta.normalizar_tipo(tipo)
+    if tipo_ok is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo no reconocido: '{tipo}'.")
+    # Igual que al editar: el precio es el que diga el operador.
+    if precio <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El precio debe ser mayor que cero.")
+
     portfolio.crear(
         db,
         {
-            "ciudad": ciudad, "zona": zona, "tipo": tipo,
+            "ciudad": ciudad_ok, "zona": zona, "tipo": tipo_ok,
             "habitaciones": habitaciones, "banos": banos, "area_m2": area_m2,
             "precio": precio, "descripcion": descripcion, "propietario": propietario,
         },
