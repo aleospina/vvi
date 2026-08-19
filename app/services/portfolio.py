@@ -7,7 +7,7 @@ import unicodedata
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import EstadoPropiedad, FuentePropiedad, Propiedad
+from app.models import EstadoPropiedad, FuentePropiedad, Propiedad, TipoInmueble
 from app.services.compliance import auditar
 
 
@@ -173,30 +173,43 @@ def municipio_de(propiedad: Propiedad) -> str:
     return propiedad.ciudad
 
 
-def conteo_por_municipio(db: Session) -> list[tuple[str, str, int]]:
+def conteo_por_municipio(db: Session, *, tipo: str | None = None) -> list[tuple[str, str, int]]:
     """(ciudad, municipio, cuántos), ordenado por ciudad y luego por municipio.
 
-    Solo aparecen municipios con inventario: una pestaña que siempre da cero es
-    ruido que el operador aprende a ignorar.
+    Qué municipios aparecen lo decide la cartera completa; `tipo` solo cambia
+    el número. Un municipio sin lotes muestra «0» en lugar de desaparecer al
+    marcar «Lotes»: una opción que se esfuma deja al operador sin saber si el
+    filtro se aplicó o si esa opción nunca existió.
+
+    El filtro de municipio no se aplica aquí a propósito —cada pestaña cuenta
+    lo suyo, no lo ya filtrado—; si no, las inactivas dirían siempre cero.
     """
+    objetivo = plano(tipo) if tipo else ""
     conteo: dict[tuple[str, str], int] = {}
     for p in db.scalars(select(Propiedad)):
         clave = (p.ciudad, municipio_de(p))
-        conteo[clave] = conteo.get(clave, 0) + 1
+        cuenta = not objetivo or plano(p.tipo) == objetivo
+        # La clave se crea aunque el inmueble no cuente para el tipo elegido:
+        # el municipio sigue siendo una opción del filtro, solo que en cero.
+        conteo[clave] = conteo.get(clave, 0) + (1 if cuenta else 0)
     return sorted(
         ((ciudad, municipio, n) for (ciudad, municipio), n in conteo.items()),
         key=lambda f: (f[0], f[1] != f[0], f[1]),  # la ciudad de cabeza, luego alfabético
     )
 
 
-def conteo_por_tipo(db: Session) -> dict[str, int]:
-    """Cuántos inmuebles hay de cada tipo en toda la cartera.
+def conteo_por_tipo(db: Session, *, municipio: str | None = None) -> dict[str, int]:
+    """Cuántos inmuebles hay de cada tipo, acotado al municipio elegido.
 
-    Alimenta las pestañas del filtro del dashboard. Va sobre la cartera
-    completa a propósito: si contara solo lo filtrado, las pestañas inactivas
-    dirían cero y el filtro parecería vacío.
+    Siempre devuelve los tres tipos: uno sin inventario muestra «0» en vez de
+    perder su pestaña, por el mismo motivo que en `conteo_por_municipio`.
+
+    El filtro de tipo no se aplica aquí, también a propósito: si contara solo
+    lo ya filtrado, las pestañas inactivas dirían cero y el filtro parecería
+    vacío. Un tipo fuera del enum no tiene pestaña pero sí suma en el total,
+    que es lo que la vista usa para «Todos».
     """
-    filas = db.execute(
-        select(Propiedad.tipo, func.count()).group_by(Propiedad.tipo)
-    ).all()
-    return {tipo: n for tipo, n in filas}
+    conteo: dict[str, int] = {t.value: 0 for t in TipoInmueble}
+    for p in listar(db, municipio=municipio):
+        conteo[p.tipo] = conteo.get(p.tipo, 0) + 1
+    return conteo

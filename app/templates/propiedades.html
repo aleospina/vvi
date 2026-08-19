@@ -180,7 +180,7 @@
 
 {% endif %}
 
-{% if not propiedades %}
+{% if not total_cartera %}
 <div class="aviso-caja">
   <h3>La cartera está vacía</h3>
   <p>
@@ -206,19 +206,23 @@
       Todos <em>{{ conteo_tipos.values() | sum }}</em>
     </a>
     {% for clave, etiqueta in [('casa', 'Casas'), ('apartamento', 'Apartamentos'), ('lote', 'Lotes')] %}
-      {% if conteo_tipos.get(clave) %}
-      <a class="pastilla {{ 'activa' if tipo_activo == clave }}" href="{{ url_filtro(clave, municipio_activo) }}">
-        {{ etiqueta }} <em>{{ conteo_tipos[clave] }}</em>
+      {# Ninguna pestaña se esconde por estar en cero: que diga "Lotes 0" es
+         una respuesta; que desaparezca parece que el filtro se rompió. #}
+      <a class="pastilla {{ 'activa' if tipo_activo == clave }} {{ 'vacia' if not conteo_tipos.get(clave) }}"
+         href="{{ url_filtro(clave, municipio_activo) }}">
+        {{ etiqueta }} <em>{{ conteo_tipos.get(clave, 0) }}</em>
       </a>
-      {% endif %}
     {% endfor %}
   </div>
 
   <div class="filtro">
     <span class="filtro-titulo">Municipio</span>
-    <a class="pastilla {{ 'activa' if not municipio_activo }}" href="{{ url_filtro(tipo_activo, '') }}">Todos</a>
+    <a class="pastilla {{ 'activa' if not municipio_activo }}" href="{{ url_filtro(tipo_activo, '') }}">
+      Todos <em>{{ municipios | sum(attribute=2) }}</em>
+    </a>
     {% for ciudad, muni, n in municipios %}
-      <a class="pastilla {{ 'activa' if municipio_activo == muni }}" href="{{ url_filtro(tipo_activo, muni) }}"
+      <a class="pastilla {{ 'activa' if municipio_activo == muni }} {{ 'vacia' if not n }}"
+         href="{{ url_filtro(tipo_activo, muni) }}"
          title="{{ 'Cabecera' if muni == ciudad else 'Área metropolitana de ' + ciudad }}">
         {{ muni }} <em>{{ n }}</em>
       </a>

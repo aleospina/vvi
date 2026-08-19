@@ -444,6 +444,11 @@ tbody tr:hover{background:#fbfaf7}
   background:var(--ladrillo); border-color:var(--ladrillo); color:#fff; font-weight:600;
 }
 .pastilla.activa em{color:rgba(255,255,255,.75)}
+/* En cero sigue siendo un enlace: se apaga para no competir con lo que sí
+   tiene inventario, pero no se esconde ni se bloquea —el operador necesita
+   ver que la opción existe y que la respuesta es "ninguno". */
+.pastilla.vacia{color:var(--tinta-3); border-color:var(--linea)}
+.pastilla.vacia.activa{color:#fff}
 
 .estado{
   display:inline-block; padding:3px 10px; border-radius:var(--radio-xs);

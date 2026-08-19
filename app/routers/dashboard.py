@@ -302,7 +302,9 @@ def cartera(
     if tipo not in {t.value for t in TipoInmueble}:
         tipo = ""
 
-    municipios = portfolio.conteo_por_municipio(db)
+    # Los municipios que se ofrecen salen de la cartera completa, así que la
+    # lista —y por tanto qué valor es válido— no depende del tipo elegido.
+    municipios = portfolio.conteo_por_municipio(db, tipo=tipo or None)
     municipio = municipio.strip()
     if municipio and municipio not in {m for _, m, _ in municipios}:
         municipio = ""
@@ -317,10 +319,13 @@ def cartera(
             tipo_activo=tipo,
             municipio_activo=municipio,
             municipios=municipios,
-            # El conteo por tipo va sobre la cartera completa, no sobre lo
-            # filtrado: si dijera "0" en las pestañas que no están activas, el
-            # filtro parecería no tener nada detrás.
-            conteo_tipos=portfolio.conteo_por_tipo(db),
+            # Cada fila de pestañas se cuenta con el filtro de la *otra*
+            # aplicado: "Lotes 0" en Envigado es información, mientras que
+            # contar lo ya filtrado dejaría todas las inactivas en cero.
+            conteo_tipos=portfolio.conteo_por_tipo(db, municipio=municipio or None),
+            # Con la cartera vacía no hay nada que filtrar y la vista muestra
+            # el instructivo de carga en lugar de las pestañas.
+            total_cartera=len(portfolio.listar(db)),
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
             almacenamiento=fotos.diagnostico(db),

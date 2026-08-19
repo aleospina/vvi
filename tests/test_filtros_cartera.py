@@ -103,6 +103,39 @@ class TestConteo:
         assert filas[0][1] == "Pereira"
 
 
+class TestConteoCruzado:
+    """Cada fila de pestañas cuenta con el filtro de la *otra* aplicado.
+
+    Lo que se protege es que una opción nunca desaparezca por quedar en cero:
+    una pestaña que se esfuma deja al operador sin saber si el filtro se aplicó
+    o si esa opción no existía, y sin forma de volver salvo editando la URL.
+    """
+
+    def test_los_municipios_no_desaparecen_al_filtrar_por_tipo(self, cartera):
+        todos = {m for _, m, _ in portfolio.conteo_por_municipio(cartera)}
+        for tipo in ("casa", "apartamento", "lote"):
+            munis = {m for _, m, _ in portfolio.conteo_por_municipio(cartera, tipo=tipo)}
+            assert munis == todos, f"{tipo} se llevó municipios de la lista"
+
+    def test_el_municipio_sin_ese_tipo_queda_en_cero(self, cartera):
+        """Envigado tiene apartamento pero no lote: la pestaña dice 0, no se va."""
+        por_muni = {m: n for _, m, n in portfolio.conteo_por_municipio(cartera, tipo="lote")}
+        assert por_muni["Dosquebradas"] == 1      # FIL-02
+        assert por_muni["Envigado"] == 0
+
+    def test_el_conteo_por_tipo_siempre_trae_los_tres(self, cartera):
+        conteo = portfolio.conteo_por_tipo(cartera, municipio="Dosquebradas")
+        assert {"casa", "apartamento", "lote"} <= set(conteo)
+        assert conteo["casa"] == 0, "el tipo sin inventario conserva su pestaña"
+
+    def test_las_dos_filas_cuadran(self, cartera):
+        """Sumar los municipios del tipo activo tiene que dar el mismo total
+        que su pestaña en la fila de arriba; si no, uno de los dos miente."""
+        for tipo in ("casa", "apartamento", "lote"):
+            suma = sum(n for _, _, n in portfolio.conteo_por_municipio(cartera, tipo=tipo))
+            assert suma == portfolio.conteo_por_tipo(cartera)[tipo], tipo
+
+
 class TestVista:
     @pytest.fixture()
     def panel(self):
@@ -133,6 +166,22 @@ class TestVista:
         r = panel.get("/dashboard/propiedades?tipo=castillo&municipio=Narnia")
         assert r.status_code == 200
         assert "FIL-01" in r.text
+
+    def test_los_filtros_sobreviven_a_un_filtro_sin_resultados(self, panel, cartera):
+        """Regresión: la página decidía mostrar los filtros mirando la lista ya
+        filtrada, así que una combinación válida sin resultados los borraba y
+        además anunciaba «La cartera está vacía», que era falso."""
+        vacio = next(m for _, m, n in portfolio.conteo_por_municipio(cartera, tipo="lote")
+                     if n == 0)
+        r = panel.get(f"/dashboard/propiedades?tipo=lote&municipio={vacio}")
+        assert r.status_code == 200
+        assert 'class="filtros"' in r.text, "sin filtros no hay forma de volver"
+        assert "No hay inmuebles con ese filtro" in r.text
+        assert "La cartera está vacía" not in r.text
+
+    def test_el_instructivo_de_carga_solo_sale_con_la_cartera_vacia(self, panel, cartera):
+        r = panel.get("/dashboard/propiedades?tipo=lote")
+        assert "La cartera está vacía" not in r.text
 
     def test_el_invitado_tambien_puede_filtrar(self, panel, cartera, monkeypatch):
         """La cartera es lo único que el invitado ve; filtrarla no modifica nada."""
