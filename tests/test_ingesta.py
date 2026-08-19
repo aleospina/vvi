@@ -104,6 +104,43 @@ class TestValidacion:
         assert resultado.descartadas[0][0] == "malo"
 
 
+class TestFormularioDelPropietario:
+    """Quién escribió el dato decide con qué vara se mide.
+
+    El dueño en /publicar llena campo por campo con el inmueble delante. El
+    extractor de avisos usa la misma fuente pero lee de un texto, y ahí sí hay
+    que atajar la cuota de administración tomada por precio.
+    """
+
+    def test_el_dueno_puede_estar_fuera_del_area_metropolitana(self):
+        pub = publicacion(ciudad="Urrao", de_formulario=True)
+        assert ingesta.validar(pub) is None
+
+    @pytest.mark.parametrize("precio", [1_000_000, 385_500_000, 90_000_000_000])
+    def test_el_dueno_pone_el_precio_que_quiera(self, precio):
+        assert ingesta.validar(publicacion(precio=precio, de_formulario=True)) is None
+
+    def test_pero_cero_no_es_un_precio(self):
+        assert ingesta.validar(publicacion(precio=0, de_formulario=True))
+
+    def test_ni_se_acepta_fuera_de_la_region(self):
+        assert ingesta.validar(publicacion(ciudad="Bogotá", de_formulario=True))
+
+    @pytest.mark.parametrize("cambios", [{"ciudad": "Urrao"}, {"precio": 500_000}])
+    def test_lo_que_no_llenó_una_persona_sigue_acotado(self, cambios):
+        """Un raspador o el extractor con IA se equivocan en silencio."""
+        assert ingesta.validar(publicacion(**cambios)) is not None
+
+    def test_solo_el_formulario_pone_la_marca(self):
+        """No se hereda de la fuente: `publicacion_desde_texto` la comparte."""
+        pub = ingesta.publicacion_de_formulario(
+            telefono="3001234567", ciudad="Sabaneta", tipo="casa", precio=385_500_000,
+            zona="Aves María", autoriza_mandato=True,
+        )
+        assert pub.de_formulario is True
+        assert ingesta.validar(pub) is None
+
+
 class TestIngesta:
     def test_ingerir_normaliza_y_queda_pendiente(self, db):
         p = ingesta.ingerir_una(db, publicacion())

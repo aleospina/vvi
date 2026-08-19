@@ -88,6 +88,11 @@ class Publicacion:
     propietario_telefono: str | None = None
     mandato: bool = False
     mandato_evidencia: str = ""
+    #: La escribió una persona campo por campo, con el inmueble delante, y no un
+    #: raspador ni el extractor de avisos. Solo la marca `publicacion_de_formulario`.
+    #: A quien la marca no se le acota el precio ni se le exige área metropolitana:
+    #: sabe lo que registra, y lo suyo pasa por revisión antes de publicarse.
+    de_formulario: bool = False
 
 
 class FuenteIngesta(Protocol):
@@ -190,19 +195,32 @@ def validar(pub: Publicacion) -> str | None:
         return "sin mandato de comercialización"
     if not pub.mandato_evidencia.strip():
         return "mandato sin evidencia registrada"
-    # La ingesta automática exige plaza, no solo un municipio existente: un
-    # aviso de Urrao que entra solo no se lo puede ofrecer el bot a nadie, y
-    # colarlo en la cartera lo vuelve inventario fantasma. El operador sí puede
-    # cargar a mano fuera de plaza, porque sabe lo que está haciendo.
-    if geografia.plaza_de(pub.ciudad) is None:
+    # Lo que sigue se mide con dos varas, según quién escribió los datos.
+    #
+    # Un raspador, un feed o el extractor de avisos pueden equivocarse en
+    # silencio: de un aviso mal leído sale un municipio que nadie busca o la
+    # cuota de administración tomada por precio, y eso entra a la cartera sin
+    # que nadie lo mire. A ellos se les exige plaza y precio razonable.
+    #
+    # Del otro lado hay una persona llenando campos con el inmueble delante —el
+    # dueño en /publicar—: sabe dónde queda y cuánto vale, discutírselo es
+    # estorbarle, y lo suyo entra como `pendiente` y pasa por revisión humana.
+    if pub.de_formulario:
+        if normalizar_ciudad(pub.ciudad) is None:
+            return f"'{pub.ciudad or '(vacía)'}' no es un municipio de Antioquia ni de Risaralda"
+    elif geografia.plaza_de(pub.ciudad) is None:
         return f"ciudad fuera de cobertura: {pub.ciudad or '(vacía)'}"
+
     if normalizar_tipo(pub.tipo) is None:
         return f"tipo de inmueble no reconocido: {pub.tipo or '(vacío)'}"
     try:
         precio = int(pub.precio)
     except (TypeError, ValueError):
         return f"precio ilegible: {pub.precio!r}"
-    if not PRECIO_MINIMO <= precio <= PRECIO_MAXIMO:
+    if pub.de_formulario:
+        if precio <= 0:
+            return f"el precio debe ser mayor que cero: {precio}"
+    elif not PRECIO_MINIMO <= precio <= PRECIO_MAXIMO:
         return f"precio fuera de rango razonable: {precio}"
     if not pub.externo_id:
         return "falta el identificador de origen (necesario para deduplicar)"
@@ -638,4 +656,5 @@ def publicacion_de_formulario(
             f"Casilla de autorización de comercialización marcada por el "
             f"propietario en {origen} — {settings.empresa_nombre}"
         ),
+        de_formulario=True,
     )

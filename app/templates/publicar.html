@@ -52,14 +52,17 @@
 
       <div class="fila">
         <div class="campo">
-          <label for="ciudad">Ciudad</label>
-          <select name="ciudad" id="ciudad" required>
-            {% for c in ciudades %}<option value="{{ c }}">{{ c }}</option>{% endfor %}
-          </select>
+          <label for="ciudad">Municipio</label>
+          <input type="text" name="ciudad" id="ciudad" list="municipios" required
+                 autocomplete="off" placeholder="Ej.: Sabaneta">
+          <datalist id="municipios">
+            {% for m in municipios %}<option value="{{ m }}"></option>{% endfor %}
+          </datalist>
         </div>
         <div class="campo">
           <label for="zona">Barrio o zona</label>
           <input type="text" name="zona" id="zona" maxlength="80" placeholder="Ej.: Laureles">
+          <small class="leyenda">Un corregimiento como Cerritos va aquí, no arriba.</small>
         </div>
       </div>
 
@@ -74,8 +77,10 @@
         </div>
         <div class="campo">
           <label for="precio">Precio de venta (COP)</label>
-          <input type="number" name="precio" id="precio" required min="20000000"
-                 step="1000000" placeholder="350000000">
+          {# Sin mínimo ni saltos de millón: el dueño sabe cuánto vale su
+             inmueble, y 385.500.000 no es un error que haya que corregirle. #}
+          <input type="number" name="precio" id="precio" required min="1"
+                 step="1" placeholder="350000000">
         </div>
       </div>
 

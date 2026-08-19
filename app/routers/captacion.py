@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.config import RAIZ, settings
 from app.db import get_db
-from app.services import fotos, ingesta, prospecting
+from app.services import fotos, geografia, ingesta, prospecting
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
 
@@ -112,7 +112,11 @@ def _contexto_publicar(**extra) -> dict:
         "empresa": settings.empresa_nombre,
         "politica": settings.politica_privacidad_url,
         "texto_consentimiento": texto_consentimiento(),
+        # `ciudades` es el titular —"Publica tu inmueble en Medellín o Pereira"—
+        # y son las dos plazas. `municipios` es dónde puede estar el inmueble de
+        # verdad: la región entera, igual que en la cartera del operador.
         "ciudades": settings.ciudades_cobertura,
+        "municipios": geografia.MUNICIPIOS,
         "comision_pct": settings.comision_pct,
         "enviado": False,
         **extra,
