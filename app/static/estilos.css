@@ -614,9 +614,16 @@ footer .aviso{color:var(--tinta-3)}
   table{display:block; overflow-x:auto; white-space:nowrap}
   td.linea{gap:16px; padding-right:4px}
   /* 22px de relleno a cada lado se comen un tercio del ancho útil de un
-     teléfono. Con 14px, la conversación llega casi hasta donde termina el
-     botón de la barra superior, que es el borde derecho de la página. */
+     teléfono. Con 14px queda el aire justo para el texto del panel. */
   .panel{padding:16px 14px}
+  /* La conversación sangra fuera de ese relleno: los márgenes negativos lo
+     cancelan y el chat ocupa el panel de borde a borde, a ras de donde termina
+     el botón de la barra superior. Solo se conservan 4px a la derecha para que
+     la barra de scroll no se monte sobre los globos. */
+  .chat{margin-left:-14px; margin-right:-14px; padding-left:4px; padding-right:4px}
+  /* Con más ancho disponible, el globo puede tomar más: sigue sin llegar al
+     100% para que se note de un vistazo quién escribió cada mensaje. */
+  .burbuja{max-width:88%}
   .inmuebles{grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
   /* En una columna angosta, la rejilla etiqueta/valor deja al valor sin ancho
      útil. Apilados, la URL dispone de todo el ancho de la tarjeta. */
