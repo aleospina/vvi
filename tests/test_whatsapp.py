@@ -398,6 +398,21 @@ class TestVista:
         assert "conectado" in r.text
         assert f"/webhooks/whatsapp/{TOKEN}" in r.text
 
+    def test_con_el_canal_conectado_el_boton_sigue_generando_qr(self, panel, monkeypatch):
+        """Conectado es justo cuando hace falta: para pasar el bot a otro teléfono.
+
+        Esconder el panel del QR mientras el estado era `open` dejaba el botón
+        sin nada que pintar y el JS se salía en la primera línea, porque no
+        encontraba el panel. Desde el navegador se veía como un botón muerto.
+        """
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "open")
+        r = panel.get("/dashboard/whatsapp")
+        assert r.status_code == 200
+        assert 'id="btn-qr"' in r.text, "el botón debe existir en cualquier estado"
+        assert 'id="panel-qr"' in r.text, "sin panel, el script no se engancha"
+        assert "Generar QR" in r.text
+        assert "tumba la sesión actual" in r.text, "hay que advertir lo que cuesta"
+
     def test_sin_configurar_explica_qué_falta(self, panel, monkeypatch):
         monkeypatch.setattr(settings, "evolution_url", "")
         r = panel.get("/dashboard/whatsapp")

@@ -93,9 +93,7 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
 
   <div class="acciones-foto">
     <form method="post" action="/dashboard/whatsapp/vincular" style="display:inline">
-      <button type="submit" id="btn-qr">
-        {% if estado == 'open' %}Regenerar vinculación{% else %}Generar QR para vincular{% endif %}
-      </button>
+      <button type="submit" id="btn-qr">Generar QR</button>
     </form>
     {% if estado == 'open' %}
     <form method="post" action="/dashboard/whatsapp/desvincular" style="display:inline"
@@ -106,7 +104,6 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
   </div>
 </div>
 
-{% if estado != 'open' %}
 <div class="panel" id="panel-qr"{% if not qr and not codigo_pareo %} hidden{% endif %}>
   <h2>Vincular el número</h2>
   <p class="leyenda">
@@ -121,8 +118,14 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
     O escribe este código de pareo en el teléfono: <code id="pareo-valor">{{ codigo_pareo or '' }}</code>
   </p>
   <p id="aviso-qr" class="leyenda"></p>
+  {% if estado == 'open' %}
+  <p class="leyenda">
+    Ya hay un número vinculado. Escanear un código nuevo <strong>vincula otro
+    teléfono y tumba la sesión actual</strong>: el canal deja de responder hasta que
+    el nuevo termine de conectar.
+  </p>
+  {% endif %}
 </div>
-{% endif %}
 
 <div class="panel">
   <h2>Si el canal se cae</h2>
