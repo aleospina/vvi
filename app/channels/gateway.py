@@ -255,11 +255,19 @@ SLOTS_DE_BUSQUEDA = (
 )
 
 
-def _trae_criterio_de_busqueda(texto: str) -> bool:
-    """¿Este mensaje aporta algo nuevo que buscar en la cartera?"""
+def _cambia_la_busqueda(texto: str, perfil_previo: dict) -> bool:
+    """¿Este mensaje cambia lo que la cartera va a devolver?
+
+    Se compara contra el perfil con el que entró el turno, no contra el vacío:
+    nombrar lo que ya estaba puesto no es una búsqueda nueva. Nadie contesta
+    "visita" a secas —contesta "visita al lote", "quiero ver el apartamento"—,
+    y leer ese "lote" como si acabara de pedir lotes es exactamente lo que hace
+    que le vuelva el mismo listado que ya tiene arriba.
+    """
     if pide_listado_completo(texto) or pide_sin_tope(texto):
         return True
-    return any(c in extraer_slots(texto) for c in SLOTS_DE_BUSQUEDA)
+    slots = extraer_slots(texto)
+    return any(c in slots and slots[c] != perfil_previo.get(c) for c in SLOTS_DE_BUSQUEDA)
 
 
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
@@ -315,12 +323,12 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # respuesta a lo que el bot acaba de preguntar. Volverle a mandar los mismos
     # apartamentos o lotes que ya tiene arriba hace parecer que el bot no
     # entendió, y entierra la confirmación, que es lo único que importa en ese
-    # turno. Si el mensaje sí trae criterios ("quiero visitar los lotes de
-    # Pereira"), la cartera vuelve a salir: ahí sí preguntó por algo.
+    # turno. Si el mensaje sí mueve la búsqueda ("mejor quiero ver los de
+    # Medellín"), la cartera vuelve a salir: ahí sí preguntó por algo.
     solo_handoff = (
         (hara_handoff or repite_peticion)
         and pide_visita(texto)
-        and not _trae_criterio_de_busqueda(texto)
+        and not _cambia_la_busqueda(texto, perfil_previo)
     )
 
     if solo_handoff:

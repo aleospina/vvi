@@ -403,20 +403,39 @@ class TestConversacionCompleta:
         solicitud = prospecto_consentido.solicitudes[0]
         assert solicitud.propiedad_id, "la solicitud debe apuntar a lo que ya vio"
 
+    def test_nombrar_lo_que_ya_busca_no_es_una_busqueda_nueva(self, db, prospecto_consentido):
+        """Nadie contesta "visita" a secas: contesta "visita al apartamento".
+
+        Reportado en Telegram con el arreglo anterior ya puesto. La regla miraba
+        si el mensaje mencionaba un tipo o una ciudad, no si eso cambiaba algo:
+        el "apartamento" que el comprador nombra para señalar lo que quiere ver
+        —y que lleva tres turnos en su perfil— se leía como una consulta nueva y
+        le devolvía el mismo listado.
+        """
+        gateway.procesar(
+            db, prospecto_consentido, "Busco apartamento en Medellín hasta 500 millones"
+        )
+        r = gateway.procesar(db, prospecto_consentido, "quiero agendar una visita al apartamento")
+        db.commit()
+
+        assert r.handoff is True
+        assert not r.matches, "el tipo ya estaba en el perfil: no cambia la búsqueda"
+        assert len(r.textos) == 1, f"el handoff debe hablar solo: {r.textos}"
+
     def test_el_handoff_convive_con_los_inmuebles(self, db, prospecto_consentido):
         """Mostrar opciones y pasar al asesor no se contradice: solo preguntar sí.
 
-        Cuando el mensaje sí trae criterios nuevos, la cartera vuelve a salir:
-        ahí el comprador preguntó por algo, no solo contestó el pie.
+        Cuando el mensaje sí mueve la búsqueda, la cartera vuelve a salir: ahí
+        el comprador preguntó por algo, no solo contestó el pie.
         """
         gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira hasta 420 millones")
         r = gateway.procesar(
-            db, prospecto_consentido, "Quiero visitar las casas de Pereira"
+            db, prospecto_consentido, "Quiero visitar los apartamentos de Medellín"
         )
         db.commit()
 
         assert r.handoff is True
-        assert r.matches, "debe seguir mostrando la cartera emparejada"
+        assert r.matches, "cambió ciudad y tipo: hay cartera nueva que mostrar"
         assert any("asesor" in t.lower() for t in r.textos)
 
     def test_con_ciudad_y_tipo_lista_todo_numerado_y_separado(self, db, prospecto_consentido):
