@@ -48,6 +48,73 @@
   {% block contenido %}{% endblock %}
 </main>
 
+<script>
+  // Comportamiento de la barra superior. Todo es progresivo: si este script no
+  // corre, la barra sigue siendo la de siempre —sección marcada con fondo,
+  // altura fija— y no se pierde ninguna función.
+  (function () {
+    var barra = document.querySelector('.barra');
+    if (!barra) return;
+
+    // 1) Compactar al bajar. El umbral son 12px y no 0 para que el temblor de
+    //    scroll de los móviles no haga parpadear la barra al llegar arriba.
+    var compacta = false;
+    function alScroll() {
+      var debe = window.scrollY > 12;
+      if (debe === compacta) return;      // sin cambio no se toca el DOM
+      compacta = debe;
+      barra.classList.toggle('compacta', debe);
+    }
+    window.addEventListener('scroll', alScroll, { passive: true });
+    alScroll();
+
+    // 2) Indicador viajero bajo la sección activa.
+    var nav = barra.querySelector('nav');
+    if (!nav) return;
+    var enlaces = nav.querySelectorAll('a');
+    if (!enlaces.length) return;
+
+    var indicador = document.createElement('span');
+    indicador.className = 'indicador';
+    nav.appendChild(indicador);
+    var activo = nav.querySelector('a.activo');
+
+    // `animado:false` coloca sin recorrido: al cargar la página y al cambiar el
+    // ancho, el indicador debe aparecer ya en su sitio, no viajando hasta él.
+    function colocar(destino, animado) {
+      if (!destino) { indicador.style.opacity = '0'; return; }
+      if (!animado) indicador.style.transition = 'none';
+      indicador.style.opacity = '1';
+      indicador.style.width = destino.offsetWidth + 'px';
+      indicador.style.transform = 'translateX(' + destino.offsetLeft + 'px)';
+      if (!animado) {
+        void indicador.offsetWidth;       // fuerza el reflujo antes de devolver la transición
+        indicador.style.transition = '';
+      }
+    }
+
+    function seguir(evento) { colocar(evento.currentTarget, true); }
+    function volver() { colocar(activo, true); }
+
+    for (var i = 0; i < enlaces.length; i++) {
+      // `focus` incluye al teclado: quien tabula ve el mismo recorrido que
+      // quien usa el ratón, no un salto sin explicación.
+      enlaces[i].addEventListener('mouseenter', seguir);
+      enlaces[i].addEventListener('focus', seguir);
+    }
+    nav.addEventListener('mouseleave', volver);
+    nav.addEventListener('focusout', volver);
+
+    colocar(activo, false);
+    // El ancho de los enlaces cambia con la tipografía y con el reflujo de la
+    // barra en móvil; sin esto el indicador se queda bajo la sección vecina.
+    window.addEventListener('resize', function () { colocar(activo, false); });
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function () { colocar(activo, false); });
+    }
+  })();
+</script>
+
 <footer>
   <p>
     {{ empresa }} · Comisión configurada: {{ '%.1f' % (comision_pct * 100) }}% ·

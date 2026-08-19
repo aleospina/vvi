@@ -65,7 +65,15 @@ body{
 a{color:var(--acento); text-decoration:none}
 a:hover{text-decoration:underline}
 
-/* ─────────────────────────── Barra superior ─────────────────────────── */
+/* ─────────────────────────── Barra superior ───────────────────────────
+   La barra es lo primero que aparece al entrar y lo único que acompaña al
+   operador en todas las pantallas, así que se comporta como un objeto y no
+   como un encabezado impreso: entra al cargar, se compacta al bajar y el
+   indicador de sección viaja en vez de saltar.
+
+   Todo el movimiento es `transform` y `opacity` —las dos propiedades que el
+   navegador anima sin recalcular la maqueta— y todo queda anulado por la
+   regla de `prefers-reduced-motion` del final del archivo. */
 
 .barra{
   display:flex; align-items:center; gap:32px;
@@ -74,7 +82,29 @@ a:hover{text-decoration:underline}
   color:#fff;
   position:sticky; top:0; z-index:50;
   box-shadow:0 1px 0 rgba(255,255,255,.06), var(--sombra-2);
+  transition:min-height .3s cubic-bezier(.2,.7,.3,1), box-shadow .3s ease,
+             background-color .3s ease;
+  animation:asentar .5s cubic-bezier(.2,.7,.3,1);
 }
+@keyframes asentar{from{opacity:0; transform:translateY(-8px)} to{opacity:1; transform:none}}
+
+/* Al bajar, la barra cede altura y se vuelve translúcida: el contenido pasa
+   por debajo en vez de chocar contra una placa opaca, y el operador conserva
+   la referencia de dónde está. Solo donde el desenfoque existe de verdad;
+   sin él, una barra semitransparente sobre papel claro pierde el contraste
+   del texto blanco. */
+.barra.compacta{
+  min-height:52px;
+  box-shadow:0 1px 0 rgba(255,255,255,.09), var(--sombra-3);
+}
+@supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
+  .barra.compacta{
+    background:rgba(14,26,23,.86);
+    -webkit-backdrop-filter:blur(12px) saturate(150%);
+    backdrop-filter:blur(12px) saturate(150%);
+  }
+}
+
 .marca{display:flex; align-items:baseline; gap:11px}
 .logo{
   font:700 21px/1 var(--display);
@@ -84,6 +114,28 @@ a:hover{text-decoration:underline}
   -webkit-text-fill-color:transparent;
 }
 .sub{font-size:11.5px; color:#7f948d; letter-spacing:.02em}
+
+/* El logo lleva un reflejo que barre el degradado al pasar por encima. Es la
+   única floritura decorativa de la barra y va donde no estorba: la marca no
+   es un control, nadie pierde una acción por mirarla. */
+.barra .logo{
+  background:linear-gradient(103deg, #fff 22%, var(--acento-vivo) 52%, #fff 86%);
+  background-size:260% 100%; background-position:0 0;
+  -webkit-background-clip:text; background-clip:text;
+  transition:background-position .7s cubic-bezier(.3,.6,.3,1);
+}
+/* El subtítulo se pliega con la barra compacta: a esa altura la sigla basta
+   para identificar el producto y las secciones ganan el aire. */
+.barra .sub{
+  max-width:240px; white-space:nowrap; overflow:hidden;
+  transition:max-width .3s cubic-bezier(.2,.7,.3,1), opacity .22s ease;
+}
+.barra.compacta .sub{max-width:0; opacity:0}
+
+@media (hover:hover){
+  .barra .marca:hover .logo{background-position:100% 0}
+}
+
 /* El degradado del logo se calibró para la barra oscura; sobre papel se apaga.
    Esta variante lo devuelve a tinta sólida en las páginas públicas. */
 .logo.sobre-papel{
@@ -119,14 +171,50 @@ body.publica{
     var(--papel);
 }
 
-.barra nav{display:flex; gap:4px; margin-left:auto}
+.barra nav{display:flex; gap:4px; margin-left:auto; position:relative}
 .barra nav a{
   color:#b9c9c3; font-size:14px; font-weight:500;
   padding:8px 13px; border-radius:var(--radio-xs);
-  transition:background .16s ease, color .16s ease;
+  position:relative;
+  transition:background .16s ease, color .16s ease,
+             transform .18s cubic-bezier(.2,.7,.3,1);
 }
-.barra nav a:hover{color:#fff; background:rgba(255,255,255,.08); text-decoration:none}
+/* Como en los botones: el hover solo donde hay puntero. En táctil se queda
+   pegado después del toque y la sección parece seleccionada sin estarlo. */
+@media (hover:hover){
+  .barra nav a:hover{
+    color:#fff; background:rgba(255,255,255,.08); text-decoration:none;
+    transform:translateY(-1px);
+  }
+}
+.barra nav a:active{transform:translateY(0)}
 .barra nav a.activo{color:#fff; background:rgba(18,160,134,.18)}
+/* Navegar con teclado tiene que verse tan claro como con el ratón: el panel
+   maneja datos personales y se audita quién entró a qué. */
+.barra nav a:focus-visible{
+  outline:2px solid var(--acento-vivo); outline-offset:2px; color:#fff;
+}
+
+/* Indicador viajero: una sola pieza que se desplaza de una sección a otra en
+   lugar de encenderse y apagarse en su sitio. El recorrido es la información
+   —de dónde vengo, a dónde voy—, y es lo que convierte una lista de enlaces
+   en una navegación.
+
+   Lo coloca el script de `base.html`. Sin JavaScript se queda invisible y el
+   fondo de `.activo` sigue marcando la sección: la barra nunca depende de él. */
+/* `bottom:0` y no un valor negativo: en móvil la navegación es un carrusel con
+   `overflow-x:auto`, y lo que sobresalga por abajo queda recortado o le añade
+   scroll vertical a la barra. */
+.barra nav .indicador{
+  position:absolute; left:0; bottom:0; height:2px; width:0;
+  border-radius:2px;
+  background:linear-gradient(90deg, var(--acento-vivo), #7fe3cd);
+  box-shadow:0 0 10px rgba(18,160,134,.55);
+  opacity:0; pointer-events:none;
+  transition:transform .34s cubic-bezier(.34,1.25,.4,1),
+             width .34s cubic-bezier(.34,1.25,.4,1),
+             opacity .2s ease;
+}
 
 .quien{
   font-size:13px; color:#93a8a1;
@@ -134,6 +222,28 @@ body.publica{
   display:flex; align-items:center; gap:12px;
 }
 .quien button, .quien .boton{padding:7px 13px; font-size:13px; font-weight:500}
+@media (hover:hover){
+  .quien button:hover, .quien .boton:hover{transform:translateY(-1px)}
+}
+/* Sin esto el botón se queda levantado mientras se pulsa: el hover es más
+   específico que el `:active` general y le gana justo al hacer clic. */
+.quien button:active, .quien .boton:active{transform:translateY(1px)}
+
+/* Entrada escalonada: la barra se arma de izquierda a derecha, en el orden en
+   que se lee. Dura medio segundo y no vuelve a ocurrir; es el saludo de la
+   herramienta al abrirla, no un adorno permanente. */
+.barra .marca, .barra nav a, .barra .quien{
+  animation:asomar .45s cubic-bezier(.2,.7,.3,1) backwards;
+}
+.barra .marca{animation-delay:.05s}
+.barra nav a:nth-child(1){animation-delay:.11s}
+.barra nav a:nth-child(2){animation-delay:.15s}
+.barra nav a:nth-child(3){animation-delay:.19s}
+.barra nav a:nth-child(4){animation-delay:.23s}
+.barra nav a:nth-child(5){animation-delay:.27s}
+.barra nav a:nth-child(n+6){animation-delay:.31s}
+.barra .quien{animation-delay:.36s}
+@keyframes asomar{from{opacity:0; transform:translateY(-6px)} to{opacity:1; transform:none}}
 
 /* ─────────────────────────── Estructura ─────────────────────────── */
 
@@ -187,13 +297,31 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   font-size:11px; color:var(--tinta-3); font-weight:600;
   text-transform:uppercase; letter-spacing:.09em;
 }
+/* La tarjeta de comisión es la única del tablero con una cifra de dinero, y
+   eso la rompía por dos lados a la vez.
+   1. Ancho: "$15.000.000" ocupa el triple que un "12", y el `overflow:hidden`
+      que recorta el filete superior también recortaba el número por la
+      derecha. Se ajusta al ancho real de la tarjeta con una consulta de
+      contenedor, con un cuerpo fijo de respaldo donde no exista.
+   2. Contraste: el verde claro del final del degradado dejaba el blanco en
+      3,3:1 y el rótulo en 3,5:1 — por debajo del mínimo legible. El degradado
+      se oscurece y el rótulo sube de opacidad. */
 .tarjeta.destacada{
-  background:linear-gradient(150deg, #0b5d50, #0e7a68 62%, #12a086);
+  background:linear-gradient(150deg, #09463c, #0b5d50 55%, #0e7a68);
   border-color:transparent;
 }
 .tarjeta.destacada::before{display:none}
-.tarjeta.destacada .cifra{color:#fff}
-.tarjeta.destacada .rotulo{color:rgba(255,255,255,.72)}
+.tarjeta.destacada .cifra{
+  color:#fff; font-size:24px; white-space:nowrap;
+}
+.tarjeta.destacada .rotulo{color:rgba(255,255,255,.9)}
+@supports (container-type:inline-size){
+  .tarjeta.destacada{container-type:inline-size}
+  /* 16cqi ≈ el cuerpo con el que doce dígitos con puntos llenan la tarjeta sin
+     tocar los bordes. El tope la devuelve a la escala del resto del tablero
+     cuando la tarjeta ocupa todo el ancho, en móvil. */
+  .tarjeta.destacada .cifra{font-size:clamp(19px, 16cqi, 31px)}
+}
 
 /* ─────────────────────────── Rejilla de inmuebles ───────────────────────────
    El patrón de marketplace: foto, precio dominante, specs escaneables.
