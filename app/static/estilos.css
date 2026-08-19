@@ -115,14 +115,31 @@ a:hover{text-decoration:underline}
 }
 .sub{font-size:11.5px; color:#7f948d; letter-spacing:.02em}
 
-/* El logo lleva un reflejo que barre el degradado al pasar por encima. Es la
-   única floritura decorativa de la barra y va donde no estorba: la marca no
-   es un control, nadie pierde una acción por mirarla. */
+/* Respiración de la marca ─────────────────────────────────────────────────
+   El reflejo del logotipo va y viene solo, muy despacio: es la única cosa de
+   la página que se mueve sin que nadie la toque, y es lo que le quita a la
+   herramienta el aire de captura de pantalla.
+
+   Tres decisiones para que sea presencia y no distracción:
+   · 9 s de ida y otros 9 de vuelta. El brillo recorre unos 8 px por segundo
+     sobre tres letras: se nota si uno mira, no si uno está leyendo una tabla.
+   · `alternate` en lugar de reiniciar el ciclo. Un `infinite` normal saltaría
+     del final al principio en cada vuelta, y ese salto sí se ve.
+   · Va en la marca y en ningún otro sitio. Es el rincón de la pantalla donde
+     nadie está trabajando: no compite con ningún dato ni con ningún control.
+
+   La regla de `prefers-reduced-motion` del final del archivo la detiene; por
+   eso el reposo es 50%, con el verde en el centro de las letras, que es el
+   fotograma que mejor se sostiene quieto. */
+@keyframes respirar-marca{
+  from{background-position:0 0}
+  to{background-position:100% 0}
+}
 .barra .logo{
   background:linear-gradient(103deg, #fff 22%, var(--acento-vivo) 52%, #fff 86%);
-  background-size:260% 100%; background-position:0 0;
+  background-size:260% 100%; background-position:50% 0;
   -webkit-background-clip:text; background-clip:text;
-  transition:background-position .7s cubic-bezier(.3,.6,.3,1);
+  animation:respirar-marca 9s ease-in-out infinite alternate;
 }
 /* El subtítulo se pliega con la barra compacta: a esa altura la sigla basta
    para identificar el producto y las secciones ganan el aire. */
@@ -132,14 +149,18 @@ a:hover{text-decoration:underline}
 }
 .barra.compacta .sub{max-width:0; opacity:0}
 
-@media (hover:hover){
-  .barra .marca:hover .logo{background-position:100% 0}
-}
-
 /* El degradado del logo se calibró para la barra oscura; sobre papel se apaga.
-   Esta variante lo devuelve a tinta sólida en las páginas públicas. */
+   Esta variante lo recalibra para el fondo claro en lugar de quitarlo: el
+   blanco del reflejo se cambia por el verde profundo de la marca y el punto
+   más claro baja a #0e8a74, que sobre panel blanco sigue en 4,3:1 —legible
+   como texto grande— donde `--acento-vivo` se quedaba en 3,0:1 raspando.
+   La misma respiración que en la barra: es el mismo logotipo. */
 .logo.sobre-papel{
-  background:none; -webkit-text-fill-color:initial; color:var(--acento);
+  background:linear-gradient(103deg, var(--acento) 16%, #0e8a74 50%, var(--acento) 84%);
+  background-size:260% 100%; background-position:50% 0;
+  -webkit-background-clip:text; background-clip:text;
+  -webkit-text-fill-color:transparent;
+  animation:respirar-marca 9s ease-in-out infinite alternate;
 }
 
 /* ─── Páginas públicas: login, landing del comprador y del propietario ─── */
