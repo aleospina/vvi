@@ -245,6 +245,14 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .inmueble .ciudad{font-size:12.5px; color:var(--tinta-2); font-weight:400}
+/* La descripción es lo que distingue "Lote 1" de "Lote 2" cuando el resto de
+   la tarjeta es idéntico. Se recorta a dos líneas: la ficha tiene el texto
+   completo, y dejarla crecer descuadraría la altura de la rejilla. */
+.inmueble .descripcion{
+  margin-top:6px; font-size:12.5px; line-height:1.45; color:var(--tinta-2);
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+  overflow:hidden;
+}
 .inmueble .specs{
   display:flex; gap:13px; flex-wrap:wrap;
   margin-top:11px; padding-top:11px; border-top:1px solid var(--linea);
@@ -482,6 +490,11 @@ tbody tr:hover{background:#fbfaf7}
 /* ─────────────────────────── Formularios ─────────────────────────── */
 
 form.linea{display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end}
+/* La celda de acciones de una tabla comparte el nombre pero no era flex: el
+   <form> de «Marcar atendida» caía como bloque, pegado a «Ver conversación».
+   Con gap propio los dos quedan separados y en línea. */
+td.linea{display:flex; flex-wrap:wrap; align-items:center; gap:10px}
+td.linea form{margin:0}
 label{display:block; font-size:11.5px; font-weight:600; color:var(--tinta-2); margin-bottom:5px; letter-spacing:.02em}
 .campo{margin-bottom:16px}
 
@@ -583,6 +596,7 @@ footer .aviso{color:var(--tinta-3)}
   main{padding:0 18px; margin-top:22px}
   h1{font-size:25px}
   table{display:block; overflow-x:auto; white-space:nowrap}
+  td.linea{gap:16px; padding-right:4px}
   .inmuebles{grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
   /* En una columna angosta, la rejilla etiqueta/valor deja al valor sin ancho
      útil. Apilados, la URL dispone de todo el ancho de la tarjeta. */

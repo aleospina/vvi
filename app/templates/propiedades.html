@@ -287,6 +287,7 @@
         <div class="precio">{{ p.precio | pesos }}</div>
         <div class="ubicacion">{{ p.zona or 'Zona sin definir' }}</div>
         <div class="ciudad">{{ p.ciudad }} · {{ p.tipo }}</div>
+        {% if p.descripcion %}<div class="descripcion">{{ p.descripcion }}</div>{% endif %}
         <div class="specs">
           {% if p.habitaciones %}<span><b>{{ p.habitaciones }}</b> hab</span>{% endif %}
           {% if p.banos %}<span><b>{{ p.banos }}</b> baños</span>{% endif %}
