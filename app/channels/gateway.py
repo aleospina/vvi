@@ -28,6 +28,7 @@ from app.services.compliance import (
 from app.services.matching_engine import Match
 from app.services.nlu_engine import (
     analizar,
+    extraer_slots,
     pide_listado_completo,
     pide_sin_tope,
     pide_visita,
@@ -246,6 +247,21 @@ def _formatear_matches(
     return "\n\n".join([encabezado, *items, PLANTILLAS["matches_pie"]])
 
 
+#: Slots que cambian lo que la cartera devuelve. `plazo_compra` no está: saber
+#: que quiere comprar ya no cambia qué inmuebles le sirven.
+SLOTS_DE_BUSQUEDA = (
+    "ciudad", "municipio", "zona", "tipo",
+    "presupuesto_min", "presupuesto_max", "habitaciones",
+)
+
+
+def _trae_criterio_de_busqueda(texto: str) -> bool:
+    """¿Este mensaje aporta algo nuevo que buscar en la cartera?"""
+    if pide_listado_completo(texto) or pide_sin_tope(texto):
+        return True
+    return any(c in extraer_slots(texto) for c in SLOTS_DE_BUSQUEDA)
+
+
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     """Procesa un mensaje entrante de un titular que YA autorizó (DF-1 a DF-4)."""
     if not tiene_consentimiento_vigente(prospecto):
@@ -294,8 +310,24 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # de la conversación.
     repite_peticion = pide_visita(texto) and puede_handoff and handoff_en_cola
 
+    # Contestar "visita" o "asesor" a la pregunta del pie —"¿Quieres agendar una
+    # *visita* o hablar con un *asesor*?"— no es una búsqueda nueva: es la
+    # respuesta a lo que el bot acaba de preguntar. Volverle a mandar los mismos
+    # apartamentos o lotes que ya tiene arriba hace parecer que el bot no
+    # entendió, y entierra la confirmación, que es lo único que importa en ese
+    # turno. Si el mensaje sí trae criterios ("quiero visitar los lotes de
+    # Pereira"), la cartera vuelve a salir: ahí sí preguntó por algo.
+    solo_handoff = (
+        (hara_handoff or repite_peticion)
+        and pide_visita(texto)
+        and not _trae_criterio_de_busqueda(texto)
+    )
+
+    if solo_handoff:
+        pass  # el turno entero lo cierra el bloque 4
+
     # 1) Regla dura: fuera de cobertura, se dice con transparencia (CU-4).
-    if analisis.motivo_fuera_alcance:
+    elif analisis.motivo_fuera_alcance:
         respuesta.textos.append(
             PLANTILLAS["fuera_de_alcance"].format(
                 ciudades=" y ".join(settings.ciudades_cobertura)
@@ -342,7 +374,11 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
 
     # 4) Handoff a humano si lo pidió (RF-12).
     if hara_handoff:
-        propiedad_id = respuesta.matches[0].propiedad.id if respuesta.matches else None
+        propiedad_id = (
+            respuesta.matches[0].propiedad.id
+            if respuesta.matches
+            else matching_engine.ultimo_mostrado(db, prospecto)
+        )
         leads.solicitar_handoff(
             db, prospecto, tipo="visita", propiedad_id=propiedad_id, detalle=texto[:400]
         )

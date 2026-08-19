@@ -377,10 +377,42 @@ class TestConversacionCompleta:
         assert "asesor" in r.textos[0].lower()
         assert "?" not in r.textos[0], "no se le puede pedir nada más al comprador"
 
-    def test_el_handoff_convive_con_los_inmuebles(self, db, prospecto_consentido):
-        """Mostrar opciones y pasar al asesor no se contradice: solo preguntar sí."""
+    def test_contestar_visita_no_repite_la_cartera(self, db, prospecto_consentido):
+        """El pie pregunta "¿visita o asesor?"; contestarlo no es buscar de nuevo.
+
+        Reportado en Telegram: el comprador pedía lotes, el bot los listaba y
+        cerraba preguntando si quería visita o asesor. Al contestar "visita" le
+        volvían los mismos lotes, con la confirmación del asesor enterrada al
+        final. Parecía que el bot no había entendido su respuesta.
+        """
         gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira hasta 420 millones")
-        r = gateway.procesar(db, prospecto_consentido, "Quiero agendar una visita")
+        r = gateway.procesar(db, prospecto_consentido, "visita")
+        db.commit()
+
+        assert r.handoff is True
+        assert not r.matches, "no se vuelve a emparejar: no preguntó nada nuevo"
+        assert len(r.textos) == 1, f"el handoff debe hablar solo: {r.textos}"
+        assert "asesor" in r.textos[0].lower()
+
+    def test_la_solicitud_conserva_el_inmueble_ya_mostrado(self, db, prospecto_consentido):
+        """Aunque el turno no vuelva a emparejar, el asesor sabe por cuál llaman."""
+        gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira hasta 420 millones")
+        gateway.procesar(db, prospecto_consentido, "asesor")
+        db.commit()
+
+        solicitud = prospecto_consentido.solicitudes[0]
+        assert solicitud.propiedad_id, "la solicitud debe apuntar a lo que ya vio"
+
+    def test_el_handoff_convive_con_los_inmuebles(self, db, prospecto_consentido):
+        """Mostrar opciones y pasar al asesor no se contradice: solo preguntar sí.
+
+        Cuando el mensaje sí trae criterios nuevos, la cartera vuelve a salir:
+        ahí el comprador preguntó por algo, no solo contestó el pie.
+        """
+        gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira hasta 420 millones")
+        r = gateway.procesar(
+            db, prospecto_consentido, "Quiero visitar las casas de Pereira"
+        )
         db.commit()
 
         assert r.handoff is True

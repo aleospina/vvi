@@ -238,3 +238,20 @@ def contexto_cartera(db: Session, perfil: dict, limite: int = 8) -> str:
         f"{p.area_m2:.0f} m² | ${p.precio:,}".replace(",", ".")
         for p in filas
     )
+
+
+def ultimo_mostrado(db: Session, prospecto: Prospecto) -> str | None:
+    """La propiedad que mejor puntuó de la última tanda que se le enseñó.
+
+    Cuando el comprador contesta "visita" a secas, el turno ya no vuelve a
+    emparejar —no hay nada nuevo que buscar—, así que la solicitud se quedaba
+    sin referencia al inmueble y el asesor recibía un aviso sin saber por cuál
+    llamaba. El emparejamiento sí quedó registrado en el turno anterior: basta
+    con leerlo.
+    """
+    return db.scalar(
+        select(Emparejamiento.propiedad_id)
+        .where(Emparejamiento.prospecto_id == prospecto.id)
+        .order_by(Emparejamiento.creado_en.desc(), Emparejamiento.puntaje.desc())
+        .limit(1)
+    )
