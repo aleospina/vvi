@@ -411,7 +411,14 @@ class TestVista:
         assert 'id="btn-qr"' in r.text, "el botón debe existir en cualquier estado"
         assert 'id="panel-qr"' in r.text, "sin panel, el script no se engancha"
         assert "Generar QR" in r.text
-        assert "tumba la sesión actual" in r.text, "hay que advertir lo que cuesta"
+        assert 'data-conectado="1"' in r.text, "conectado, el botón debe pedir confirmación"
+        assert "desvincula el teléfono" in r.text, "hay que advertir lo que cuesta"
+
+    def test_con_el_canal_caido_el_boton_no_pregunta_nada(self, panel, monkeypatch):
+        """Sin sesión que perder, la confirmación solo sería un clic de más."""
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "close")
+        r = panel.get("/dashboard/whatsapp")
+        assert 'data-conectado=""' in r.text
 
     def test_sin_configurar_explica_qué_falta(self, panel, monkeypatch):
         monkeypatch.setattr(settings, "evolution_url", "")

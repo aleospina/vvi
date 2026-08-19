@@ -93,7 +93,8 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
 
   <div class="acciones-foto">
     <form method="post" action="/dashboard/whatsapp/vincular" style="display:inline">
-      <button type="submit" id="btn-qr">Generar QR</button>
+      <button type="submit" id="btn-qr"
+              data-conectado="{{ '1' if estado == 'open' else '' }}">Generar QR</button>
     </form>
     {% if estado == 'open' %}
     <form method="post" action="/dashboard/whatsapp/desvincular" style="display:inline"
@@ -120,9 +121,10 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
   <p id="aviso-qr" class="leyenda"></p>
   {% if estado == 'open' %}
   <p class="leyenda">
-    Ya hay un número vinculado. Escanear un código nuevo <strong>vincula otro
-    teléfono y tumba la sesión actual</strong>: el canal deja de responder hasta que
-    el nuevo termine de conectar.
+    Ya hay un número vinculado. <strong>Pedir un código nuevo desvincula el teléfono
+    actual en el acto</strong>, sin esperar a que nadie escanee: el canal deja de
+    responder hasta que alguien complete la vinculación. Por eso el botón pregunta
+    antes.
   </p>
   {% endif %}
 </div>
@@ -184,6 +186,14 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
     // El botón deja de recargar la página: pide el QR y lo pinta en el sitio.
     boton.addEventListener('click', function (e) {
       e.preventDefault();
+      // Con el canal en pie, pedir el código lo tira: Evolution reabre el
+      // emparejamiento y el teléfono vinculado se cae de inmediato. Es un clic
+      // que deja el canal mudo, así que no puede ser un clic distraído.
+      if (boton.dataset.conectado && !confirm(
+            'El número vinculado se desconectará ahora mismo y WhatsApp dejará de ' +
+            'responder hasta que alguien escanee el código nuevo. ¿Seguimos?')) {
+        return;
+      }
       aviso.textContent = 'Pidiendo código…';
       restantes = TOPE;
       parar('');
