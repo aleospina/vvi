@@ -428,6 +428,63 @@ class TestVista:
             acciones = [x.accion for x in db.query(LogAuditoria).all()]
         assert "whatsapp_vinculacion_iniciada" in acciones
 
+    def test_el_qr_se_pide_en_json_para_renovarlo_sin_recargar(self, panel, monkeypatch):
+        """El código vive segundos: la página tiene que poder pedir otro sola.
+
+        Reportado en producción: el operador pulsaba, iba por el teléfono y
+        volvía a un QR ya vencido que la vista no sabía reemplazar. Desde fuera
+        se veía como que el QR «no cargaba».
+        """
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: "existente")
+        monkeypatch.setattr(whatsapp_evo, "configurar_webhook", lambda: whatsapp_evo.url_webhook())
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        monkeypatch.setattr(
+            whatsapp_evo, "qr_de_conexion", lambda: {"base64": "QUJD", "pairingCode": "ABCD-1234"}
+        )
+
+        d = panel.post("/dashboard/whatsapp/qr").json()
+        assert d["qr"] == "data:image/png;base64,QUJD"
+        assert d["codigo_pareo"] == "ABCD-1234"
+        assert d["estado"] == "connecting"
+
+    def test_las_renovaciones_no_llenan_la_bitacora(self, panel, monkeypatch):
+        """Auditar un refresco cada 25 s solo registra que quedó una pestaña abierta."""
+        from app.db import sesion
+        from app.models import LogAuditoria
+
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: "existente")
+        monkeypatch.setattr(whatsapp_evo, "configurar_webhook", lambda: whatsapp_evo.url_webhook())
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        monkeypatch.setattr(whatsapp_evo, "qr_de_conexion", lambda: {"base64": "QUJD"})
+
+        def cuantas() -> int:
+            with sesion() as db:
+                return sum(
+                    1 for x in db.query(LogAuditoria).all()
+                    if x.accion == "whatsapp_vinculacion_iniciada"
+                )
+
+        antes = cuantas()
+        panel.post("/dashboard/whatsapp/qr")                     # el operador pulsa
+        assert cuantas() == antes + 1
+        for _ in range(3):
+            panel.post("/dashboard/whatsapp/qr?renovacion=true")  # la página se renueva
+        assert cuantas() == antes + 1
+
+    def test_el_invitado_tampoco_pide_el_qr_por_json(self, panel_invitado):
+        assert panel_invitado.post("/dashboard/whatsapp/qr").status_code == 403
+
+    def test_si_evolution_no_responde_el_json_lo_dice(self, panel, monkeypatch):
+        import httpx
+
+        def _cae() -> str:
+            raise httpx.ConnectError("sin ruta al host")
+
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", _cae)
+        d = panel.post("/dashboard/whatsapp/qr").json()
+        assert "Evolution" in d["error"]
+        assert "qr" not in d
+
     def test_si_evolution_no_responde_lo_dice_sin_reventar(self, panel, monkeypatch):
         import httpx
 

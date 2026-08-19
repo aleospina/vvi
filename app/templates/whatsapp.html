@@ -93,8 +93,8 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
 
   <div class="acciones-foto">
     <form method="post" action="/dashboard/whatsapp/vincular" style="display:inline">
-      <button type="submit">
-        {% if estado == 'open' %}Regenerar vinculación{% else %}Vincular número (QR){% endif %}
+      <button type="submit" id="btn-qr">
+        {% if estado == 'open' %}Regenerar vinculación{% else %}Generar QR para vincular{% endif %}
       </button>
     </form>
     {% if estado == 'open' %}
@@ -106,20 +106,21 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
   </div>
 </div>
 
-{% if qr or codigo_pareo %}
-<div class="panel">
+{% if estado != 'open' %}
+<div class="panel" id="panel-qr"{% if not qr and not codigo_pareo %} hidden{% endif %}>
   <h2>Vincular el número</h2>
   <p class="leyenda">
     En el teléfono: <strong>WhatsApp → Ajustes → Dispositivos vinculados → Vincular un
-    dispositivo</strong>. El código vence en pocos minutos; si expira, vuelve a pulsar
-    «Vincular número».
+    dispositivo</strong>. El código vence en segundos, así que esta página lo
+    <strong>renueva sola</strong> mientras la tengas abierta: apunta la cámara cuando
+    tengas el teléfono listo.
   </p>
-  {% if qr %}
-    <img src="{{ qr }}" alt="Código QR para vincular WhatsApp" width="280" height="280">
-  {% endif %}
-  {% if codigo_pareo %}
-    <p>O escribe este código de pareo en el teléfono: <code>{{ codigo_pareo }}</code></p>
-  {% endif %}
+  <img id="img-qr" src="{{ qr or '' }}" alt="Código QR para vincular WhatsApp"
+       width="280" height="280"{% if not qr %} hidden{% endif %}>
+  <p id="pareo-qr" class="leyenda"{% if not codigo_pareo %} hidden{% endif %}>
+    O escribe este código de pareo en el teléfono: <code id="pareo-valor">{{ codigo_pareo or '' }}</code>
+  </p>
+  <p id="aviso-qr" class="leyenda"></p>
 </div>
 {% endif %}
 
@@ -138,6 +139,64 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
 </div>
 
 <script>
+  // El QR de WhatsApp caduca en segundos. Pedirlo una vez y dejarlo quieto es
+  // lo que hacía que el operador viera siempre un código muerto: pulsaba,
+  // buscaba el teléfono y para cuando enfocaba la cámara ya no servía. Aquí se
+  // renueva solo, con tope: Evolution deja de emitir tras unos cuantos
+  // (QRCODE_LIMIT) y seguir pidiendo solo gastaría el cupo del intento.
+  (function () {
+    var panel = document.getElementById('panel-qr');
+    var boton = document.getElementById('btn-qr');
+    if (!panel || !boton) return;
+
+    var img = document.getElementById('img-qr');
+    var pareo = document.getElementById('pareo-qr');
+    var pareoValor = document.getElementById('pareo-valor');
+    var aviso = document.getElementById('aviso-qr');
+    var TOPE = 8, RENUEVA_MS = 25000;
+    var restantes = 0, temporizador = null;
+
+    function pintar(d) {
+      if (d.error) { aviso.textContent = d.error; return false; }
+      if (d.qr) { img.src = d.qr; img.hidden = false; }
+      if (d.codigo_pareo) { pareoValor.textContent = d.codigo_pareo; pareo.hidden = false; }
+      panel.hidden = false;
+      aviso.textContent = 'Código nuevo cada 25 s. Quedan ' + restantes + ' renovaciones.';
+      return true;
+    }
+
+    function pedir(renovacion) {
+      return fetch('/dashboard/whatsapp/qr' + (renovacion ? '?renovacion=true' : ''),
+                   {method: 'POST', credentials: 'same-origin'})
+        .then(function (r) { return r.ok ? r.json() : {error: 'El servidor respondió ' + r.status + '.'}; })
+        .then(pintar)
+        .catch(function () { aviso.textContent = 'Sin respuesta del servidor. Vuelve a pulsar el botón.'; });
+    }
+
+    function parar(motivo) {
+      if (temporizador) { clearInterval(temporizador); temporizador = null; }
+      if (motivo) aviso.textContent = motivo;
+    }
+
+    // El botón deja de recargar la página: pide el QR y lo pinta en el sitio.
+    boton.addEventListener('click', function (e) {
+      e.preventDefault();
+      aviso.textContent = 'Pidiendo código…';
+      restantes = TOPE;
+      parar('');
+      pedir(false).then(function () {
+        temporizador = setInterval(function () {
+          if (restantes <= 0) {
+            parar('El código dejó de renovarse. Pulsa «Generar QR para vincular» otra vez.');
+            return;
+          }
+          restantes -= 1;
+          pedir(true);
+        }, RENUEVA_MS);
+      });
+    });
+  })();
+
   // Mientras el operador escanea, el estado cambia en el gateway, no en esta
   // página. Sin este sondeo habría que recargar a mano para saber si funcionó.
   (function () {

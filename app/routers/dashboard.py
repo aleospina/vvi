@@ -736,6 +736,51 @@ def whatsapp_estado(quien: Operador):
     return {"estado": whatsapp_evo.estado_conexion()}
 
 
+@router.post("/whatsapp/qr")
+def whatsapp_qr(quien: Operador, renovacion: bool = False, db: Session = Depends(get_db)):
+    """Un QR fresco en JSON, para que la página lo renueve sin recargarse.
+
+    El QR de WhatsApp vive segundos: el operador pulsaba «Vincular», iba a
+    buscar el teléfono y volvía a un código ya muerto que la página no tenía
+    forma de reemplazar. Parecía que el QR no cargaba nunca. Con este endpoint
+    la vista se renueva sola mientras el teléfono aparece.
+
+    `renovacion=true` marca los refrescos automáticos: son la misma llamada,
+    pero no se auditan. Anotar uno cada veinte segundos convertiría la bitácora
+    en un registro de que alguien dejó la pestaña abierta.
+    """
+    if not settings.tiene_whatsapp:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "El canal no está configurado: faltan EVOLUTION_URL, EVOLUTION_API_KEY "
+            "o EVOLUTION_WEBHOOK_TOKEN.",
+        )
+    try:
+        alta = whatsapp_evo.crear_instancia()
+        whatsapp_evo.configurar_webhook()
+        datos = whatsapp_evo.qr_de_conexion()
+    except httpx.HTTPError as e:
+        log.warning("No se pudo pedir el QR de WhatsApp: %s", e)
+        return {
+            "error": (
+                f"No se pudo hablar con Evolution API en {settings.evolution_url}. "
+                "¿Está levantado el gateway?"
+            )
+        }
+
+    if not renovacion:
+        auditar(
+            db, actor=quien, accion="whatsapp_vinculacion_iniciada", entidad="canal",
+            entidad_id=settings.evolution_instancia, detalle=f"instancia {alta}",
+        )
+
+    return {
+        "qr": whatsapp_evo.qr_data_uri(datos),
+        "codigo_pareo": datos.get("pairingCode"),
+        "estado": whatsapp_evo.estado_conexion(),
+    }
+
+
 @router.post("/whatsapp/vincular", response_class=HTMLResponse)
 def whatsapp_vincular(request: Request, quien: Operador, db: Session = Depends(get_db)):
     """Crea la instancia si hace falta, fija el webhook y muestra el QR.
