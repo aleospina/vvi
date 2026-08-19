@@ -694,6 +694,30 @@ dl.ficha{display:grid; grid-template-columns:auto 1fr; gap:9px 16px; margin:0; f
 dl.ficha dt{color:var(--tinta-2); font-size:12.5px; font-weight:600}
 dl.ficha dd{margin:0; min-width:0}
 
+/* Bloque de comandos. El único del panel son los del canal de WhatsApp, y no
+   tenía ninguna regla: con el `white-space:pre` que trae el navegador de fábrica
+   un `python -c "..."` de ochenta caracteres se salía de la tarjeta y arrastraba
+   la página entera hacia los lados en un teléfono.
+
+   La salida no es partirlos: un comando cortado a la mitad se copia mal y
+   parece dos. Se desplaza dentro de su propia caja, que es lo que aísla el
+   desbordamiento del resto de la maqueta. Fondo oscuro porque es lo que es —una
+   terminal— y porque repite la tinta de la barra superior. */
+pre{
+  margin:14px 0; padding:14px 16px;
+  background:#12211d; color:#dce9e4;
+  border-radius:var(--radio-s);
+  font:400 12.5px/1.65 var(--mono);
+  overflow-x:auto; -webkit-overflow-scrolling:touch;
+}
+pre code{
+  background:none; padding:0; border-radius:0;
+  color:inherit; font-size:inherit;
+  /* Anula el corte de palabra del `code` suelto: aquí romper el comando es
+     justo lo que se está evitando. */
+  overflow-wrap:normal; word-break:normal;
+}
+
 code{
   font-family:var(--mono); font-size:12.5px; background:#f2efe9;
   padding:1px 6px; border-radius:4px;
