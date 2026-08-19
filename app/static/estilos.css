@@ -502,6 +502,10 @@ input,select,textarea{
   padding:10px 12px; border:1px solid var(--linea-fuerte); border-radius:var(--radio-s);
   font:inherit; font-size:14px; background:#fff; color:var(--tinta);
   transition:border-color .15s ease, box-shadow .15s ease;
+  /* Un <select> no encoge por debajo de su opción más larga, y las de
+     «Confirmar venta» miden 46 caracteres: en un móvil eso ensancha la página
+     entera. Con el tope, el control se ajusta y recorta el texto que muestra. */
+  max-width:100%;
 }
 input:focus,select:focus,textarea:focus{
   outline:none; border-color:var(--acento);
@@ -534,13 +538,25 @@ button.peligro{background:var(--ladrillo)}
 /* ─────────────────────────── Composición ─────────────────────────── */
 
 .dos-columnas{display:grid; grid-template-columns:1.45fr 1fr; gap:22px; align-items:start}
+/* `min-width:auto` es el valor inicial de un elemento de grid o de flex: sin
+   esto, un hijo ancho empuja la columna fuera del viewport en lugar de
+   recortarse o hacer scroll dentro de lo suyo. */
+.dos-columnas > *{min-width:0}
+.panel{min-width:0}
+form.linea > div{min-width:0}
 
-.chat{max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:10px; padding-right:4px}
+.chat{
+  max-height:65vh; overflow-y:auto; display:flex; flex-direction:column;
+  gap:10px; padding-right:4px; min-width:0;
+}
 .chat.completo{max-height:none; overflow-y:visible}
 .burbuja{
   padding:10px 14px; border-radius:14px; max-width:80%;
   font-size:14px; white-space:pre-wrap; line-height:1.5;
   box-shadow:var(--sombra-1);
+  /* `pre-wrap` corta por espacios: una URL o un código largo se saldría del
+     globo. Con esto se parte donde haga falta y el globo respeta su ancho. */
+  overflow-wrap:anywhere;
 }
 .burbuja.entrante{background:#f0ede7; align-self:flex-start; border-bottom-left-radius:4px}
 .burbuja.saliente{background:var(--acento-suave); align-self:flex-end; border-bottom-right-radius:4px}
@@ -597,6 +613,10 @@ footer .aviso{color:var(--tinta-3)}
   h1{font-size:25px}
   table{display:block; overflow-x:auto; white-space:nowrap}
   td.linea{gap:16px; padding-right:4px}
+  /* 22px de relleno a cada lado se comen un tercio del ancho útil de un
+     teléfono. Con 14px, la conversación llega casi hasta donde termina el
+     botón de la barra superior, que es el borde derecho de la página. */
+  .panel{padding:16px 14px}
   .inmuebles{grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
   /* En una columna angosta, la rejilla etiqueta/valor deja al valor sin ancho
      útil. Apilados, la URL dispone de todo el ancho de la tarjeta. */
