@@ -202,6 +202,11 @@ async def entrante(token: str, request: Request, tareas: BackgroundTasks):
         _mensaje_entrante(datos, tareas)
     elif evento == "connection.update" and isinstance(datos, dict):
         _conexion(datos)
+    elif evento == "qrcode.updated" and isinstance(datos, dict):
+        # Evolution rota el código solo. Guardarlo aquí es lo que permite al
+        # panel enseñar uno fresco sin pedir otra conexión: pedirla reinicia el
+        # socket y arruina el emparejamiento en curso.
+        whatsapp_evo.guardar_qr(datos)
     else:
         # Evolution puede mandar eventos a los que no estamos suscritos. Verlos
         # en el log es la diferencia entre "no llega nada" y "llega otra cosa".

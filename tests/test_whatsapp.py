@@ -484,8 +484,45 @@ class TestVista:
         assert d["codigo_pareo"] == "ABCD-1234"
         assert d["estado"] == "connecting"
 
-    def test_las_renovaciones_no_llenan_la_bitacora(self, panel, monkeypatch):
-        """Auditar un refresco cada 25 s solo registra que quedó una pestaña abierta."""
+    def test_el_sondeo_del_qr_no_toca_la_conexion(self, panel, monkeypatch):
+        """Refrescar la imagen no puede reiniciar el socket de WhatsApp.
+
+        Encontrado en producción por el peor camino: el teléfono respondía «no
+        se pudo vincular el dispositivo» al escanear. La página refrescaba el
+        código llamando otra vez a `/instance/connect`, y eso no pide otro
+        código —reinicia Baileys entero—, así que tumbaba el emparejamiento a
+        media confirmación. Los logs de Evolution mostraban un arranque de socket
+        cada 25 segundos, clavado con el sondeo.
+        """
+        llamadas = []
+        monkeypatch.setattr(
+            whatsapp_evo, "qr_de_conexion", lambda: llamadas.append("connect") or {}
+        )
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: llamadas.append("crear"))
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        whatsapp_evo.guardar_qr({"base64": "QUJD"})
+
+        d = panel.get("/dashboard/whatsapp/qr-actual").json()
+        assert d["qr"] == "data:image/png;base64,QUJD"
+        assert d["estado"] == "connecting"
+        assert llamadas == [], "el sondeo no puede llamar a Evolution"
+
+    def test_el_qr_del_webhook_alimenta_al_panel(self):
+        """El código que Evolution empuja es el que ve el operador."""
+        whatsapp_evo.guardar_qr({"qrcode": {"base64": "data:image/png;base64,WFla"}})
+        assert whatsapp_evo.ultimo_qr() == "data:image/png;base64,WFla"
+
+    def test_un_qr_viejo_no_se_sirve(self, monkeypatch):
+        """Pintar un código vencido es mandar al operador a escanear basura."""
+        whatsapp_evo.guardar_qr({"base64": "QUJD"})
+        ahora = __import__("time").time()
+        monkeypatch.setattr(
+            whatsapp_evo.time, "time", lambda: ahora + whatsapp_evo.VIGENCIA_QR_SEG + 1
+        )
+        assert whatsapp_evo.ultimo_qr() is None
+
+    def test_pedir_el_qr_queda_auditado(self, panel, monkeypatch):
+        """Pulsar el botón reinicia la conexión: eso sí se anota."""
         from app.db import sesion
         from app.models import LogAuditoria
 
@@ -502,14 +539,12 @@ class TestVista:
                 )
 
         antes = cuantas()
-        panel.post("/dashboard/whatsapp/qr")                     # el operador pulsa
-        assert cuantas() == antes + 1
-        for _ in range(3):
-            panel.post("/dashboard/whatsapp/qr?renovacion=true")  # la página se renueva
+        panel.post("/dashboard/whatsapp/qr")
         assert cuantas() == antes + 1
 
     def test_el_invitado_tampoco_pide_el_qr_por_json(self, panel_invitado):
         assert panel_invitado.post("/dashboard/whatsapp/qr").status_code == 403
+        assert panel_invitado.get("/dashboard/whatsapp/qr-actual").status_code == 403
 
     def test_si_evolution_no_responde_el_json_lo_dice(self, panel, monkeypatch):
         import httpx

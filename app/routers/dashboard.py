@@ -736,8 +736,22 @@ def whatsapp_estado(quien: Operador):
     return {"estado": whatsapp_evo.estado_conexion()}
 
 
+@router.get("/whatsapp/qr-actual")
+def whatsapp_qr_actual(quien: Operador):
+    """El QR vigente, sin tocar la conexión.
+
+    Existe para que el panel pueda refrescar la imagen mientras el operador
+    busca el teléfono. La versión anterior refrescaba llamando otra vez a
+    `/instance/connect`, y eso no pide otro código: reinicia el socket de
+    Baileys. Si el reinicio caía mientras alguien escaneaba, el teléfono
+    respondía «no se pudo vincular el dispositivo». Aquí solo se lee lo que
+    Evolution ya empujó por el webhook.
+    """
+    return {"qr": whatsapp_evo.ultimo_qr(), "estado": whatsapp_evo.estado_conexion()}
+
+
 @router.post("/whatsapp/qr")
-def whatsapp_qr(quien: Operador, renovacion: bool = False, db: Session = Depends(get_db)):
+def whatsapp_qr(quien: Operador, db: Session = Depends(get_db)):
     """Un QR fresco en JSON, para que la página lo renueve sin recargarse.
 
     El QR de WhatsApp vive segundos: el operador pulsaba «Vincular», iba a
@@ -745,9 +759,9 @@ def whatsapp_qr(quien: Operador, renovacion: bool = False, db: Session = Depends
     forma de reemplazar. Parecía que el QR no cargaba nunca. Con este endpoint
     la vista se renueva sola mientras el teléfono aparece.
 
-    `renovacion=true` marca los refrescos automáticos: son la misma llamada,
-    pero no se auditan. Anotar uno cada veinte segundos convertiría la bitácora
-    en un registro de que alguien dejó la pestaña abierta.
+    Se llama **una sola vez por intento**, al pulsar el botón: abre la conexión y
+    devuelve el primer código. Los siguientes los empuja Evolution por webhook y
+    el panel los lee de `/whatsapp/qr-actual`.
     """
     if not settings.tiene_whatsapp:
         raise HTTPException(
@@ -768,11 +782,10 @@ def whatsapp_qr(quien: Operador, renovacion: bool = False, db: Session = Depends
             )
         }
 
-    if not renovacion:
-        auditar(
-            db, actor=quien, accion="whatsapp_vinculacion_iniciada", entidad="canal",
-            entidad_id=settings.evolution_instancia, detalle=f"instancia {alta}",
-        )
+    auditar(
+        db, actor=quien, accion="whatsapp_vinculacion_iniciada", entidad="canal",
+        entidad_id=settings.evolution_instancia, detalle=f"instancia {alta}",
+    )
 
     return {
         "qr": whatsapp_evo.qr_data_uri(datos),

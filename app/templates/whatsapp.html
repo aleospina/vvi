@@ -164,24 +164,15 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
     var pareo = document.getElementById('pareo-qr');
     var pareoValor = document.getElementById('pareo-valor');
     var aviso = document.getElementById('aviso-qr');
-    var TOPE = 8, RENUEVA_MS = 25000;
-    var restantes = 0, temporizador = null;
+    var SONDEO_MS = 5000, VENTANA_MS = 180000;
+    var temporizador = null, ultimo = '';
 
-    function pintar(d) {
-      if (d.error) { aviso.textContent = d.error; return false; }
-      if (d.qr) { img.src = d.qr; img.hidden = false; }
-      if (d.codigo_pareo) { pareoValor.textContent = d.codigo_pareo; pareo.hidden = false; }
+    function pintar(uri) {
+      if (!uri || uri === ultimo) return;
+      ultimo = uri;
+      img.src = uri;
+      img.hidden = false;
       panel.hidden = false;
-      aviso.textContent = 'Código nuevo cada 25 s. Quedan ' + restantes + ' renovaciones.';
-      return true;
-    }
-
-    function pedir(renovacion) {
-      return fetch('/dashboard/whatsapp/qr' + (renovacion ? '?renovacion=true' : ''),
-                   {method: 'POST', credentials: 'same-origin'})
-        .then(function (r) { return r.ok ? r.json() : {error: 'El servidor respondió ' + r.status + '.'}; })
-        .then(pintar)
-        .catch(function () { aviso.textContent = 'Sin respuesta del servidor. Vuelve a pulsar el botón.'; });
     }
 
     function parar(motivo) {
@@ -189,7 +180,21 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
       if (motivo) aviso.textContent = motivo;
     }
 
-    // El botón deja de recargar la página: pide el QR y lo pinta en el sitio.
+    // Sondeo de SOLO LECTURA. Evolution rota el código cada pocos segundos y lo
+    // empuja por webhook; aquí únicamente se lee el último que llegó. Pedir otra
+    // conexión para refrescar es lo que reiniciaba el socket y hacía que el
+    // teléfono dijera «no se pudo vincular el dispositivo» a mitad del escaneo.
+    function sondear() {
+      fetch('/dashboard/whatsapp/qr-actual', {credentials: 'same-origin'})
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) {
+          if (!d) return;
+          if (d.estado === 'open') { parar('Vinculado.'); return; }
+          pintar(d.qr);
+        })
+        .catch(function () { /* un sondeo perdido no rompe nada */ });
+    }
+
     boton.addEventListener('click', function (e) {
       e.preventDefault();
       // Con el canal en pie, pedir el código lo tira: Evolution reabre el
@@ -200,19 +205,21 @@ EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"   # en desarrollo</cod
             'responder hasta que alguien escanee el código nuevo. ¿Seguimos?')) {
         return;
       }
-      aviso.textContent = 'Pidiendo código…';
-      restantes = TOPE;
       parar('');
-      pedir(false).then(function () {
-        temporizador = setInterval(function () {
-          if (restantes <= 0) {
-            parar('El código dejó de renovarse. Pulsa «Generar QR para vincular» otra vez.');
-            return;
-          }
-          restantes -= 1;
-          pedir(true);
-        }, RENUEVA_MS);
-      });
+      aviso.textContent = 'Pidiendo código…';
+      fetch('/dashboard/whatsapp/qr', {method: 'POST', credentials: 'same-origin'})
+        .then(function (r) { return r.ok ? r.json() : {error: 'El servidor respondió ' + r.status + '.'}; })
+        .then(function (d) {
+          if (d.error) { aviso.textContent = d.error; return; }
+          pintar(d.qr);
+          if (d.codigo_pareo) { pareoValor.textContent = d.codigo_pareo; pareo.hidden = false; }
+          aviso.textContent = 'Escanéalo. El código se renueva solo; no vuelvas a pulsar el botón mientras escaneas.';
+          temporizador = setInterval(sondear, SONDEO_MS);
+          setTimeout(function () {
+            parar('El intento caducó. Pulsa «Generar QR» para empezar otro.');
+          }, VENTANA_MS);
+        })
+        .catch(function () { aviso.textContent = 'Sin respuesta del servidor. Vuelve a pulsar el botón.'; });
     });
   })();
 
