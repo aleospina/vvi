@@ -22,7 +22,25 @@ class TestMatching:
         assert "PROP-MED-002" in ids          # 385 M, apto en Medellín
         assert "PROP-MED-003" not in ids      # es casa
         assert "PROP-PER-001" not in ids      # es Pereira
-        assert all(m.propiedad.precio <= 400_000_000 * 1.05 for m in matches)
+        assert all(m.propiedad.precio <= 400_000_000 for m in matches)
+
+    def test_el_techo_de_precio_no_tiene_holgura(self, db):
+        """Regresión: había un 5% de cortesía sobre el tope.
+
+        Quien pide "hasta 380 millones" y recibe uno de 385 no lee una cortesía,
+        lee un filtro que no funciona.
+        """
+        perfil = {"ciudad": "Medellín", "tipo": "apartamento", "presupuesto_max": 380_000_000}
+        ids = [m.propiedad.id for m in matching_engine.buscar(db, perfil, limite=10)]
+        assert "PROP-MED-002" not in ids, "385 M está por encima del techo de 380 M"
+
+    def test_el_rango_solo_muestra_lo_que_cae_dentro(self, db):
+        perfil = {
+            "ciudad": "Medellín", "tipo": "apartamento",
+            "presupuesto_min": 300_000_000, "presupuesto_max": 400_000_000,
+        }
+        matches = matching_engine.buscar(db, perfil, limite=10)
+        assert [m.propiedad.id for m in matches] == ["PROP-MED-002"]
 
     def test_devuelve_maximo_tres(self, db):
         perfil = {"ciudad": "Medellín", "tipo": "apartamento", "presupuesto_max": 900_000_000}
@@ -83,6 +101,63 @@ class TestMatching:
         db.commit()
         atribuibles = commission.propiedades_atribuibles(db, prospecto_consentido)
         assert len(atribuibles) >= 1
+
+
+class TestFichaDeInmueble:
+    """Qué se lee de cada inmueble en el mensaje del comprador.
+
+    La ficha vieja mostraba "Pereira, Pereira — lote · 0 hab · 2462 m²": el
+    municipio repetido, una cifra de habitaciones que un lote nunca tendrá y
+    ninguna pista de qué es el lote. Lo que distingue un inmueble de otro es su
+    descripción, y esa era justo la que faltaba.
+    """
+
+    @staticmethod
+    def _lote() -> Propiedad:
+        return Propiedad(
+            id="FICHA-1", ciudad="Pereira", zona="Pereira", tipo="lote",
+            habitaciones=0, banos=0, area_m2=2462, precio=350_000_000,
+            descripcion="Lote plano con servicios y vía pavimentada. Escritura al día.",
+        )
+
+    def _listado(self, propiedad: Propiedad) -> str:
+        return gateway._formatear_matches(
+            [matching_engine.Match(propiedad=propiedad, puntaje=1.0)],
+            listado=True,
+            municipio="Pereira",
+        )
+
+    def test_el_lote_no_anuncia_cero_habitaciones(self):
+        assert "0 hab" not in self._listado(self._lote())
+
+    def test_el_municipio_no_se_repite(self):
+        texto = self._listado(self._lote())
+        assert "Pereira, Pereira" not in texto
+        assert "*Pereira*" in texto
+
+    def test_lleva_tipo_area_precio_y_descripcion(self):
+        texto = self._listado(self._lote())
+        assert "Lote" in texto
+        assert "2.462 m²" in texto           # con separador de miles
+        assert "$350.000.000" in texto
+        assert "Lote plano con servicios y vía pavimentada" in texto
+
+    def test_el_apartamento_sí_muestra_habitaciones(self):
+        apto = Propiedad(
+            id="FICHA-2", ciudad="Pereira", zona="Álamos, Pereira", tipo="apartamento",
+            habitaciones=3, banos=2, area_m2=82, precio=290_000_000,
+            descripcion="Con balcón y parqueadero cubierto.",
+        )
+        texto = self._listado(apto)
+        assert "3 hab" in texto
+        assert "Álamos, Pereira" in texto
+
+    def test_la_descripcion_larga_se_recorta(self):
+        largo = self._lote()
+        largo.descripcion = "Lote " + "muy amplio " * 40
+        linea = [l for l in self._listado(largo).splitlines() if "Lote muy amplio" in l][0]
+        assert len(linea.strip()) <= gateway.TOPE_DESCRIPCION + 5
+        assert linea.rstrip().endswith("…")
 
 
 class TestMaquinaEstados:

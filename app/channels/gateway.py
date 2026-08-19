@@ -156,6 +156,53 @@ def _plural(tipo: str, n: int) -> str:
     return f"{tipo}s" if n != 1 else tipo
 
 
+def _ubicacion(propiedad) -> str:
+    """'Centro, Pereira'. Sin repetir el municipio cuando la zona ya es él.
+
+    La cartera guarda la zona con la convención "Barrio, Municipio", pero un
+    inmueble cargado sin barrio deja zona = municipio y el resultado era
+    "Pereira, Pereira", que parece un error de datos.
+    """
+    zona = (propiedad.zona or "").strip()
+    ciudad = (propiedad.ciudad or "").strip()
+    if not zona:
+        return ciudad
+    if not ciudad or zona.casefold().endswith(ciudad.casefold()):
+        return zona
+    return f"{zona}, {ciudad}"
+
+
+def _especificaciones(propiedad) -> str:
+    """Los datos duros de la ficha, saltando los que el inmueble no tiene.
+
+    Un lote no tiene habitaciones, y escribir "0 hab" hacía dudar de toda la
+    ficha. El área sí va siempre con separador de miles: "2462 m²" se lee peor
+    que "2.462 m²" justo cuando el número es el argumento de venta.
+    """
+    partes = []
+    if propiedad.habitaciones:
+        partes.append(f"{propiedad.habitaciones} hab")
+    if propiedad.area_m2:
+        partes.append(f"{propiedad.area_m2:,.0f} m²".replace(",", "."))
+    return "".join(f" · {p}" for p in partes)
+
+
+#: La descripción en el listado va a una línea: es la que distingue un lote de
+#: otro, pero completa (y multiplicada por diez fichas) tapa el mensaje.
+TOPE_DESCRIPCION = 120
+
+
+def _resumen(propiedad) -> str:
+    """Primera frase de la descripción, recortada."""
+    texto = " ".join((propiedad.descripcion or "").split())
+    if not texto:
+        return "Disponible para visita."
+    frase = texto.split(".")[0].strip() or texto
+    if len(frase) > TOPE_DESCRIPCION:
+        frase = frase[:TOPE_DESCRIPCION].rsplit(" ", 1)[0] + "…"
+    return frase
+
+
 def _formatear_matches(
     matches: list[Match], *, listado: bool = False, municipio: str | None = None
 ) -> str:
@@ -163,9 +210,9 @@ def _formatear_matches(
 
     Dos formas para dos intenciones distintas. La curada (tres opciones) lleva
     la frase de venta de cada inmueble, porque el trabajo ahí es convencer. El
-    listado completo la omite: con ocho fichas, esas frases convierten el
-    mensaje en un muro y el comprador deja de leer justo cuando por fin tiene
-    todo el inventario delante.
+    listado completo la cambia por la descripción real recortada: con ocho
+    fichas del mismo tipo y municipio, lo único que las separa es lo que tiene
+    cada una, y una frase de venta repetida ocho veces no se lee.
 
     En ambas, cada inmueble va en su propio bloque separado por una línea en
     blanco: en un chat, un párrafo continuo con ocho direcciones no se lee.
@@ -187,12 +234,11 @@ def _formatear_matches(
     items = [
         plantilla.format(
             i=i,
-            zona=m.propiedad.zona,
-            ciudad=m.propiedad.ciudad,
-            tipo=m.propiedad.tipo,
-            habitaciones=m.propiedad.habitaciones,
-            area=m.propiedad.area_m2,
+            ubicacion=_ubicacion(m.propiedad),
+            tipo=m.propiedad.tipo.capitalize(),
+            especificaciones=_especificaciones(m.propiedad),
             precio=pesos(m.propiedad.precio).lstrip("$"),
+            descripcion=_resumen(m.propiedad),
             frase=m.frase_venta,
         )
         for i, m in enumerate(matches, start=1)

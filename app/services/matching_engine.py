@@ -24,8 +24,10 @@ TOPE_RESULTADOS = 3
 #: Cuando el comprador pide ver *todo* lo disponible, la terna curada estorba.
 #: Sigue habiendo un límite: un mensaje de chat con 40 fichas no se lee.
 TOPE_LISTADO = 10
-#: Holgura sobre el tope de presupuesto: mostrar algo 5% arriba es útil, no engañoso.
-HOLGURA_PRECIO = 1.05
+#: El rango de precio se respeta al peso. Antes había una holgura del 5% sobre el
+#: techo —"mostrar algo poquito arriba es útil"—, pero quien dice "entre 200 y 300"
+#: y recibe uno de 314 no siente una cortesía: siente que el filtro no funciona.
+#: Si quiere estirar la banda, la nota de filtro le dice cómo pedirlo.
 
 
 @dataclass
@@ -130,9 +132,7 @@ def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Mat
     # Sin techo declarado ("desde 200 millones") no se acota por arriba: filtrar
     # con un tope inventado es justo lo que dejaba fuera la cartera cara.
     if perfil.get("presupuesto_max"):
-        consulta = consulta.where(
-            Propiedad.precio <= int(int(perfil["presupuesto_max"]) * HOLGURA_PRECIO)
-        )
+        consulta = consulta.where(Propiedad.precio <= int(perfil["presupuesto_max"]))
     if perfil.get("habitaciones"):
         consulta = consulta.where(Propiedad.habitaciones >= int(perfil["habitaciones"]))
 
@@ -217,12 +217,21 @@ def emparejar(
 
 
 def contexto_cartera(db: Session, perfil: dict, limite: int = 8) -> str:
-    """Resumen textual de la cartera pertinente, para anclar al LLM (RF-07)."""
+    """Resumen textual de la cartera pertinente, para anclar al LLM (RF-07).
+
+    Respeta la banda de precio por la misma razón que `buscar`: esta lista es la
+    única fuente que el modelo tiene permitido nombrar, así que dejar dentro un
+    inmueble fuera del rango es autorizarlo a ofrecer lo que el filtro escondió.
+    """
     consulta = select(Propiedad).where(Propiedad.estado == "disponible")
     if perfil.get("ciudad"):
         consulta = consulta.where(Propiedad.ciudad.in_(_de_la_plaza(perfil)))
     if perfil.get("tipo"):
         consulta = consulta.where(Propiedad.tipo == perfil["tipo"])
+    if perfil.get("presupuesto_min"):
+        consulta = consulta.where(Propiedad.precio >= int(perfil["presupuesto_min"]))
+    if perfil.get("presupuesto_max"):
+        consulta = consulta.where(Propiedad.precio <= int(perfil["presupuesto_max"]))
     filas = list(db.scalars(consulta.order_by(Propiedad.precio).limit(limite)))
     return "\n".join(
         f"- {p.id} | {p.tipo} | {p.zona}, {p.ciudad} | {p.habitaciones} hab | "

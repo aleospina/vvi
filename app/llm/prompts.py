@@ -243,18 +243,22 @@ PLANTILLAS = {
         "de frente en vez de mostrarte algo que no encaja. ¿Ampliamos presupuesto o zona?"
     ),
     "matches_encabezado": "Con eso en mente, te dejo {n} opción(es) que sí encajan:",
+    #: `especificaciones` lo arma el gateway con lo que el inmueble sí tiene: un
+    #: lote no lleva "0 hab", que era justo lo que hacía parecer rota la ficha.
     "matches_item": (
-        "{i}. *{zona}, {ciudad}* — {tipo} de {habitaciones} hab · {area:.0f} m²\n"
+        "{i}. *{ubicacion}* — {tipo}{especificaciones}\n"
         "   💰 ${precio}\n"
         "   {frase}"
     ),
     #: Listado completo: ya sabemos ciudad y tipo, así que el encabezado los
-    #: nombra y cada ficha se aligera. Con ocho inmuebles, repetir la frase de
-    #: venta en cada uno convierte el mensaje en un muro que nadie lee.
+    #: nombra. La ficha cierra con la descripción del inmueble —recortada a una
+    #: línea— porque es lo que de verdad distingue un lote de otro; la frase de
+    #: venta se omite: repetida ocho veces convierte el mensaje en un muro.
     "matches_encabezado_listado": "Tengo {n} {tipos} en {ciudad}:",
     "matches_item_listado": (
-        "{i}. *{zona}, {ciudad}* — {tipo} · {habitaciones} hab · {area:.0f} m²\n"
-        "   💰 ${precio}"
+        "{i}. *{ubicacion}* — {tipo}{especificaciones}\n"
+        "   💰 ${precio}\n"
+        "   {descripcion}"
     ),
     "matches_pie": "¿Quieres agendar una *visita* o hablar con un *asesor*?",
     "handoff": (
