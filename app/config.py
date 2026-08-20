@@ -132,15 +132,6 @@ class Settings(BaseSettings):
         return tuple(sorted(dias))
 
     @property
-    def numeros_prueba(self) -> frozenset[str]:
-        """Lista blanca normalizada a dígitos: `+57 300 123 4567` → `573001234567`."""
-        return frozenset(
-            "".join(c for c in n if c.isdigit())
-            for n in self.evolution_numeros_prueba.split(",")
-            if any(c.isdigit() for c in n)
-        )
-
-    @property
     def tiene_whatsapp(self) -> bool:
         return bool(self.evolution_url and self.evolution_api_key and self.evolution_webhook_token)
 

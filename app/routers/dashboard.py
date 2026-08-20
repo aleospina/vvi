@@ -52,7 +52,8 @@ from app.security.sesion import (
     validar_token,
 )
 from app.services import (
-    commission, fotos, geografia, ingesta, leads, portfolio, prospecting, seguimiento,
+    ajustes, commission, fotos, geografia, ingesta, leads, portfolio, prospecting,
+    seguimiento,
 )
 from app.services.compliance import auditar, verificar_cadena
 from app.tiempo import fecha
@@ -731,7 +732,7 @@ def auditoria(request: Request, quien: Operador, db: Session = Depends(get_db)):
 
 
 @router.get("/whatsapp", response_class=HTMLResponse)
-def whatsapp(request: Request, quien: Operador):
+def whatsapp(request: Request, quien: Operador, db: Session = Depends(get_db)):
     """Estado del canal y vinculación del número."""
     return plantillas.TemplateResponse(
         request,
@@ -743,10 +744,27 @@ def whatsapp(request: Request, quien: Operador):
             instancia=settings.evolution_instancia,
             evolution_url=settings.evolution_url,
             url_webhook=whatsapp_evo.url_webhook() if settings.tiene_whatsapp else "",
-            numeros_prueba=sorted(settings.numeros_prueba),
+            numeros_prueba=sorted(ajustes.numeros_prueba(db)),
+            numeros_del_entorno=ajustes.desde_el_entorno(db),
             estado=whatsapp_evo.estado_conexion(),
         ),
     )
+
+
+@router.post("/whatsapp/numeros-prueba")
+def whatsapp_numeros_prueba(
+    quien: Operador,
+    numeros: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+):
+    """Cambia la lista blanca de pruebas sin tocar el `.env` ni reiniciar.
+
+    Vaciar el campo es una decisión válida y significa producción: el bot le
+    responde a todo el que escriba. Por eso se guarda el vacío en vez de volver
+    al valor del entorno.
+    """
+    ajustes.guardar(db, ajustes.NUMEROS_PRUEBA, ajustes.normalizar_lista(numeros), actor=quien)
+    return RedirectResponse("/dashboard/whatsapp", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/whatsapp/estado")
@@ -832,7 +850,8 @@ def whatsapp_vincular(request: Request, quien: Operador, db: Session = Depends(g
         "instancia": settings.evolution_instancia,
         "evolution_url": settings.evolution_url,
         "url_webhook": whatsapp_evo.url_webhook(),
-        "numeros_prueba": sorted(settings.numeros_prueba),
+        "numeros_prueba": sorted(ajustes.numeros_prueba(db)),
+        "numeros_del_entorno": ajustes.desde_el_entorno(db),
     }
 
     try:

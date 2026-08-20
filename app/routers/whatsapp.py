@@ -27,7 +27,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from app.channels import conversacion, whatsapp_evo
 from app.config import settings
 from app.models import Canal
-from app.services import notificaciones
+from app.services import ajustes, notificaciones
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -136,11 +136,14 @@ def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
         return
 
     # Modo pruebas: con lista blanca configurada, el bot calla ante cualquier
-    # otro número. Es lo que permite vincular un teléfono personal sin que un
+    # otro número. La lista se lee en cada mensaje porque se puede cambiar desde
+    # el dashboard sin reiniciar: leerla una vez al arrancar haría que el cambio
+    # solo surtiera efecto en el próximo despliegue, que es justo lo que se
+    # quería evitar. Es lo que permite vincular un teléfono personal sin que un
     # familiar reciba el flujo de consentimiento — y sin que su mensaje entre al
     # motor. El silencio es deliberado: responder "no estás autorizado" sería
     # contestarle igual a quien no debía recibir nada.
-    permitidos = settings.numeros_prueba
+    permitidos = ajustes.numeros_prueba()
     if permitidos and numero not in permitidos:
         log.info(
             "WhatsApp: %s no está en la lista de pruebas (%d autorizados): ignorado.",

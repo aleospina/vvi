@@ -23,6 +23,10 @@
 <div class="aviso-caja"><p><strong>⚠️ {{ error }}</strong></p></div>
 {% endif %}
 
+{% if guardado %}
+<div class="aviso-caja"><p><strong>✅ {{ guardado }}</strong></p></div>
+{% endif %}
+
 {% if numeros_prueba %}
 <div class="aviso-caja">
   <h3>Modo pruebas activo <span class="chip tibio">{{ numeros_prueba | length }} número(s)</span></h3>
@@ -31,18 +35,43 @@
     A cualquier otro número lo ignora en silencio — no le contesta ni guarda su mensaje.
     Es lo que hace seguro vincular un teléfono personal.
   </p>
-  <p class="leyenda">
-    Se controla con <code>EVOLUTION_NUMEROS_PRUEBA</code> en el <code>.env</code>.
-    Vacío = responde a todo el mundo (producción).
-  </p>
 </div>
 {% elif configurado %}
 <div class="aviso-caja">
   <h3>Sin lista de pruebas <span class="chip caido">responde a todos</span></h3>
   <p>
     Cualquiera que le escriba a este número recibirá el flujo del bot. Si el número
-    vinculado es personal, pon los tuyos en <code>EVOLUTION_NUMEROS_PRUEBA</code> antes
-    de seguir.
+    vinculado es personal, pon el tuyo abajo antes de seguir.
+  </p>
+</div>
+{% endif %}
+
+{% if configurado %}
+<div class="panel">
+  <h2>Números de prueba</h2>
+  <p class="leyenda">
+    Mientras haya al menos un número, el bot <strong>solo</strong> le responde a esos y
+    calla ante cualquier otro. Sepáralos con comas. Puedes escribirlos como quieras
+    —<code>300 123 4567</code>, <code>+57 300 123 4567</code>—: se guarda el formato que
+    usa WhatsApp, con indicativo.
+  </p>
+  <form method="post" action="/dashboard/whatsapp/numeros-prueba" class="linea" style="margin-top:12px">
+    <input type="text" name="numeros" style="flex:1 1 320px"
+           value="{{ numeros_prueba | join(', ') }}"
+           placeholder="300 123 4567, +57 310 000 0000"
+           aria-label="Números de prueba separados por comas">
+    <button type="submit">Guardar</button>
+  </form>
+  <p class="leyenda" style="margin-top:12px">
+    {% if numeros_del_entorno %}
+      Ahora mismo manda <code>EVOLUTION_NUMEROS_PRUEBA</code> del <code>.env</code>.
+      Al guardar aquí, este valor lo reemplaza y el cambio surte efecto de inmediato,
+      sin reiniciar.
+    {% else %}
+      Guardado desde aquí: reemplaza a <code>EVOLUTION_NUMEROS_PRUEBA</code> del
+      <code>.env</code>. Dejar el campo <strong>vacío</strong> es pasar a producción —
+      el bot le responderá a todo el que escriba.
+    {% endif %}
   </p>
 </div>
 {% endif %}

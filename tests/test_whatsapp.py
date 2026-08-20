@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.channels import conversacion, whatsapp_evo
 from app.config import settings
 from app.routers import whatsapp
+from app.services import ajustes
 
 TOKEN = "token-de-pruebas-del-webhook"
 NUMERO = "573001234567"
@@ -213,7 +214,16 @@ class TestListaBlanca:
         monkeypatch.setattr(
             settings, "evolution_numeros_prueba", "+57 300 123 4567, 57-310-987-6543"
         )
-        assert settings.numeros_prueba == {"573001234567", "573109876543"}
+        assert ajustes.numeros_prueba() == {"573001234567", "573109876543"}
+
+    def test_el_celular_escrito_a_la_colombiana_tambien_sirve(self, monkeypatch):
+        """"300 123 4567" es el mismo teléfono que el "573001234567" de WhatsApp.
+
+        Sin el indicativo la comparación falla, el operador pone su número, el
+        bot lo sigue ignorando y no hay nada en pantalla que explique por qué.
+        """
+        monkeypatch.setattr(settings, "evolution_numeros_prueba", "300 123 4567")
+        assert ajustes.numeros_prueba() == {"573001234567"}
 
     def test_sin_lista_responde_a_todos(self, cliente, enviados, monkeypatch):
         """Vacía es el modo producción: el canal atiende a quien escriba."""

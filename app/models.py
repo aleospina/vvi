@@ -528,6 +528,22 @@ class Venta(Base):
     propiedad: Mapped[Propiedad] = relationship()
 
 
+class Ajuste(Base):
+    """Ajuste operativo editable desde la interfaz (pisa al `.env`).
+
+    Deliberadamente genérico y deliberadamente pequeño: aquí no entra ningún
+    secreto —esos siguen siendo variables de entorno (RNF-05)— sino lo que un
+    operador necesita cambiar en medio de una prueba sin reiniciar el proceso.
+    """
+
+    __tablename__ = "ajustes"
+
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[str] = mapped_column(Text, default="")
+    actualizado_por: Mapped[str] = mapped_column(String(60), default="")
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora, onupdate=ahora)
+
+
 class Campana(Base):
     """Campaña de captación opt-in en una red social (ADR-01, Fase 2 del PRD).
 
