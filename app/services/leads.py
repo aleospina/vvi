@@ -120,6 +120,7 @@ def perfil(prospecto: Prospecto) -> dict:
         "ciudad": prospecto.ciudad,
         "municipio": prospecto.municipio,
         "zona": prospecto.zona,
+        "foco": prospecto.foco,
         "tipo": prospecto.tipo,
         "presupuesto_min": prospecto.presupuesto_min,
         "presupuesto_max": prospecto.presupuesto_max,

@@ -260,6 +260,15 @@ PLANTILLAS = {
         "   💰 ${precio}\n"
         "   {descripcion}"
     ),
+    #: Un solo inmueble no es una lista de uno: no lleva encabezado ("te dejo 1
+    #: opción(es)"), ni numeración, y la descripción va completa. Cuando el
+    #: comprador pidió hablar de ese y no de otro, recortarle la descripción a
+    #: una línea es devolverle menos de lo que preguntó.
+    "ficha_unica": (
+        "*{ubicacion}* — {tipo}{especificaciones}\n"
+        "💰 ${precio}\n\n"
+        "{descripcion}"
+    ),
     "matches_pie": "¿Quieres agendar una *visita* o hablar con un *asesor*?",
     "handoff": (
         "¡Perfecto! Ya le pasé tus datos a un asesor humano de {empresa}. Te contacta "

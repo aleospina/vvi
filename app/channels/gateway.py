@@ -152,6 +152,24 @@ def _nota_filtro(perfil: dict, en_rango: int, total: int) -> str:
     return nota
 
 
+def _nota_foco(db: Session, perfil: dict) -> str:
+    """Hace visible el recorte por lo que el comprador nombró, y cómo deshacerlo.
+
+    Un filtro que no se anuncia es indistinguible de una cartera pobre. Quien
+    pidió "solo la ferretería de La Reforma" y dos mensajes después pregunta
+    otra cosa tiene que poder volver a verlo todo sin adivinar la palabra
+    mágica, así que la nota se la dice.
+    """
+    terminos = matching_engine.terminos_foco(perfil)
+    if not terminos:
+        return ""
+    nota = f"🎯 Te estoy mostrando solo lo que nombraste: *{', '.join(terminos)}*."
+    total = matching_engine.conteo(db, {**perfil, "foco": None})[1]
+    if total > 1:
+        nota += f" Dime *todos* y te muestro los {total} otra vez."
+    return nota
+
+
 def _plural(tipo: str, n: int) -> str:
     """'apartamento' → 'apartamentos'. Los tres tipos pluralizan con -s."""
     return f"{tipo}s" if n != 1 else tipo
@@ -204,6 +222,43 @@ def _resumen(propiedad) -> str:
     return frase
 
 
+#: La ficha de un solo inmueble sí puede traer la descripción entera: no
+#: compite con otras nueve. El tope es contra el pegote de tres pantallas que a
+#: veces trae un aviso copiado de otro portal.
+TOPE_FICHA = 600
+
+
+def _ficha_completa(propiedad) -> str:
+    """La descripción tal como la escribió el operador, apenas recortada."""
+    texto = " ".join((propiedad.descripcion or "").split())
+    if not texto:
+        return "Disponible para visita."
+    if len(texto) > TOPE_FICHA:
+        texto = texto[:TOPE_FICHA].rsplit(" ", 1)[0] + "…"
+    return texto
+
+
+def _ficha_unica(propiedad) -> str:
+    """El mensaje cuando la búsqueda deja un solo inmueble.
+
+    Preguntar por uno concreto y recibir "te dejo 1 opción(es)" con la
+    descripción cortada a una línea es responder menos de lo que se preguntó.
+    Sin encabezado, sin numeración y con la ficha completa.
+    """
+    return "\n\n".join(
+        [
+            PLANTILLAS["ficha_unica"].format(
+                ubicacion=_ubicacion(propiedad),
+                tipo=propiedad.tipo.capitalize(),
+                especificaciones=_especificaciones(propiedad),
+                precio=pesos(propiedad.precio).lstrip("$"),
+                descripcion=_ficha_completa(propiedad),
+            ),
+            PLANTILLAS["matches_pie"],
+        ]
+    )
+
+
 def _formatear_matches(
     matches: list[Match], *, listado: bool = False, municipio: str | None = None
 ) -> str:
@@ -218,6 +273,9 @@ def _formatear_matches(
     En ambas, cada inmueble va en su propio bloque separado por una línea en
     blanco: en un chat, un párrafo continuo con ocho direcciones no se lee.
     """
+    if len(matches) == 1:
+        return _ficha_unica(matches[0].propiedad)
+
     if listado and matches:
         primera = matches[0].propiedad
         encabezado = PLANTILLAS["matches_encabezado_listado"].format(
@@ -290,6 +348,23 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     listado = pide_listado_completo(texto) or pide_sin_tope(texto)
     respuesta = Respuesta(prospecto=prospecto)
 
+    # ¿Este mensaje mueve la búsqueda? Lo necesitan dos decisiones del turno: el
+    # foco —cambiar de búsqueda lo suelta— y el handoff, más abajo.
+    cambia_busqueda = _cambia_la_busqueda(texto, perfil_previo)
+
+    # Acotar la conversación a un inmueble concreto ("háblame solo de la
+    # ferretería de La Reforma") es una petición tan legítima como el municipio o
+    # el presupuesto, pero no cabe en ningún slot: lo que lo identifica está
+    # escrito en la zona o en la descripción de la ficha. Sin esto, el turno
+    # volvía a listar los seis lotes del municipio y el comprador leía que el
+    # bot no le había entendido.
+    foco = matching_engine.foco_del_turno(
+        db, texto, leads.perfil(prospecto), limpiar=cambia_busqueda
+    )
+    if foco is not None:
+        prospecto.foco = foco or None
+        db.flush()
+
     # Con ciudad y tipo sobre la mesa la pregunta ya es concreta ("apartamentos
     # en Pereira") y lo que corresponde es enseñar el inventario completo, no
     # una terna curada ni otra pregunta. Pedir el presupuesto antes de mostrar
@@ -333,7 +408,7 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     solo_handoff = (
         (hara_handoff or repite_peticion)
         and pide_visita(texto)
-        and not _cambia_la_busqueda(texto, perfil_previo)
+        and not cambia_busqueda
     )
 
     if solo_handoff:
@@ -377,20 +452,32 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
                                 listado=listar_todo,
                                 municipio=perfil.get("municipio"),
                             ),
+                            _nota_foco(db, perfil),
                             _nota_filtro(perfil, en_rango, total),
                         ],
                     )
                 )
             )
         else:
-            respuesta.textos.append(PLANTILLAS["sin_matches"])
+            # Sin resultados, la nota del foco es lo único que explica por qué:
+            # sin ella, "no tengo nada" con un recorte activo parece una cartera
+            # vacía y no una búsqueda de una sola palabra.
+            respuesta.textos.append(
+                "\n\n".join(
+                    filter(None, [PLANTILLAS["sin_matches"], _nota_foco(db, perfil)])
+                )
+            )
 
     # 4) Handoff a humano si lo pidió (RF-12).
     if hara_handoff:
         propiedad_id = (
             respuesta.matches[0].propiedad.id
             if respuesta.matches
-            else matching_engine.ultimo_mostrado(db, prospecto)
+            # "Quiero visitar la ferretería de La Reforma" cierra el turno sin
+            # volver a emparejar, así que el inmueble sale del foco: el último
+            # mostrado sería el mejor puntuado de la tanda anterior, que es otro.
+            else matching_engine.enfocada(db, perfil_actual)
+            or matching_engine.ultimo_mostrado(db, prospecto)
         )
         leads.solicitar_handoff(
             db, prospecto, tipo="visita", propiedad_id=propiedad_id, detalle=texto[:400]

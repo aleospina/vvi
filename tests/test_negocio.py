@@ -120,7 +120,26 @@ class TestFichaDeInmueble:
             descripcion="Lote plano con servicios y vía pavimentada. Escritura al día.",
         )
 
+    @staticmethod
+    def _acompanante() -> Propiedad:
+        """Un segundo inmueble: con uno solo el mensaje ya no es un listado."""
+        return Propiedad(
+            id="FICHA-0", ciudad="Pereira", zona="Cuba, Pereira", tipo="lote",
+            habitaciones=0, banos=0, area_m2=800, precio=180_000_000,
+            descripcion="Terreno esquinero.",
+        )
+
     def _listado(self, propiedad: Propiedad) -> str:
+        return gateway._formatear_matches(
+            [
+                matching_engine.Match(propiedad=propiedad, puntaje=2.0),
+                matching_engine.Match(propiedad=self._acompanante(), puntaje=1.0),
+            ],
+            listado=True,
+            municipio="Pereira",
+        )
+
+    def _ficha(self, propiedad: Propiedad) -> str:
         return gateway._formatear_matches(
             [matching_engine.Match(propiedad=propiedad, puntaje=1.0)],
             listado=True,
@@ -158,6 +177,132 @@ class TestFichaDeInmueble:
         linea = [l for l in self._listado(largo).splitlines() if "Lote muy amplio" in l][0]
         assert len(linea.strip()) <= gateway.TOPE_DESCRIPCION + 5
         assert linea.rstrip().endswith("…")
+
+    def test_un_solo_inmueble_trae_la_ficha_y_no_una_lista_de_uno(self):
+        """Preguntar por uno concreto y recibir "1 opción(es)" es contestar de menos."""
+        largo = self._lote()
+        largo.descripcion = "Lote " + "muy amplio " * 40
+        texto = self._ficha(largo)
+
+        assert "opción(es)" not in texto
+        assert "1. *" not in texto, "un solo inmueble no se numera"
+        # La descripción va entera: no compite con otras nueve fichas.
+        assert len(texto) > gateway.TOPE_DESCRIPCION * 2
+        assert len(texto) < gateway.TOPE_FICHA + 300
+        assert "*Pereira*" in texto and "$350.000.000" in texto
+
+
+class TestFocoEnUnInmueble:
+    """"Háblame solo de la ferretería de La Reforma" tiene que hacer justo eso.
+
+    Reportado en producción: el comprador pedía lotes en Dosquebradas, el bot le
+    listaba los seis y, al pedirle que le hablara solo de uno, le volvían los
+    seis. Lo que identifica ese lote —"la ferretería", "La Reforma"— no cabe en
+    ningún slot: está escrito en la zona y en la descripción de la ficha, así
+    que el emparejamiento lo ignoraba por completo.
+    """
+
+    CARTERA = [
+        ("La Reforma, Dosquebradas", "Lote donde funciona la ferretería, sobre vía principal."),
+        ("Frailes, Dosquebradas", "Lote plano con servicios."),
+        ("Los Naranjos, Dosquebradas", "Lote en ladera con vista."),
+        ("El Japón, Dosquebradas", "Lote para bodega."),
+        ("Santa Isabel, Dosquebradas", "Lote residencial en esquina."),
+        ("La Badea, Dosquebradas", "Lote grande cerca a la variante."),
+    ]
+
+    @pytest.fixture()
+    def cartera(self, db):
+        for i, (zona, descripcion) in enumerate(self.CARTERA, start=1):
+            db.add(
+                Propiedad(
+                    id=f"LOT-DOS-{i:03d}", ciudad="Pereira", zona=zona, tipo="lote",
+                    habitaciones=0, banos=0, area_m2=500 + i, precio=100_000_000 * i,
+                    estado="disponible", descripcion=descripcion,
+                )
+            )
+        db.flush()
+        return db
+
+    @staticmethod
+    def _pedir_lotes(db, prospecto):
+        return gateway.procesar(db, prospecto, "Quiero lotes en Dosquebradas")
+
+    def test_el_punto_de_partida_son_los_seis(self, cartera, prospecto_consentido):
+        r = self._pedir_lotes(cartera, prospecto_consentido)
+        assert len(r.matches) == 6
+
+    def test_nombrar_uno_deja_solo_ese(self, cartera, prospecto_consentido):
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(
+            cartera, prospecto_consentido, "Háblame solo de la ferretería de La Reforma"
+        )
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["LOT-DOS-001"]
+        assert "ferretería" in r.textos[0]
+
+    def test_el_mensaje_dice_como_volver_a_verlos_todos(self, cartera, prospecto_consentido):
+        """Un recorte que no se anuncia es indistinguible de una cartera pobre."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+
+        assert "*todos*" in r.textos[0]
+        assert "6" in r.textos[0]
+
+    def test_el_foco_sobrevive_a_la_pregunta_siguiente(self, cartera, prospecto_consentido):
+        """"¿Y cuánto vale?" no es renunciar a lo que acaba de pedir."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        r = gateway.procesar(cartera, prospecto_consentido, "¿Y cuánto vale?")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["LOT-DOS-001"]
+
+    def test_pedir_todos_suelta_el_foco(self, cartera, prospecto_consentido):
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        r = gateway.procesar(cartera, prospecto_consentido, "Muéstrame todos los lotes")
+        cartera.commit()
+
+        assert len(r.matches) == 6
+        assert prospecto_consentido.foco is None
+
+    def test_cambiar_de_busqueda_tambien_lo_suelta(self, cartera, prospecto_consentido):
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        r = gateway.procesar(cartera, prospecto_consentido, "Mejor casas en Pereira")
+        cartera.commit()
+
+        assert prospecto_consentido.foco is None
+        assert all(m.propiedad.tipo == "casa" for m in r.matches)
+
+    def test_una_palabra_que_no_esta_en_la_cartera_no_recorta(self, cartera, prospecto_consentido):
+        """Callar cinco lotes por una palabra suelta es peor que ignorarla."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "¿Alguno con helipuerto?")
+        cartera.commit()
+
+        assert len(r.matches) == 6
+        assert prospecto_consentido.foco is None
+
+    def test_el_barrio_tambien_acota(self, cartera, prospecto_consentido):
+        """"El de Frailes" es tan concreto como un municipio, y antes no filtraba."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "Cuéntame del de Frailes")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["LOT-DOS-002"]
+
+    def test_la_visita_apunta_al_inmueble_enfocado(self, cartera, prospecto_consentido):
+        """El asesor tiene que recibir la ficha por la que preguntó, no otra."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        r = gateway.procesar(cartera, prospecto_consentido, "visita")
+        cartera.commit()
+
+        assert r.handoff is True
+        assert prospecto_consentido.solicitudes[-1].propiedad_id == "LOT-DOS-001"
 
 
 class TestMaquinaEstados:

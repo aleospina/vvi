@@ -75,6 +75,7 @@ CAMPANAS_SEMILLA = [
 COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
     "prospectos": [
         ("municipio", "VARCHAR(64)"),
+        ("foco", "VARCHAR(160)"),
     ],
     "propiedades": [
         ("fuente", "VARCHAR(40) DEFAULT 'manual'"),

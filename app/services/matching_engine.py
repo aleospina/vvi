@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.client import cliente
 from app.models import Emparejamiento, Propiedad, Prospecto
-from app.services.nlu_engine import normalizar
+from app.services.nlu_engine import normalizar, terminos_de_mencion
 from app.services.geografia import municipios_de_plaza
 from app.services.portfolio import como_dict, municipio_de, plano
 
@@ -106,40 +106,119 @@ def _del_municipio(candidatas: list[Propiedad], perfil: dict) -> list[Propiedad]
     return [p for p in candidatas if plano(municipio_de(p)) == objetivo]
 
 
-def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Match]:
-    """Filtra la cartera por los criterios del prospecto y rankea (RF-09)."""
+def _buscable(p: Propiedad) -> str:
+    """Todo lo que un comprador podría usar para nombrar esta ficha."""
+    return normalizar(" ".join([p.id, p.zona or "", p.ciudad or "", p.descripcion or ""]))
+
+
+def _por_mencion(candidatas: list[Propiedad], terminos: tuple[str, ...]) -> list[Propiedad]:
+    """Deja solo lo que el comprador nombró (RF-09).
+
+    "Háblame **solo de la ferretería de La Reforma**" es una petición tan
+    concreta como un municipio o un tope de precio, pero no cabe en ningún slot:
+    lo que la identifica está en la zona o en la descripción de la ficha. Sin
+    esto, el turno volvía a listar los seis lotes del municipio y parecía que el
+    bot no había leído la pregunta.
+
+    Gana la ficha que acierta más términos, no la que acierta alguno: quien dice
+    "ferretería" y "reforma" está señalando la que cumple las dos cosas. Si
+    ningún término aparece en la cartera no se recorta nada: callar la mitad del
+    inventario por una palabra suelta es peor que ignorarla.
+    """
+    if not terminos:
+        return candidatas
+    puntos = {p.id: sum(1 for t in terminos if t in _buscable(p)) for p in candidatas}
+    mejor = max(puntos.values(), default=0)
+    if mejor == 0:
+        return candidatas
+    return [p for p in candidatas if puntos[p.id] == mejor]
+
+
+def terminos_foco(perfil: dict) -> tuple[str, ...]:
+    """Los términos con los que el comprador acotó la conversación."""
+    return tuple((perfil.get("foco") or "").split())
+
+
+def _del_perfil(db: Session, perfil: dict, *, con_criterios: bool = True) -> list[Propiedad]:
+    """Cartera disponible que encaja con el perfil, ya acotada al municipio.
+
+    `con_criterios=False` deja fuera presupuesto y habitaciones: el universo
+    contra el que se resuelve una mención tiene que ser todo lo que el comprador
+    podría estar nombrando, no solo lo que hoy le cabe en la banda de precio.
+    """
     # El presupuesto filtra, pero no habilita: quién decide si ya hay datos para
     # emparejar es el gateway (`faltan_datos`). Exigirlo aquí impedía atender un
     # "muéstrame todo lo de Medellín" perfectamente válido.
     if not (perfil.get("ciudad") and perfil.get("tipo")):
         return []
 
-    piso = int(perfil.get("presupuesto_min") or 0)
-
-    consulta = (
-        select(Propiedad)
-        .where(
-            # `ciudad` guarda el municipio, así que la plaza que pidió el
-            # comprador se expande a los suyos: quien dice "Medellín" tiene que
-            # ver Envigado y Sabaneta, que para él son el mismo mercado. Luego
-            # `_del_municipio` acota si nombró uno concreto.
-            Propiedad.ciudad.in_(_de_la_plaza(perfil)),
-            Propiedad.tipo == perfil["tipo"],
-            Propiedad.estado == "disponible",
-            Propiedad.precio >= piso,
-        )
+    consulta = select(Propiedad).where(
+        # `ciudad` guarda el municipio, así que la plaza que pidió el comprador
+        # se expande a los suyos: quien dice "Medellín" tiene que ver Envigado y
+        # Sabaneta, que para él son el mismo mercado. Luego `_del_municipio`
+        # acota si nombró uno concreto.
+        Propiedad.ciudad.in_(_de_la_plaza(perfil)),
+        Propiedad.tipo == perfil["tipo"],
+        Propiedad.estado == "disponible",
     )
-    # Sin techo declarado ("desde 200 millones") no se acota por arriba: filtrar
-    # con un tope inventado es justo lo que dejaba fuera la cartera cara.
-    if perfil.get("presupuesto_max"):
-        consulta = consulta.where(Propiedad.precio <= int(perfil["presupuesto_max"]))
-    if perfil.get("habitaciones"):
-        consulta = consulta.where(Propiedad.habitaciones >= int(perfil["habitaciones"]))
+    if con_criterios:
+        consulta = consulta.where(Propiedad.precio >= int(perfil.get("presupuesto_min") or 0))
+        # Sin techo declarado ("desde 200 millones") no se acota por arriba:
+        # filtrar con un tope inventado dejaba fuera la cartera cara.
+        if perfil.get("presupuesto_max"):
+            consulta = consulta.where(Propiedad.precio <= int(perfil["presupuesto_max"]))
+        if perfil.get("habitaciones"):
+            consulta = consulta.where(Propiedad.habitaciones >= int(perfil["habitaciones"]))
 
-    candidatas = _del_municipio(list(db.scalars(consulta)), perfil)
+    return _del_municipio(list(db.scalars(consulta)), perfil)
+
+
+def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Match]:
+    """Filtra la cartera por los criterios del prospecto y rankea (RF-09)."""
+    candidatas = _por_mencion(_del_perfil(db, perfil), terminos_foco(perfil))
     matches = [Match(propiedad=p, puntaje=_puntuar(p, perfil)) for p in candidatas]
     matches.sort(key=lambda m: (-m.puntaje, m.propiedad.precio))
     return matches[:limite]
+
+
+def foco_del_turno(
+    db: Session, texto: str, perfil: dict, *, limpiar: bool = False
+) -> str | None:
+    """Con qué palabras acotó el comprador la cartera en ESTE mensaje.
+
+    Devuelve los términos que sí señalan algo de la cartera, `""` para volver al
+    inventario completo, o `None` cuando el mensaje no habla de eso y el foco
+    anterior sigue en pie: "¿y cuánto vale?" no es renunciar a lo que acaba de
+    pedir.
+
+    El universo se calcula sin la banda de precio a propósito: quien nombra un
+    inmueble por su nombre lo está pidiendo por encima del tope que dio antes, y
+    no encontrarlo por eso se leería como que no existe.
+    """
+    universo = _del_perfil(db, {**perfil, "foco": None}, con_criterios=False)
+    terminos = terminos_de_mencion(texto)
+    if universo and terminos:
+        elegidas = _por_mencion(universo, terminos)
+        # Un recorte que no recorta no es un foco: anunciarlo sería darle una
+        # palabra mágica que no hace nada.
+        if 0 < len(elegidas) < len(universo):
+            aciertos = [t for t in terminos if t in _buscable(elegidas[0])]
+            if aciertos:
+                return " ".join(aciertos)
+    return "" if limpiar else None
+
+
+def enfocada(db: Session, perfil: dict) -> str | None:
+    """El inmueble al que quedó acotada la conversación, si es uno solo.
+
+    Cuando pide visita después de decir "solo la ferretería de La Reforma", el
+    asesor tiene que recibir esa ficha y no la mejor puntuada de la última tanda,
+    que es de otro lote.
+    """
+    if not perfil.get("foco"):
+        return None
+    matches = buscar(db, perfil, limite=2)
+    return matches[0].propiedad.id if len(matches) == 1 else None
 
 
 def conteo(db: Session, perfil: dict) -> tuple[int, int]:
@@ -148,21 +227,12 @@ def conteo(db: Session, perfil: dict) -> tuple[int, int]:
     Alimenta el aviso de filtro activo: una cartera de 4 que llega recortada a 1
     parece un error del bot si no se dice qué la recortó.
     """
-    if not (perfil.get("ciudad") and perfil.get("tipo")):
-        return 0, 0
     # El total cuenta el mismo universo que se muestra: si la búsqueda es de
     # Dosquebradas, decir "tengo 8 en total" contando Pereira haría creer que el
-    # bot esconde inmuebles que en realidad son de otro municipio.
-    de_la_plaza = list(
-        db.scalars(
-            select(Propiedad).where(
-                Propiedad.ciudad.in_(_de_la_plaza(perfil)),
-                Propiedad.tipo == perfil["tipo"],
-                Propiedad.estado == "disponible",
-            )
-        )
-    )
-    total = len(_del_municipio(de_la_plaza, perfil))
+    # bot esconde inmuebles que en realidad son de otro municipio. Por lo mismo
+    # respeta el foco: con "solo la ferretería" el universo ya es esa ficha.
+    sin_banda = _del_perfil(db, perfil, con_criterios=False)
+    total = len(_por_mencion(sin_banda, terminos_foco(perfil)))
     return len(buscar(db, perfil, limite=total or 1)), total
 
 
@@ -232,7 +302,11 @@ def contexto_cartera(db: Session, perfil: dict, limite: int = 8) -> str:
         consulta = consulta.where(Propiedad.precio >= int(perfil["presupuesto_min"]))
     if perfil.get("presupuesto_max"):
         consulta = consulta.where(Propiedad.precio <= int(perfil["presupuesto_max"]))
-    filas = list(db.scalars(consulta.order_by(Propiedad.precio).limit(limite)))
+    # El foco se aplica después de traer las filas, no en SQL: vive en el texto
+    # de la zona y la descripción, no en una columna.
+    filas = _por_mencion(
+        list(db.scalars(consulta.order_by(Propiedad.precio))), terminos_foco(perfil)
+    )[:limite]
     return "\n".join(
         f"- {p.id} | {p.tipo} | {p.zona}, {p.ciudad} | {p.habitaciones} hab | "
         f"{p.area_m2:.0f} m² | ${p.precio:,}".replace(",", ".")

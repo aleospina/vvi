@@ -256,6 +256,67 @@ def pide_sin_tope(texto: str) -> bool:
     return any(p in plano for p in SIN_TOPE)
 
 
+#: Palabras que nunca sirven para señalar un inmueble concreto: conectores,
+#: cortesías, el vocabulario del negocio (que ya viaja en los slots) y los
+#: municipios (que ya acotan por su cuenta). Los **barrios** no están aquí a
+#: propósito: "el de Laureles" tiene que poder recortar la cartera.
+_PALABRAS_VACIAS = frozenset(
+    """
+    para pero como donde cual cuales cuando cuanto cuanta cuantos porque
+    tambien sobre entre desde hasta este esta esto estos estas esos esas
+    aquel aquella algo algun alguna alguno nada todo toda todos todas
+    mucho mucha muchos muy mas menos bien ahora luego aqui alla ademas
+    otro otra otros otras cada solo solamente unicamente mismo misma
+    quiero quisiera queria puedes podrias podria dime digame decirme
+    hablame hablar cuentame contarme muestrame mostrar ensename saber
+    conocer tienes tiene tengo tienen haber hacer sirve serviria queda
+    quedan estoy estas estan busco buscar buscando necesito interesa
+    interesado interesada gracias buenas buenos dias tardes noches hola
+    perfecto listo vale valen cuesta cuestan bueno bien favor ayuda
+    ayudar mira mire oiga señor senor señora senora amigo claro
+    amable autorizo acepto confirmo mejor peor cerca cerquita dentro
+    fuera tope limite gustaria encanta
+    casa casas apartamento apartamentos apto aptos apartaestudio finca
+    lote lotes terreno terrenos parcela inmueble inmuebles propiedad
+    propiedades vivienda proyecto precio precios valor costo millones
+    millon pesos plata presupuesto metros cuadrados area habitacion
+    habitaciones alcoba alcobas cuarto cuartos dormitorio banos bano
+    zona zonas barrio barrios sector sectores ciudad municipio
+    visita visitar verla verlo conocerla conocerlo agendar cita asesor
+    contacto telefono numero whatsapp llamen llamar escribir
+    informacion info detalle detalles ficha fichas opcion opciones
+    foto fotos imagen imagenes ubicacion direccion mapa
+    disponible disponibles catalogo cartera lista listado inventario
+    medellin envigado sabaneta itagui bello estrella caldas copacabana
+    girardota barbosa pereira dosquebradas virginia santa rosa cabal
+    """.split()
+)
+
+#: Un término útil tiene al menos cuatro letras: por debajo son artículos y
+#: preposiciones ("de", "la", "el") que están en todas las fichas.
+_RE_TERMINO = re.compile(r"[a-z0-9][a-z0-9-]{3,}")
+
+
+def terminos_de_mencion(texto: str) -> tuple[str, ...]:
+    """Palabras con las que el comprador puede estar nombrando un inmueble.
+
+    "Háblame solo de la ferretería de La Reforma" deja ("ferreteria", "reforma"):
+    lo demás son conectores o vocabulario que ya viaja en los slots. Se descartan
+    los números porque un precio o un área no señalan a un inmueble concreto, y
+    el código de la ficha sobrevive entero ("prop-per-003") porque a veces el
+    comprador copia y pega justo eso.
+    """
+    plano = normalizar(texto)
+    terminos: list[str] = []
+    for bruto in _RE_TERMINO.findall(plano):
+        termino = bruto.strip("-")
+        if len(termino) < 4 or termino.isdigit() or termino in _PALABRAS_VACIAS:
+            continue
+        if termino not in terminos:
+            terminos.append(termino)
+    return tuple(terminos)
+
+
 def _respuesta_plana(texto: str) -> str:
     """Normaliza una respuesta corta para compararla contra una lista cerrada.
 

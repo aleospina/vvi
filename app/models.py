@@ -338,6 +338,15 @@ class Prospecto(Base):
     #: que de verdad delimita su búsqueda.
     municipio: Mapped[str | None] = mapped_column(String(64))
     zona: Mapped[str | None] = mapped_column(String(80))
+    #: Términos con los que el comprador acotó la conversación a una parte de la
+    #: cartera —"solo la ferretería de La Reforma", "el de Laureles"—. No es un
+    #: slot más: no cabe en ninguna columna del inmueble porque lo que lo
+    #: identifica está escrito en la zona o en la descripción de la ficha. Vive
+    #: en el prospecto para que el recorte sobreviva al siguiente mensaje: si
+    #: durara un turno, el "¿y cuánto vale?" que viene detrás le devolvería la
+    #: cartera entera. Se limpia al pedir la lista completa o al cambiar de
+    #: búsqueda.
+    foco: Mapped[str | None] = mapped_column(String(160))
     tipo: Mapped[str | None] = mapped_column(String(20))
     presupuesto_min: Mapped[int | None] = mapped_column(Integer)
     presupuesto_max: Mapped[int | None] = mapped_column(Integer)

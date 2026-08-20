@@ -15,6 +15,7 @@ from app.services.nlu_engine import (
     fuera_de_alcance,
     pide_visita,
     score_por_reglas,
+    terminos_de_mencion,
 )
 
 
@@ -176,3 +177,47 @@ class TestAnalisisSinLLM:
         )
         assert a.slots["presupuesto_min"] is None
         assert a.slots["presupuesto_max"] is None
+
+
+class TestTerminosDeMencion:
+    """Con qué palabras un comprador señala un inmueble concreto.
+
+    De esto depende que "háblame solo de la ferretería de La Reforma" recorte la
+    cartera. El riesgo está en el otro lado: si una frase corriente dejara
+    términos, el bot escondería inventario por una palabra de cortesía.
+    """
+
+    @pytest.mark.parametrize(
+        "frase",
+        [
+            "Hola, buenas tardes",
+            "Sí, autorizo",
+            "gracias, muy amable",
+            "Quiero lotes en Dosquebradas",
+            "En Medellín, 3 habitaciones, hasta 400 millones",
+            "Me interesa, quiero una visita",
+            "Muéstrame todos los lotes disponibles",
+            "sin tope de precio",
+            "¿Y cuánto vale?",
+        ],
+    )
+    def test_la_conversacion_corriente_no_señala_nada(self, frase):
+        assert terminos_de_mencion(frase) == ()
+
+    def test_el_nombre_del_inmueble_sí_sale(self):
+        assert terminos_de_mencion("Háblame solo de la ferretería de La Reforma") == (
+            "ferreteria",
+            "reforma",
+        )
+
+    def test_el_barrio_cuenta_pero_el_municipio_no(self):
+        """El municipio ya acota por su cuenta; el barrio no acotaba nada."""
+        assert terminos_de_mencion("apartamentos en Laureles") == ("laureles",)
+        assert terminos_de_mencion("apartamentos en Dosquebradas") == ()
+
+    def test_el_codigo_de_la_ficha_sobrevive_entero(self):
+        assert terminos_de_mencion("info del PROP-PER-003") == ("prop-per-003",)
+
+    def test_los_numeros_no_señalan_inmuebles(self):
+        """Un precio o un área no identifican una ficha: la filtran."""
+        assert terminos_de_mencion("de 350.000.000 y 2462 m2") == ()
