@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
 from app.models import Canal, Direccion, Prospecto
-from app.services import leads, matching_engine
+from app.services import leads, matching_engine, notificaciones, seguimiento
 from app.services.compliance import (
     aviso_ia,
     registrar_consentimiento,
@@ -28,11 +28,14 @@ from app.services.compliance import (
 from app.services.matching_engine import Match
 from app.services.nlu_engine import (
     analizar,
+    es_afirmativo,
+    es_negativo,
     extraer_slots,
     pide_listado_completo,
     pide_sin_tope,
     pide_visita,
     pregunta_siguiente,
+    respuesta_de_cierre,
 )
 from app.services.portfolio import precio_minimo
 
@@ -62,6 +65,8 @@ class Respuesta:
     matches: list[Match] = field(default_factory=list)
     pide_consentimiento: bool = False
     handoff: bool = False
+    #: El comprador declaró que el negocio ya se cerró (PRD §10).
+    cierre_declarado: bool = False
     prospecto: Prospecto | None = None
 
 
@@ -96,6 +101,9 @@ def alta_con_consentimiento(
             db,
             canal=canal,
             canal_id=entrante.canal_id,
+            # El hash sirve para encontrarlo cuando él escribe; para escribirle a
+            # él hace falta el identificador en claro (cifrado en reposo).
+            canal_id_claro=entrante.canal_id,
             nombre=entrante.nombre,
             telefono=entrante.telefono,
             usuario_canal=entrante.usuario_canal,
@@ -104,6 +112,7 @@ def alta_con_consentimiento(
         )
     else:
         # Reingreso de un titular conocido: completamos lo que falte.
+        prospecto.canal_id = prospecto.canal_id or entrante.canal_id
         prospecto.nombre = prospecto.nombre or entrante.nombre
         prospecto.telefono = prospecto.telefono or entrante.telefono
         prospecto.usuario_canal = prospecto.usuario_canal or entrante.usuario_canal
@@ -347,12 +356,48 @@ def _nombra_la_busqueda(texto: str) -> bool:
     return any(c in extraer_slots(texto) for c in SLOTS_DE_BUSQUEDA)
 
 
+def _leer_declaracion(db: Session, prospecto: Prospecto, texto: str) -> bool:
+    """¿Este mensaje dice si el negocio se cerró? Lo anota y avisa (PRD §10).
+
+    Se mira en **todos** los mensajes, no solo cuando hay una pregunta de
+    seguimiento abierta: un "ya compramos, gracias" espontáneo vale igual, y
+    perderlo por no haber preguntado primero sería absurdo.
+
+    Un *sí* o un *no* a secas solo cuentan si venían de una pregunta nuestra;
+    sueltos no significan nada.
+    """
+    esperando = seguimiento.esperando_respuesta(db, prospecto)
+    resultado = respuesta_de_cierre(texto)
+    if resultado is None and esperando is not None:
+        if es_afirmativo(texto):
+            resultado = seguimiento.CERRO
+        elif es_negativo(texto):
+            resultado = seguimiento.NO_CERRO
+    if resultado is None:
+        return False
+
+    registro = seguimiento.registrar_respuesta(db, prospecto, resultado)
+    if resultado != seguimiento.CERRO or registro is None:
+        return False
+
+    # El aviso nunca puede tumbar el turno: el dato ya quedó guardado y la lista
+    # de cierres declarados del dashboard es la fuente de verdad.
+    try:
+        notificaciones.notificar_cierre_declarado(prospecto, registro.solicitud)
+    except Exception:  # noqa: BLE001 - degradación deliberada
+        log.warning("No se pudo avisar del cierre declarado por %s", prospecto.codigo,
+                    exc_info=True)
+    return True
+
+
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     """Procesa un mensaje entrante de un titular que YA autorizó (DF-1 a DF-4)."""
     if not tiene_consentimiento_vigente(prospecto):
         return Respuesta(textos=[mensaje_bienvenida()], pide_consentimiento=True, prospecto=prospecto)
 
     leads.registrar_mensaje(db, prospecto, Direccion.ENTRANTE, texto)
+
+    declara_cierre = _leer_declaracion(db, prospecto, texto)
 
     perfil_previo = leads.perfil(prospecto)
     analisis = analizar(
@@ -436,7 +481,14 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
         and not cambia_busqueda
     )
 
-    if solo_handoff:
+    # Quien acaba de decir que ya compró no necesita ver la cartera otra vez:
+    # se le agradece y se cierra. Lo que sigue —verificar si esa venta está
+    # registrada— es trabajo del operador, no de él.
+    if declara_cierre:
+        respuesta.cierre_declarado = True
+        respuesta.textos.append(PLANTILLAS["seguimiento_cierre"])
+
+    elif solo_handoff:
         pass  # el turno entero lo cierra el bloque 4
 
     # 1) Regla dura: fuera de cobertura, se dice con transparencia (CU-4).
@@ -493,8 +545,9 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
                 )
             )
 
-    # 4) Handoff a humano si lo pidió (RF-12).
-    if hara_handoff:
+    # 4) Handoff a humano si lo pidió (RF-12). No cuando acaba de declarar el
+    #    cierre: mandarle un asesor a quien ya compró es no haberlo escuchado.
+    if hara_handoff and not declara_cierre:
         propiedad_id = (
             respuesta.matches[0].propiedad.id
             if respuesta.matches

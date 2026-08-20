@@ -53,10 +53,61 @@ async def ciclo_vida(app: FastAPI):
     # landing `/publicar`, que no necesitan internet para nada.
     app.state.tarea_bot = asyncio.create_task(_levantar_bot(bot)) if bot else None
 
+    app.state.tarea_seguimiento = None
+    if settings.intervalo_seguimiento_min > 0 and settings.hitos_seguimiento:
+        app.state.tarea_seguimiento = asyncio.create_task(_ronda_de_seguimiento())
+        log.info(
+            "Seguimiento al comprador activo: hitos %s días, revisión cada %d min.",
+            list(settings.hitos_seguimiento),
+            settings.intervalo_seguimiento_min,
+        )
+    else:
+        log.info("Seguimiento al comprador desactivado por configuración.")
+
     try:
         yield
     finally:
         await _detener_bot(app.state.tarea_bot, bot)
+        await _detener_tarea(app.state.tarea_seguimiento)
+
+
+def _ronda_seguimiento_sincrona() -> int:
+    """Una pasada por la cola, con su propia sesión de base de datos."""
+    from app.db import sesion
+    from app.services import seguimiento
+
+    with sesion() as db:
+        return seguimiento.ejecutar(db)
+
+
+async def _ronda_de_seguimiento() -> None:
+    """Le pregunta a los compradores presentados si el negocio ya se cerró.
+
+    Duerme **antes** de la primera pasada a propósito: un despliegue que
+    reinicia varias veces seguidas no puede convertirse en varias rondas de
+    mensajes. Y el trabajo va a un hilo porque toca base de datos y red de forma
+    síncrona; hacerlo en el bucle de eventos congelaría el dashboard.
+    """
+    intervalo = settings.intervalo_seguimiento_min * 60
+    while True:
+        await asyncio.sleep(intervalo)
+        try:
+            enviados = await asyncio.to_thread(_ronda_seguimiento_sincrona)
+            if enviados:
+                log.info("Seguimiento: %d pregunta(s) enviada(s).", enviados)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Una ronda fallida no puede matar la tarea: la siguiente lo intenta.
+            log.exception("La ronda de seguimiento falló; se reintenta en la próxima.")
+
+
+async def _detener_tarea(tarea) -> None:
+    if tarea is None or tarea.done():
+        return
+    tarea.cancel()
+    with suppress(asyncio.CancelledError):
+        await tarea
 
 
 async def _levantar_bot(bot) -> None:

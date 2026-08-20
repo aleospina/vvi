@@ -168,12 +168,18 @@
     <div class="panel">
       <h2 style="margin-top:0">Solicitudes</h2>
       <table>
-        <thead><tr><th>Tipo</th><th>Propiedad</th><th>Estado</th><th>Fecha</th></tr></thead>
+        <thead><tr><th>Tipo</th><th>Propiedad</th><th>Estado</th><th>Fecha</th><th>Protegida hasta</th></tr></thead>
         <tbody>
         {% for s in solicitudes %}
           <tr>
             <td>{{ s.tipo }}</td><td>{{ s.propiedad_id or '—' }}</td>
             <td>{{ s.estado }}</td><td>{{ s.creado_en | fecha('%d/%m %H:%M') }}</td>
+            <td>
+              {{ s.protegido_hasta | fecha('%d/%m/%Y') }}
+              {% if s.protegido_hasta and not s.proteccion_vigente %}
+                <small class="leyenda">(vencida)</small>
+              {% endif %}
+            </td>
           </tr>
         {% endfor %}
         </tbody>

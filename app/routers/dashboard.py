@@ -52,7 +52,7 @@ from app.security.sesion import (
     validar_token,
 )
 from app.services import (
-    commission, fotos, geografia, ingesta, leads, portfolio, prospecting,
+    commission, fotos, geografia, ingesta, leads, portfolio, prospecting, seguimiento,
 )
 from app.services.compliance import auditar, verificar_cadena
 from app.tiempo import fecha
@@ -221,6 +221,9 @@ def inicio(request: Request, quien: Operador, db: Session = Depends(get_db)):
                     .limit(20)
                 )
             ),
+            # Compradores que dicen haber cerrado sin venta registrada: es la
+            # lista que hay que mirar todos los días (PRD §10).
+            cierres=seguimiento.cierres_declarados(db),
         ),
     )
 
@@ -281,6 +284,19 @@ def registrar_venta(
     except commission.VentaInvalida as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return RedirectResponse(f"/dashboard/prospecto/{codigo}", status_code=303)
+
+
+@router.post("/seguimiento/ejecutar")
+def ejecutar_seguimiento(quien: Operador, db: Session = Depends(get_db)):
+    """Dispara una ronda de preguntas sin esperar al reloj.
+
+    La tarea de fondo corre cada hora; esto existe para poder probar el circuito
+    completo —y para el día que haya que empujarlo a mano— sin reiniciar el
+    proceso.
+    """
+    enviados = seguimiento.ejecutar(db)
+    log.info("Ronda de seguimiento manual de %s: %d envío(s).", quien, enviados)
+    return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/solicitud/{solicitud_id}/atender")

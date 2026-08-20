@@ -32,6 +32,42 @@
   </div>
 </div>
 
+{% if cierres %}
+<div class="aviso-caja">
+  <h3>🚨 {{ cierres | length }} comprador(es) dice(n) haber cerrado y no hay venta registrada</h3>
+  <p>
+    Se lo contaron al bot cuando el sistema les preguntó cómo les había ido. Cada
+    fila es un negocio que ocurrió y que VVI no vio: verifica con el asesor y
+    registra la venta si corresponde, mientras la escritura todavía no se firma.
+  </p>
+  <table style="margin-top:12px">
+    <thead>
+      <tr><th>Prospecto</th><th>Inmueble</th><th>Presentado</th><th>Protegido hasta</th><th>Lo dijo</th><th></th></tr>
+    </thead>
+    <tbody>
+    {% for c in cierres %}
+      <tr>
+        <td><a href="/dashboard/prospecto/{{ c.prospecto.codigo }}">{{ c.prospecto.codigo }}</a></td>
+        <td>
+          {% if c.solicitud.propiedad %}
+            {{ c.solicitud.propiedad.zona }}, {{ c.solicitud.propiedad.ciudad }}<br>
+            <small class="leyenda">{{ c.solicitud.propiedad.id }}</small>
+          {% else %}—{% endif %}
+        </td>
+        <td>{{ c.solicitud.creado_en | fecha('%d/%m/%Y') }}</td>
+        <td>
+          {{ c.solicitud.protegido_hasta | fecha('%d/%m/%Y') }}
+          {% if not c.solicitud.proteccion_vigente %}<br><small class="leyenda">vencida</small>{% endif %}
+        </td>
+        <td>{{ c.respondido_en | fecha('%d/%m %H:%M') }}</td>
+        <td><a href="/dashboard/prospecto/{{ c.prospecto.codigo }}">Ver conversación →</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
 {% if alertas %}
 <div class="aviso-caja">
   <h3>⚠️ {{ alertas | length }} oportunidad(es) sin desenlace registrado</h3>
@@ -60,9 +96,16 @@
 {% endif %}
 
 {% if solicitudes %}
-<h2>Solicitudes pendientes de atender</h2>
+<div class="linea" style="align-items:baseline; gap:12px">
+  <h2>Solicitudes pendientes de atender</h2>
+  <form method="post" action="/dashboard/seguimiento/ejecutar">
+    <button class="suave" title="Le pregunta a los compradores presentados si el negocio ya se cerró">
+      Preguntar a los compradores
+    </button>
+  </form>
+</div>
 <table>
-  <thead><tr><th>Prospecto</th><th>Tipo</th><th>Inmueble</th><th>Recibida</th><th></th></tr></thead>
+  <thead><tr><th>Prospecto</th><th>Tipo</th><th>Inmueble</th><th>Recibida</th><th>Comisión protegida hasta</th><th></th></tr></thead>
   <tbody>
   {% for s in solicitudes %}
     <tr>
@@ -80,6 +123,12 @@
         {% else %}—{% endif %}
       </td>
       <td>{{ s.creado_en | fecha('%d/%m %H:%M') }}</td>
+      <td>
+        {{ s.protegido_hasta | fecha('%d/%m/%Y') }}
+        {% if s.protegido_hasta and not s.proteccion_vigente %}
+          <br><small class="leyenda">vencida</small>
+        {% endif %}
+      </td>
       <td class="linea">
         <a class="boton suave" href="/dashboard/prospecto/{{ s.prospecto.codigo }}">Ver conversación</a>
         <form method="post" action="/dashboard/solicitud/{{ s.id }}/atender">

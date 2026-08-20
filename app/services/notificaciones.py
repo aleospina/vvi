@@ -125,6 +125,37 @@ def notificar_solicitud(solicitud: Solicitud, prospecto: Prospecto) -> list[str]
     return enviados
 
 
+def notificar_cierre_declarado(prospecto: Prospecto, solicitud: Solicitud) -> list[str]:
+    """Avisa que un comprador dice haber cerrado y el sistema no tiene la venta.
+
+    Es el aviso más caro de ignorar de todo el sistema: mientras la escritura no
+    se firme, todavía hay conversación posible. Va sin PII, como todos: el
+    código del prospecto y el enlace al dashboard.
+    """
+    propiedad = solicitud.propiedad
+    inmueble = (
+        f"{propiedad.zona}, {propiedad.ciudad} ({propiedad.id})"
+        if propiedad is not None
+        else "sin inmueble asociado"
+    )
+    proteccion = (
+        f"{fecha(solicitud.protegido_hasta, '%d/%m/%Y')}"
+        if solicitud.protegido_hasta
+        else "sin ventana registrada"
+    )
+    asunto = f"⚠️ Cierre declarado por el comprador — {prospecto.codigo}"
+    cuerpo = (
+        f"⚠️ *{prospecto.codigo}* dice que ya cerró el negocio y en VVI no hay "
+        f"venta registrada.\n\n"
+        f"Inmueble: {inmueble}\n"
+        f"Presentado: {fecha(solicitud.creado_en)}\n"
+        f"Protegido hasta: {proteccion}\n\n"
+        f"Verifica y registra la venta si corresponde:\n"
+        f"{settings.dashboard_url}/dashboard/prospecto/{prospecto.codigo}"
+    )
+    return avisar_operador(asunto, cuerpo)
+
+
 def avisar_operador(asunto: str, cuerpo: str) -> list[str]:
     """Aviso operativo al asesor, sin prospecto de por medio.
 

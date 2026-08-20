@@ -53,6 +53,7 @@ def crear(
     *,
     canal: Canal | str,
     canal_id: str | None = None,
+    canal_id_claro: str | None = None,
     nombre: str | None = None,
     telefono: str | None = None,
     usuario_canal: str | None = None,
@@ -66,6 +67,7 @@ def crear(
         codigo=siguiente_codigo(db),
         canal=canal_valor,
         canal_id_hash=indice_ciego(canal_id) if canal_id else None,
+        canal_id=canal_id_claro,
         nombre=nombre,
         telefono=telefono,
         usuario_canal=usuario_canal,
@@ -217,12 +219,19 @@ def solicitar_handoff(
     propiedad_id: str | None = None,
     detalle: str = "",
 ) -> Solicitud:
-    """Crea la tarea para el operador humano y mueve el estado (RF-12)."""
+    """Crea la tarea para el operador humano y mueve el estado (RF-12).
+
+    La solicitud es, además, el acto que abre la **ventana de protección** de la
+    comisión: desde aquí y por `dias_proteccion` días, una venta de ese inmueble
+    a ese comprador es atribuible aunque se cierre por fuera del sistema. La
+    fecha se congela ahora y no se recalcula nunca (PRD §10).
+    """
     solicitud = Solicitud(
         prospecto_id=prospecto.id,
         propiedad_id=propiedad_id,
         tipo=tipo,
         detalle=detalle,
+        protegido_hasta=ahora() + timedelta(days=settings.dias_proteccion),
     )
     db.add(solicitud)
 
@@ -244,7 +253,10 @@ def solicitar_handoff(
         accion="handoff_solicitado",
         entidad="solicitud",
         entidad_id=solicitud.id,
-        detalle=f"tipo={tipo} propiedad={propiedad_id or '-'}",
+        detalle=(
+            f"tipo={tipo} propiedad={propiedad_id or '-'} "
+            f"protegido_hasta={solicitud.protegido_hasta:%Y-%m-%d}"
+        ),
     )
 
     # El aviso va después del flush para que el asesor nunca reciba un enlace a

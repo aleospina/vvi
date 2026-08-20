@@ -276,6 +276,21 @@ PLANTILLAS = {
     ),
     #: Cuando ya hay una solicitud en la cola. Repetir el mensaje de arriba haría
     #: creer que se pidió otra vez; callar, que la primera se perdió.
+    #: Seguimiento posterior a la presentación (PRD §10). Una sola pregunta, y
+    #: una salida para quien todavía no ha comprado: si solo se preguntara por
+    #: el cierre, el mensaje sonaría a cobrador y contestaría la mitad.
+    "seguimiento_pregunta": (
+        "👋 ¡Hola! Te escribo para saber cómo te fue con {inmueble}.\n\n"
+        "¿Ya cerraste el negocio? Si todavía estás buscando, dime y seguimos "
+        "ayudándote sin problema."
+    ),
+    #: Cuando declara que ya compró. No se le pide nada más: el que verifica es
+    #: el operador, y ponerlo a él a dar explicaciones sería tratarlo como
+    #: sospechoso de algo que no hizo.
+    "seguimiento_cierre": (
+        "¡Qué buena noticia, muchas felicitaciones por tu nueva propiedad! 🎉\n\n"
+        "Gracias por contarme. Si más adelante buscas otra cosa, aquí estoy."
+    ),
     "handoff_en_cola": (
         "Tu solicitud ya está con el asesor 🙌 Mientras te contacta, sigue "
         "preguntándome lo que quieras de la cartera."

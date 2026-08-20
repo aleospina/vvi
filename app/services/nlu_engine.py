@@ -381,6 +381,57 @@ def indice_mencionado(texto: str) -> int | None:
     return None
 
 
+#: Formas en que un comprador cuenta que el negocio ya se hizo. Todas en
+#: pasado o con "ya": la diferencia entre "quiero comprar" y "ya compré" es la
+#: única que importa aquí, y confundirlas dispararía una alerta de cierre no
+#: reportado contra un asesor que no ha hecho nada.
+_DICE_QUE_CERRO = (
+    "ya compre", "ya lo compre", "ya la compre", "ya compramos", "ya lo compramos",
+    "ya cerre", "ya cerramos", "ya lo cerre", "cerre el negocio", "cerramos el negocio",
+    "ya firme", "ya firmamos", "ya escriture", "ya escrituramos", "ya hicimos el negocio",
+    "hice el negocio", "ya negociamos", "ya lo tome", "ya me quede con",
+    "ya es mio", "ya somos duenos", "ya soy dueno", "ya quedo comprado",
+    "ya hice la compra", "ya hicimos la compra",
+)
+
+#: Formas de decir que no. Se miran primero porque casi todas contienen una
+#: forma de cierre dentro ("todavía no he comprado" contiene "comprado").
+_DICE_QUE_NO = (
+    "todavia no", "aun no", "aun estoy", "todavia estoy", "no he comprado",
+    "no compre", "no cerre", "no cerramos", "no hemos cerrado", "no lo compre",
+    "sigo buscando", "sigo mirando", "seguimos buscando", "sigo interesado",
+    "en eso estoy", "en eso estamos", "no me decidi", "no me he decidido",
+    "desisti", "ya no", "no me interesa", "lo deje", "me arrepenti",
+)
+
+#: Negaciones que, pegadas a una forma de cierre, la invierten.
+_NIEGA = ("no", "nunca", "tampoco")
+
+
+def respuesta_de_cierre(texto: str) -> str | None:
+    """¿El comprador está diciendo que ya cerró el negocio? (PRD §10).
+
+    Devuelve "cerro", "no_cerro" o None cuando el mensaje no habla del asunto.
+
+    Ante la duda, None. Un falso positivo levanta una alerta de venta oculta
+    contra un asesor honesto, y esa acusación cuesta más que la venta que se
+    quería vigilar.
+    """
+    plano = normalizar(texto)
+    if any(p in plano for p in _DICE_QUE_NO):
+        return "no_cerro"
+    for patron in _DICE_QUE_CERRO:
+        posicion = plano.find(patron)
+        if posicion < 0:
+            continue
+        # "no, todavía no compré" ya salió arriba; esto atrapa lo que quede.
+        previo = plano[max(0, posicion - 12) : posicion].split()
+        if previo and previo[-1] in _NIEGA:
+            return "no_cerro"
+        return "cerro"
+    return None
+
+
 def _respuesta_plana(texto: str) -> str:
     """Normaliza una respuesta corta para compararla contra una lista cerrada.
 
