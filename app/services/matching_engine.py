@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.client import cliente
 from app.models import Emparejamiento, Propiedad, Prospecto
-from app.services.nlu_engine import normalizar, terminos_de_mencion
+from app.services.nlu_engine import indice_mencionado, normalizar, terminos_de_mencion
 from app.services.geografia import municipios_de_plaza
 from app.services.portfolio import como_dict, municipio_de, plano
 
@@ -195,7 +195,9 @@ def foco_del_turno(
     inmueble por su nombre lo está pidiendo por encima del tope que dio antes, y
     no encontrarlo por eso se leería como que no existe.
     """
-    universo = _del_perfil(db, {**perfil, "foco": None}, con_criterios=False)
+    sin_foco = {**perfil, "foco": None}
+
+    universo = _del_perfil(db, sin_foco, con_criterios=False)
     terminos = terminos_de_mencion(texto)
     if universo and terminos:
         elegidas = _por_mencion(universo, terminos)
@@ -205,6 +207,18 @@ def foco_del_turno(
             aciertos = [t for t in terminos if t in _buscable(elegidas[0])]
             if aciertos:
                 return " ".join(aciertos)
+
+    # "El lote 6" señala la sexta ficha del listado que tiene arriba. La lista se
+    # recalcula en vez de recordarse: el orden es determinístico y sale del mismo
+    # perfil, así que la posición 6 de ahora es la 6 que él está leyendo. Se
+    # guarda como el id del inmueble —que `_buscable` también indexa—, porque una
+    # posición no sobrevive al siguiente listado y un id sí.
+    posicion = indice_mencionado(texto)
+    if posicion is not None:
+        listado = buscar(db, sin_foco, TOPE_LISTADO)
+        if len(listado) > 1 and 1 <= posicion <= len(listado):
+            return normalizar(listado[posicion - 1].propiedad.id)
+
     return "" if limpiar else None
 
 

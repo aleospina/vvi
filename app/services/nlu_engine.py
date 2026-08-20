@@ -317,6 +317,70 @@ def terminos_de_mencion(texto: str) -> tuple[str, ...]:
     return tuple(terminos)
 
 
+#: Palabras tras las que un número es una posición en la lista y no una medida.
+#: En plural no: "los 6" es pedir los seis, no el sexto.
+_SENALADORES = (
+    "el", "la", "lote", "casa", "apartamento", "apto", "terreno", "inmueble",
+    "propiedad", "ficha", "opcion", "numero", "num", "item", "punto",
+)
+
+#: Unidades que devuelven el número a lo que siempre fue: un dato del inmueble.
+#: "3 habitaciones" o "hasta 20 millones" no señalan la tercera ni la vigésima.
+_UNIDADES = (
+    "millones", "millon", "mills", "mill", "hab", "habs", "habitacion",
+    "habitaciones", "alcoba", "alcobas", "cuarto", "cuartos", "dormitorio",
+    "dormitorios", "bano", "banos", "m2", "mts", "mt2", "metros", "mil",
+    "pesos", "piso", "pisos", "ano", "anos", "meses",
+)
+
+_RE_INDICE = re.compile(
+    r"\b(?:" + "|".join(_SENALADORES) + r")\s*#?\s*(\d{1,2})\b"
+)
+
+_ORDINALES = {
+    "primero": 1, "primera": 1, "segundo": 2, "segunda": 2,
+    "tercero": 3, "tercera": 3, "cuarto": 4, "cuarta": 4,
+    "quinto": 5, "quinta": 5, "sexto": 6, "sexta": 6,
+    "septimo": 7, "septima": 7, "octavo": 8, "octava": 8,
+    "noveno": 9, "novena": 9, "decimo": 10, "decima": 10,
+}
+#: El artículo es obligatorio: "el cuarto" es una posición, "cuarto" a secas es
+#: una habitación.
+_RE_ORDINAL = re.compile(r"\b(?:el|la)\s+(" + "|".join(_ORDINALES) + r")\b")
+
+#: Una lista de chat no pasa de unas pocas fichas; por encima de eso el número
+#: es cualquier otra cosa.
+TOPE_INDICE = 20
+
+
+def indice_mencionado(texto: str) -> int | None:
+    """La posición del listado a la que se refiere el comprador, si la hay.
+
+    "El lote 6", "la opción 2", "el 3" o un "6" a secas son la forma natural de
+    señalar una ficha de las que acaba de recibir numeradas. Sin esto el número
+    no significaba nada y el bot le devolvía otra vez la lista entera.
+
+    Devuelve None ante cualquier duda: un número mal leído como posición le
+    escondería la cartera al comprador por haber dicho "3 habitaciones".
+    """
+    plano = normalizar(texto)
+    solo = plano.strip(" .,;:!¡?¿*-")
+    if solo.isdigit():
+        return int(solo) if 1 <= int(solo) <= TOPE_INDICE else None
+
+    for m in _RE_INDICE.finditer(plano):
+        siguiente = plano[m.end():].lstrip().split(" ")[0].strip(".,;:!?")
+        if siguiente in _UNIDADES:
+            continue
+        posicion = int(m.group(1))
+        if 1 <= posicion <= TOPE_INDICE:
+            return posicion
+
+    if (m := _RE_ORDINAL.search(plano)) is not None:
+        return _ORDINALES[m.group(1)]
+    return None
+
+
 def _respuesta_plana(texto: str) -> str:
     """Normaliza una respuesta corta para compararla contra una lista cerrada.
 

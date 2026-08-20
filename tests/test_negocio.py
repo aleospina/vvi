@@ -294,6 +294,60 @@ class TestFocoEnUnInmueble:
 
         assert [m.propiedad.id for m in r.matches] == ["LOT-DOS-002"]
 
+    def test_el_numero_de_la_lista_señala_esa_ficha(self, cartera, prospecto_consentido):
+        """"Lote 6" es la sexta del listado que acaba de recibir numerado."""
+        r0 = self._pedir_lotes(cartera, prospecto_consentido)
+        sexto = r0.matches[5].propiedad.id
+
+        r = gateway.procesar(cartera, prospecto_consentido, "lote 6")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == [sexto]
+
+    def test_el_numero_señala_incluso_con_otro_foco_puesto(self, cartera, prospecto_consentido):
+        """La posición se cuenta sobre la lista completa, no sobre el recorte."""
+        r0 = self._pedir_lotes(cartera, prospecto_consentido)
+        tercero = r0.matches[2].propiedad.id
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+
+        r = gateway.procesar(cartera, prospecto_consentido, "el 3")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == [tercero]
+
+    def test_la_nota_nombra_el_inmueble_y_no_su_codigo(self, cartera, prospecto_consentido):
+        """El foco de "lote 6" es un id interno: devolvérselo no le dice nada."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "lote 6")
+
+        assert "LOT-DOS" not in r.textos[0]
+        assert "La Badea" in r.textos[0]
+
+    def test_volver_a_nombrar_la_busqueda_suelta_el_foco(self, cartera, prospecto_consentido):
+        """"Lotes en Dosquebradas" es pedir el conjunto, aunque no cambie ni un slot.
+
+        `_cambia_la_busqueda` dice que no cambió nada —lote y Dosquebradas ya
+        estaban puestos— y el comprador quedaba encerrado en la ficha que había
+        pedido, sin más salida que la palabra *todos*.
+        """
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        r = self._pedir_lotes(cartera, prospecto_consentido)
+        cartera.commit()
+
+        assert prospecto_consentido.foco is None
+        assert len(r.matches) == 6
+
+    def test_pedir_visita_no_suelta_el_foco(self, cartera, prospecto_consentido):
+        """"Visita al lote" nombra el tipo, pero es contestar el pie del mensaje."""
+        self._pedir_lotes(cartera, prospecto_consentido)
+        gateway.procesar(cartera, prospecto_consentido, "Solo la ferretería de La Reforma")
+        gateway.procesar(cartera, prospecto_consentido, "quiero visita al lote")
+        cartera.commit()
+
+        assert prospecto_consentido.foco == "ferreteria reforma"
+        assert prospecto_consentido.solicitudes[-1].propiedad_id == "LOT-DOS-001"
+
     def test_la_visita_apunta_al_inmueble_enfocado(self, cartera, prospecto_consentido):
         """El asesor tiene que recibir la ficha por la que preguntó, no otra."""
         self._pedir_lotes(cartera, prospecto_consentido)

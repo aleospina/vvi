@@ -14,6 +14,7 @@ from app.services.nlu_engine import (
     extraer_slots,
     fuera_de_alcance,
     pide_visita,
+    indice_mencionado,
     score_por_reglas,
     terminos_de_mencion,
 )
@@ -221,3 +222,43 @@ class TestTerminosDeMencion:
     def test_los_numeros_no_señalan_inmuebles(self):
         """Un precio o un área no identifican una ficha: la filtran."""
         assert terminos_de_mencion("de 350.000.000 y 2462 m2") == ()
+
+
+class TestIndiceMencionado:
+    """"El lote 6" señala la sexta ficha del listado que el comprador tiene arriba.
+
+    El riesgo está en leer como posición un número que era una medida: quien
+    escribe "3 habitaciones" no está pidiendo la tercera, y esconderle cinco
+    inmuebles por eso es peor que no entender el "6".
+    """
+
+    @pytest.mark.parametrize(
+        ("frase", "esperado"),
+        [
+            ("lote 6", 6),
+            ("el 6", 6),
+            ("6", 6),
+            ("la opción 2", 2),
+            ("número 4", 4),
+            ("quiero el lote 6", 6),
+            ("el tercero", 3),
+        ],
+    )
+    def test_señala_la_posicion(self, frase, esperado):
+        assert indice_mencionado(frase) == esperado
+
+    @pytest.mark.parametrize(
+        "frase",
+        [
+            "3 habitaciones",
+            "casa con 3 cuartos",
+            "hasta 400 millones",
+            "apartamento de 2 baños",
+            "65 m2",
+            "los 6 lotes",
+            "el lote de la ferretería",
+            "quiero un lote",
+        ],
+    )
+    def test_una_medida_no_es_una_posicion(self, frase):
+        assert indice_mencionado(frase) is None

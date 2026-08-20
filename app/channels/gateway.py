@@ -152,18 +152,23 @@ def _nota_filtro(perfil: dict, en_rango: int, total: int) -> str:
     return nota
 
 
-def _nota_foco(db: Session, perfil: dict) -> str:
+def _nota_foco(db: Session, perfil: dict, matches: list[Match]) -> str:
     """Hace visible el recorte por lo que el comprador nombró, y cómo deshacerlo.
 
     Un filtro que no se anuncia es indistinguible de una cartera pobre. Quien
     pidió "solo la ferretería de La Reforma" y dos mensajes después pregunta
     otra cosa tiene que poder volver a verlo todo sin adivinar la palabra
     mágica, así que la nota se la dice.
+
+    Con un solo inmueble se nombra el inmueble y no los términos: cuando el
+    recorte vino de un "el lote 6", el término guardado es su código interno y
+    devolvérselo no le dice nada.
     """
     terminos = matching_engine.terminos_foco(perfil)
     if not terminos:
         return ""
-    nota = f"🎯 Te estoy mostrando solo lo que nombraste: *{', '.join(terminos)}*."
+    que = _ubicacion(matches[0].propiedad) if len(matches) == 1 else ", ".join(terminos)
+    nota = f"🎯 Te estoy mostrando solo *{que}*."
     total = matching_engine.conteo(db, {**perfil, "foco": None})[1]
     if total > 1:
         nota += f" Dime *todos* y te muestro los {total} otra vez."
@@ -328,6 +333,20 @@ def _cambia_la_busqueda(texto: str, perfil_previo: dict) -> bool:
     return any(c in slots and slots[c] != perfil_previo.get(c) for c in SLOTS_DE_BUSQUEDA)
 
 
+def _nombra_la_busqueda(texto: str) -> bool:
+    """¿El mensaje vuelve a decir qué se busca, aunque no cambie ningún valor?
+
+    "Lotes en Pereira", después de haber acotado a uno, es pedir el conjunto
+    otra vez —y `_cambia_la_busqueda` dice que no, porque lote y Pereira ya
+    estaban puestos—. Sin esta distinción el comprador quedaba encerrado en la
+    ficha que pidió, y solo la palabra *todos* lo sacaba de ahí.
+
+    No sirve para decidir el handoff: ahí "visita al lote" tiene que seguir
+    contando como respuesta y no como búsqueda nueva.
+    """
+    return any(c in extraer_slots(texto) for c in SLOTS_DE_BUSQUEDA)
+
+
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     """Procesa un mensaje entrante de un titular que YA autorizó (DF-1 a DF-4)."""
     if not tiene_consentimiento_vigente(prospecto):
@@ -358,8 +377,14 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # escrito en la zona o en la descripción de la ficha. Sin esto, el turno
     # volvía a listar los seis lotes del municipio y el comprador leía que el
     # bot no le había entendido.
+    # Volver a nombrar qué se busca suelta el recorte, aunque nombre lo mismo
+    # que ya estaba. Pedir visita no: "visita al lote" es contestar el pie del
+    # mensaje anterior, no pedir la cartera de lotes.
+    suelta_el_foco = cambia_busqueda or (
+        _nombra_la_busqueda(texto) and not pide_visita(texto)
+    )
     foco = matching_engine.foco_del_turno(
-        db, texto, leads.perfil(prospecto), limpiar=cambia_busqueda
+        db, texto, leads.perfil(prospecto), limpiar=suelta_el_foco
     )
     if foco is not None:
         prospecto.foco = foco or None
@@ -452,7 +477,7 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
                                 listado=listar_todo,
                                 municipio=perfil.get("municipio"),
                             ),
-                            _nota_foco(db, perfil),
+                            _nota_foco(db, perfil, matches),
                             _nota_filtro(perfil, en_rango, total),
                         ],
                     )
@@ -464,7 +489,7 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
             # vacía y no una búsqueda de una sola palabra.
             respuesta.textos.append(
                 "\n\n".join(
-                    filter(None, [PLANTILLAS["sin_matches"], _nota_foco(db, perfil)])
+                    filter(None, [PLANTILLAS["sin_matches"], _nota_foco(db, perfil, [])])
                 )
             )
 
