@@ -317,7 +317,7 @@
             <header>
               <strong>{{ c.autor }}</strong>
               <span class="chip {{ 'tibio' if c.es_respuesta else 'frio' }}">{{ c.rol }}</span>
-              <time>{{ c.creado_en.strftime('%d/%m/%Y %H:%M') }}</time>
+              <time>{{ c.creado_en | fecha }}</time>
               {% if puede_editar %}
               <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios/{{ c.id }}/eliminar">
                 <button class="suave" title="Eliminar comentario">✕</button>
@@ -356,8 +356,8 @@
         <dt>Fuente</dt><dd><code>{{ p.fuente }}</code></dd>
         <dt>ID externo</dt><dd><code>{{ p.externo_id or '—' }}</code></dd>
         <dt>Mandato</dt><dd>{{ '✅ sí' if p.mandato else '❌ no' }}</dd>
-        <dt>Creada</dt><dd>{{ p.creada_en.strftime('%d/%m/%Y %H:%M') }}</dd>
-        <dt>Actualizada</dt><dd>{{ p.actualizada_en.strftime('%d/%m/%Y %H:%M') if p.actualizada_en else '—' }}</dd>
+        <dt>Creada</dt><dd>{{ p.creada_en | fecha }}</dd>
+        <dt>Actualizada</dt><dd>{{ p.actualizada_en | fecha }}</dd>
       </dl>
       <p class="leyenda" style="margin-top:12px">
         <em>Evidencia:</em> {{ p.mandato_evidencia or '—' }}

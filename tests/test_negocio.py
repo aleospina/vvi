@@ -807,3 +807,52 @@ class TestConversacionCompleta:
         db.commit()
         direcciones = [m.direccion for m in prospecto_consentido.mensajes]
         assert "entrante" in direcciones and "saliente" in direcciones
+
+
+class TestHoraLocal:
+    """Lo que se guarda es UTC; lo que se lee tiene que ser la hora de Colombia.
+
+    Reportado: una solicitud recibida a las 10:47 pm figuraba en el dashboard
+    como "20/08 03:47" —de madrugada y del día siguiente—, así que el operador
+    no la reconocía como la que acababa de entrar.
+    """
+
+    def test_la_madrugada_utc_es_la_noche_de_ayer(self):
+        from datetime import datetime
+
+        from app.tiempo import fecha
+
+        assert fecha(datetime(2026, 8, 20, 3, 47)) == "19/08/2026 22:47"
+
+    def test_un_instante_con_zona_tambien_se_convierte(self):
+        from datetime import datetime, timezone
+
+        from app.tiempo import fecha
+
+        momento = datetime(2026, 8, 20, 3, 47, tzinfo=timezone.utc)
+        assert fecha(momento, "%H:%M") == "22:47"
+
+    def test_sin_fecha_no_escribe_none(self):
+        from app.tiempo import fecha
+
+        assert fecha(None) == "—"
+
+    def test_el_dashboard_pinta_la_hora_local(self):
+        """El filtro está enganchado en el entorno real de las plantillas."""
+        from datetime import datetime
+
+        from app.routers.dashboard import plantillas
+
+        pintado = plantillas.env.from_string("{{ x | fecha('%d/%m %H:%M') }}")
+        assert pintado.render(x=datetime(2026, 8, 20, 3, 47)) == "19/08 22:47"
+
+    def test_ninguna_plantilla_formatea_la_fecha_por_su_cuenta(self):
+        """Un `.strftime` suelto en una plantilla vuelve a mostrar UTC."""
+        from app.config import RAIZ
+
+        culpables = [
+            ruta.name
+            for ruta in (RAIZ / "app" / "templates").glob("*.html")
+            if "strftime" in ruta.read_text(encoding="utf-8")
+        ]
+        assert culpables == [], f"usan strftime en vez del filtro `fecha`: {culpables}"

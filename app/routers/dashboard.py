@@ -55,12 +55,15 @@ from app.services import (
     commission, fotos, geografia, ingesta, leads, portfolio, prospecting,
 )
 from app.services.compliance import auditar, verificar_cadena
+from app.tiempo import fecha
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
 plantillas.env.filters["pesos"] = pesos
+# Todo lo que se guarda está en UTC; el operador tiene que leer su hora.
+plantillas.env.filters["fecha"] = fecha
 plantillas.env.filters["enmascarar"] = enmascarar
 
 

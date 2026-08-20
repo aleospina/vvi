@@ -25,6 +25,7 @@ import httpx
 
 from app.config import settings
 from app.models import Prospecto, Solicitud
+from app.tiempo import fecha
 
 log = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ def _texto(solicitud: Solicitud, prospecto: Prospecto) -> tuple[str, str]:
         f"Interés: {prospecto.ciudad or '—'} · {prospecto.tipo or '—'}\n"
         f"Score: {prospecto.score_intencion} ({prospecto.etiqueta})\n"
         f"Canal: {prospecto.canal}\n"
-        f"Recibida: {solicitud.creado_en.strftime('%d/%m/%Y %H:%M')}\n\n"
+        f"Recibida: {fecha(solicitud.creado_en)}\n\n"
         f"Conversación y datos de contacto:\n"
         f"{settings.dashboard_url}/dashboard/prospecto/{prospecto.codigo}"
     )

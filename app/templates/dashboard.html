@@ -79,7 +79,7 @@
           <small class="leyenda">{{ s.propiedad.tipo }} · {{ s.propiedad.precio | pesos }}</small>
         {% else %}—{% endif %}
       </td>
-      <td>{{ s.creado_en.strftime('%d/%m %H:%M') }}</td>
+      <td>{{ s.creado_en | fecha('%d/%m %H:%M') }}</td>
       <td class="linea">
         <a class="boton suave" href="/dashboard/prospecto/{{ s.prospecto.codigo }}">Ver conversación</a>
         <form method="post" action="/dashboard/solicitud/{{ s.id }}/atender">
@@ -119,7 +119,7 @@
         </span>
       </td>
       <td><span class="estado {{ p.estado }}">{{ p.estado }}</span></td>
-      <td>{{ p.actualizado_en.strftime('%d/%m %H:%M') }}</td>
+      <td>{{ p.actualizado_en | fecha('%d/%m %H:%M') }}</td>
     </tr>
   {% else %}
     <tr><td colspan="8">Todavía no hay prospectos. Escríbele al bot de Telegram o carga un lead inbound en <code>/docs</code>.</td></tr>

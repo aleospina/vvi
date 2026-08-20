@@ -28,7 +28,7 @@
   {% for r in registros %}
     <tr>
       <td class="num">{{ r.id }}</td>
-      <td>{{ r.ts.strftime('%d/%m/%Y %H:%M:%S') }}</td>
+      <td>{{ r.ts | fecha('%d/%m/%Y %H:%M:%S') }}</td>
       <td>{{ r.actor }}</td>
       <td><strong>{{ r.accion }}</strong></td>
       <td>{{ r.entidad }} <code>{{ r.entidad_id }}</code></td>

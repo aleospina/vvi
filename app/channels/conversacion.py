@@ -32,6 +32,7 @@ from app.models import Direccion
 from app.security.crypto import enmascarar, indice_ciego
 from app.services import leads
 from app.services.compliance import revocar_y_anonimizar, tiene_consentimiento_vigente
+from app.tiempo import fecha
 
 log = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ def mis_datos(canal: str, cid: str) -> str:
             f"• Ciudad: {p.ciudad or '—'} · Tipo: {p.tipo or '—'}\n"
             f"• Presupuesto: {gateway.pesos(p.presupuesto_max) if p.presupuesto_max else '—'}\n"
             f"• Estado: {p.estado}\n"
-            f"• Autorización: {'vigente desde ' + p.consentimiento_ts.strftime('%d/%m/%Y') if p.consentimiento_ts else 'no otorgada'}\n\n"
+            f"• Autorización: {'vigente desde ' + fecha(p.consentimiento_ts, '%d/%m/%Y') if p.consentimiento_ts else 'no otorgada'}\n\n"
             f"Tus datos de contacto están cifrados. Política: {settings.politica_privacidad_url}\n"
             "Para eliminarlos escribe /borrar."
         )
