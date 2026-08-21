@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from app.channels import conversacion, whatsapp_evo
 from app.config import settings
 from app.routers import whatsapp
+from app.services import ajustes
 
 TOKEN = "token-de-pruebas-del-webhook"
 NUMERO = "573001234567"
@@ -213,7 +214,16 @@ class TestListaBlanca:
         monkeypatch.setattr(
             settings, "evolution_numeros_prueba", "+57 300 123 4567, 57-310-987-6543"
         )
-        assert settings.numeros_prueba == {"573001234567", "573109876543"}
+        assert ajustes.numeros_prueba() == {"573001234567", "573109876543"}
+
+    def test_el_celular_escrito_a_la_colombiana_tambien_sirve(self, monkeypatch):
+        """"300 123 4567" es el mismo teléfono que el "573001234567" de WhatsApp.
+
+        Sin el indicativo la comparación falla, el operador pone su número, el
+        bot lo sigue ignorando y no hay nada en pantalla que explique por qué.
+        """
+        monkeypatch.setattr(settings, "evolution_numeros_prueba", "300 123 4567")
+        assert ajustes.numeros_prueba() == {"573001234567"}
 
     def test_sin_lista_responde_a_todos(self, cliente, enviados, monkeypatch):
         """Vacía es el modo producción: el canal atiende a quien escriba."""
@@ -398,6 +408,43 @@ class TestVista:
         assert "conectado" in r.text
         assert f"/webhooks/whatsapp/{TOKEN}" in r.text
 
+    def test_con_el_canal_conectado_el_boton_sigue_generando_qr(self, panel, monkeypatch):
+        """Conectado es justo cuando hace falta: para pasar el bot a otro teléfono.
+
+        Esconder el panel del QR mientras el estado era `open` dejaba el botón
+        sin nada que pintar y el JS se salía en la primera línea, porque no
+        encontraba el panel. Desde el navegador se veía como un botón muerto.
+        """
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "open")
+        r = panel.get("/dashboard/whatsapp")
+        assert r.status_code == 200
+        assert 'id="btn-qr"' in r.text, "el botón debe existir en cualquier estado"
+        assert 'id="panel-qr"' in r.text, "sin panel, el script no se engancha"
+        assert "Generar QR" in r.text
+        assert 'data-conectado="1"' in r.text, "conectado, el botón debe pedir confirmación"
+        assert "desvincula el teléfono" in r.text, "hay que advertir lo que cuesta"
+
+    def test_el_boton_de_vincular_es_visible(self, panel, monkeypatch):
+        """El botón estuvo invisible en escritorio desde que existe la pantalla.
+
+        Iba envuelto en `acciones-foto`, la clase de los controles que flotan
+        sobre una miniatura de la cartera: `position:absolute` y `opacity:0`
+        hasta que hay hover sobre la miniatura. Aquí no hay ninguna, así que el
+        botón estaba en el DOM —se copiaba con el texto de la página— pero no se
+        veía ni se podía pulsar. En móvil sí salía, por `@media (hover:none)`,
+        que es lo que hacía el fallo tan difícil de creer.
+        """
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "close")
+        r = panel.get("/dashboard/whatsapp")
+        assert "acciones-foto" not in r.text, "esa clase esconde el botón fuera de una miniatura"
+        assert 'id="btn-qr"' in r.text
+
+    def test_con_el_canal_caido_el_boton_no_pregunta_nada(self, panel, monkeypatch):
+        """Sin sesión que perder, la confirmación solo sería un clic de más."""
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "close")
+        r = panel.get("/dashboard/whatsapp")
+        assert 'data-conectado=""' in r.text
+
     def test_sin_configurar_explica_qué_falta(self, panel, monkeypatch):
         monkeypatch.setattr(settings, "evolution_url", "")
         r = panel.get("/dashboard/whatsapp")
@@ -427,6 +474,98 @@ class TestVista:
         with sesion() as db:
             acciones = [x.accion for x in db.query(LogAuditoria).all()]
         assert "whatsapp_vinculacion_iniciada" in acciones
+
+    def test_el_qr_se_pide_en_json_para_renovarlo_sin_recargar(self, panel, monkeypatch):
+        """El código vive segundos: la página tiene que poder pedir otro sola.
+
+        Reportado en producción: el operador pulsaba, iba por el teléfono y
+        volvía a un QR ya vencido que la vista no sabía reemplazar. Desde fuera
+        se veía como que el QR «no cargaba».
+        """
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: "existente")
+        monkeypatch.setattr(whatsapp_evo, "configurar_webhook", lambda: whatsapp_evo.url_webhook())
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        monkeypatch.setattr(
+            whatsapp_evo, "qr_de_conexion", lambda: {"base64": "QUJD", "pairingCode": "ABCD-1234"}
+        )
+
+        d = panel.post("/dashboard/whatsapp/qr").json()
+        assert d["qr"] == "data:image/png;base64,QUJD"
+        assert d["codigo_pareo"] == "ABCD-1234"
+        assert d["estado"] == "connecting"
+
+    def test_el_sondeo_del_qr_no_toca_la_conexion(self, panel, monkeypatch):
+        """Refrescar la imagen no puede reiniciar el socket de WhatsApp.
+
+        Encontrado en producción por el peor camino: el teléfono respondía «no
+        se pudo vincular el dispositivo» al escanear. La página refrescaba el
+        código llamando otra vez a `/instance/connect`, y eso no pide otro
+        código —reinicia Baileys entero—, así que tumbaba el emparejamiento a
+        media confirmación. Los logs de Evolution mostraban un arranque de socket
+        cada 25 segundos, clavado con el sondeo.
+        """
+        llamadas = []
+        monkeypatch.setattr(
+            whatsapp_evo, "qr_de_conexion", lambda: llamadas.append("connect") or {}
+        )
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: llamadas.append("crear"))
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        whatsapp_evo.guardar_qr({"base64": "QUJD"})
+
+        d = panel.get("/dashboard/whatsapp/qr-actual").json()
+        assert d["qr"] == "data:image/png;base64,QUJD"
+        assert d["estado"] == "connecting"
+        assert llamadas == [], "el sondeo no puede llamar a Evolution"
+
+    def test_el_qr_del_webhook_alimenta_al_panel(self):
+        """El código que Evolution empuja es el que ve el operador."""
+        whatsapp_evo.guardar_qr({"qrcode": {"base64": "data:image/png;base64,WFla"}})
+        assert whatsapp_evo.ultimo_qr() == "data:image/png;base64,WFla"
+
+    def test_un_qr_viejo_no_se_sirve(self, monkeypatch):
+        """Pintar un código vencido es mandar al operador a escanear basura."""
+        whatsapp_evo.guardar_qr({"base64": "QUJD"})
+        ahora = __import__("time").time()
+        monkeypatch.setattr(
+            whatsapp_evo.time, "time", lambda: ahora + whatsapp_evo.VIGENCIA_QR_SEG + 1
+        )
+        assert whatsapp_evo.ultimo_qr() is None
+
+    def test_pedir_el_qr_queda_auditado(self, panel, monkeypatch):
+        """Pulsar el botón reinicia la conexión: eso sí se anota."""
+        from app.db import sesion
+        from app.models import LogAuditoria
+
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", lambda: "existente")
+        monkeypatch.setattr(whatsapp_evo, "configurar_webhook", lambda: whatsapp_evo.url_webhook())
+        monkeypatch.setattr(whatsapp_evo, "estado_conexion", lambda: "connecting")
+        monkeypatch.setattr(whatsapp_evo, "qr_de_conexion", lambda: {"base64": "QUJD"})
+
+        def cuantas() -> int:
+            with sesion() as db:
+                return sum(
+                    1 for x in db.query(LogAuditoria).all()
+                    if x.accion == "whatsapp_vinculacion_iniciada"
+                )
+
+        antes = cuantas()
+        panel.post("/dashboard/whatsapp/qr")
+        assert cuantas() == antes + 1
+
+    def test_el_invitado_tampoco_pide_el_qr_por_json(self, panel_invitado):
+        assert panel_invitado.post("/dashboard/whatsapp/qr").status_code == 403
+        assert panel_invitado.get("/dashboard/whatsapp/qr-actual").status_code == 403
+
+    def test_si_evolution_no_responde_el_json_lo_dice(self, panel, monkeypatch):
+        import httpx
+
+        def _cae() -> str:
+            raise httpx.ConnectError("sin ruta al host")
+
+        monkeypatch.setattr(whatsapp_evo, "crear_instancia", _cae)
+        d = panel.post("/dashboard/whatsapp/qr").json()
+        assert "Evolution" in d["error"]
+        assert "qr" not in d
 
     def test_si_evolution_no_responde_lo_dice_sin_reventar(self, panel, monkeypatch):
         import httpx

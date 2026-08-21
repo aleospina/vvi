@@ -235,6 +235,21 @@ class TestFiltros:
     def test_texto_libre_sin_tildes(self, web, cartera):
         assert _ids_visibles(web.get("/inmuebles?q=zuniga").text) == {"CAT-03"}
 
+    def test_una_busqueda_sin_resultados_conserva_los_filtros(self, web, cartera):
+        """Heredado de la rejilla del panel, donde fue una regresión real.
+
+        La página decidía si mostrar los filtros mirando la lista ya filtrada,
+        así que una combinación válida sin resultados los borraba —dejando al
+        visitante sin forma de volver— y encima anunciaba que no había
+        inventario, que era falso.
+        """
+        r = web.get("/inmuebles?tipo=lote&municipio=Dosquebradas")
+        assert r.status_code == 200
+        assert _ids_visibles(r.text) == set(), "esa combinación no tiene inventario"
+        assert 'class="filtros"' in r.text, "sin filtros no hay forma de volver"
+        assert "No encontramos inmuebles con esos criterios" in r.text
+        assert "Quitar filtros" in r.text
+
     def test_un_valor_inventado_no_vacia_la_vitrina(self, web, cartera):
         """Una pantalla en blanco se lee como «no tienen nada», no como «filtro raro»."""
         r = web.get("/inmuebles?tipo=castillo&municipio=Narnia&orden=carisimo")

@@ -103,6 +103,19 @@ class Settings(BaseSettings):
     retencion_dias: int = 365
     dias_alerta_seguimiento: int = 7
 
+    # Control de comisión (PRD §10)
+    #: Meses de protección, en días: una venta al mismo comprador sobre el mismo
+    #: inmueble dentro de esta ventana genera comisión aunque se cierre por
+    #: fuera. Seis meses es lo habitual en corretaje; súbelo si tu contrato dice
+    #: otra cosa. Cambiarlo no afecta a las presentaciones ya hechas.
+    dias_proteccion: int = 180
+    #: Días después de la presentación en que se le pregunta al comprador si el
+    #: negocio se cerró. Vacío desactiva el seguimiento.
+    dias_seguimiento_comprador: str = "7,21,45"
+    #: Cada cuánto revisa el proceso si hay preguntas por enviar. Con 0 no se
+    #: levanta la tarea: útil para correr la app sin que escriba a nadie.
+    intervalo_seguimiento_min: int = 60
+
     # Reglas duras de negocio (ADR-03)
     ciudades_cobertura: tuple[str, ...] = ("Medellín", "Pereira")
 
@@ -128,13 +141,16 @@ class Settings(BaseSettings):
         return self.dashboard_url.rstrip("/")
 
     @property
-    def numeros_prueba(self) -> frozenset[str]:
-        """Lista blanca normalizada a dígitos: `+57 300 123 4567` → `573001234567`."""
-        return frozenset(
-            "".join(c for c in n if c.isdigit())
-            for n in self.evolution_numeros_prueba.split(",")
-            if any(c.isdigit() for c in n)
-        )
+    def hitos_seguimiento(self) -> tuple[int, ...]:
+        """Los días de seguimiento, ordenados y sin repetidos ni basura."""
+        dias = set()
+        for trozo in self.dias_seguimiento_comprador.split(","):
+            trozo = trozo.strip()
+            # El 0 se admite a propósito: es la forma de probar el circuito
+            # completo sin esperar una semana a que venza el primer hito.
+            if trozo.isdigit():
+                dias.add(int(trozo))
+        return tuple(sorted(dias))
 
     @property
     def tiene_whatsapp(self) -> bool:

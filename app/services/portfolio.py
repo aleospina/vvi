@@ -14,8 +14,10 @@ from app.models import (
     EstadoPropiedad,
     FuentePropiedad,
     Propiedad,
+    TipoInmueble,
     ahora,
 )
+from app.services.geografia import municipios_de_plaza, plaza_de
 from app.services.compliance import auditar
 
 
@@ -58,18 +60,29 @@ def precio_minimo(
     busca arriendo con dos millones al mes se compararía contra el inmueble en
     venta más barato de la cartera y la regla dura lo declararía «presupuesto
     bajo»: el bot despacharía por pobre a un cliente perfectamente solvente.
+
+    `ciudad` puede ser una plaza ("Medellín") o un municipio suelto: si es plaza
+    se expande a los suyos, o el piso saldría de un universo más pequeño que el
+    que el emparejamiento va a ofrecer y el bot descartaría compradores que sí
+    alcanzaban algo.
     """
     consulta = select(func.min(Propiedad.precio)).where(
         Propiedad.estado == EstadoPropiedad.DISPONIBLE.value,
         Propiedad.negocio == (negocio or NEGOCIO_POR_DEFECTO),
     )
     if ciudad:
-        consulta = consulta.where(Propiedad.ciudad == ciudad)
+        consulta = consulta.where(Propiedad.ciudad.in_(municipios_de_plaza(ciudad) or (ciudad,)))
     return db.scalar(consulta)
 
 
 def siguiente_codigo(db: Session, ciudad: str) -> str:
-    prefijo = f"PROP-{'MED' if ciudad == 'Medellín' else 'PER'}"
+    """Código correlativo por plaza, no por municipio.
+
+    Un inmueble de Sabaneta sigue siendo PROP-MED-xxx: la numeración agrupa por
+    plaza, y abrir un prefijo por municipio fragmentaría la serie en decenas de
+    contadores casi vacíos.
+    """
+    prefijo = f"PROP-{'MED' if plaza_de(ciudad) != 'Pereira' else 'PER'}"
     total = db.scalar(
         select(func.count()).select_from(Propiedad).where(Propiedad.id.like(f"{prefijo}%"))
     )
@@ -199,34 +212,49 @@ def municipio_de(propiedad: Propiedad) -> str:
     return propiedad.ciudad
 
 
-def conteo_por_municipio(db: Session) -> list[tuple[str, str, int]]:
+def conteo_por_municipio(db: Session, *, tipo: str | None = None) -> list[tuple[str, str, int]]:
     """(ciudad, municipio, cuántos), ordenado por ciudad y luego por municipio.
 
-    Solo aparecen municipios con inventario: una pestaña que siempre da cero es
-    ruido que el operador aprende a ignorar.
+    Qué municipios aparecen lo decide la cartera completa; `tipo` solo cambia
+    el número. Un municipio sin lotes muestra «0» en lugar de desaparecer al
+    marcar «Lotes»: una opción que se esfuma deja al operador sin saber si el
+    filtro se aplicó o si esa opción nunca existió.
+
+    El filtro de municipio no se aplica aquí a propósito —cada pestaña cuenta
+    lo suyo, no lo ya filtrado—; si no, las inactivas dirían siempre cero.
     """
+    objetivo = plano(tipo) if tipo else ""
     conteo: dict[tuple[str, str], int] = {}
     for p in db.scalars(select(Propiedad)):
-        clave = (p.ciudad, municipio_de(p))
-        conteo[clave] = conteo.get(clave, 0) + 1
+        # Se agrupa por plaza y no por `ciudad`: desde que `ciudad` guarda el
+        # municipio, agrupar por ella pondría a cada municipio en su propio
+        # grupo y la fila de pestañas perdería el orden por área metropolitana.
+        clave = (plaza_de(p.ciudad) or p.ciudad, municipio_de(p))
+        cuenta = not objetivo or plano(p.tipo) == objetivo
+        # La clave se crea aunque el inmueble no cuente para el tipo elegido:
+        # el municipio sigue siendo una opción del filtro, solo que en cero.
+        conteo[clave] = conteo.get(clave, 0) + (1 if cuenta else 0)
     return sorted(
         ((ciudad, municipio, n) for (ciudad, municipio), n in conteo.items()),
         key=lambda f: (f[0], f[1] != f[0], f[1]),  # la ciudad de cabeza, luego alfabético
     )
 
 
-def conteo_por_tipo(db: Session) -> dict[str, int]:
-    """Cuántos inmuebles hay de cada tipo en toda la cartera.
+def conteo_por_tipo(db: Session, *, municipio: str | None = None) -> dict[str, int]:
+    """Cuántos inmuebles hay de cada tipo, acotado al municipio elegido.
 
-    Alimenta las pestañas del filtro del dashboard. Va sobre la cartera
-    completa a propósito: si contara solo lo filtrado, las pestañas inactivas
-    dirían cero y el filtro parecería vacío.
+    Siempre devuelve los tres tipos: uno sin inventario muestra «0» en vez de
+    perder su pestaña, por el mismo motivo que en `conteo_por_municipio`.
+
+    El filtro de tipo no se aplica aquí, también a propósito: si contara solo
+    lo ya filtrado, las pestañas inactivas dirían cero y el filtro parecería
+    vacío. Un tipo fuera del enum no tiene pestaña pero sí suma en el total,
+    que es lo que la vista usa para «Todos».
     """
-    filas = db.execute(
-        select(Propiedad.tipo, func.count()).group_by(Propiedad.tipo)
-    ).all()
-    return {tipo: n for tipo, n in filas}
-
+    conteo: dict[str, int] = {t.value: 0 for t in TipoInmueble}
+    for p in listar(db, municipio=municipio):
+        conteo[p.tipo] = conteo.get(p.tipo, 0) + 1
+    return conteo
 
 # ═══════════════════════════ Catálogo público ═══════════════════════════
 #
@@ -418,10 +446,17 @@ def conteo_publico_por_tipo(db: Session, *, incluir_demo: bool = False) -> dict[
 def conteo_publico_por_municipio(
     db: Session, *, incluir_demo: bool = False
 ) -> list[tuple[str, str, int]]:
-    """(ciudad, municipio, cuántos) de lo publicable, con la cabecera de primera."""
+    """(plaza, municipio, cuántos) de lo publicable, con la cabecera de primera.
+
+    Se agrupa por plaza y no por `ciudad`: desde que `ciudad` guarda el
+    municipio, agrupar por ella pondría a cada municipio en su propio grupo y la
+    fila de pestañas perdería el orden por área metropolitana. Un municipio
+    fuera de las dos plazas se agrupa bajo sí mismo, que es lo único honesto
+    que se puede decir de él.
+    """
     conteo: dict[tuple[str, str], int] = {}
     for p in publicables(db, incluir_demo=incluir_demo):
-        clave = (p.ciudad, municipio_de(p))
+        clave = (plaza_de(p.ciudad) or p.ciudad, municipio_de(p))
         conteo[clave] = conteo.get(clave, 0) + 1
     return sorted(
         ((ciudad, municipio, n) for (ciudad, municipio), n in conteo.items()),

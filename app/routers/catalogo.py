@@ -32,6 +32,7 @@ from app.services import portfolio, prospecting
 from app.security.sesion import COOKIE, OPERADOR, rol_de, validar_token
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
+from app.tiempo import fecha
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +44,9 @@ plantillas.env.filters["pesos"] = pesos
 # URL canónica siga siendo un cambio en un solo archivo.
 plantillas.env.filters["ruta"] = portfolio.ruta_publica
 plantillas.env.filters["municipio"] = portfolio.municipio_de
+# Todo se guarda en UTC; al comprador hay que mostrarle su hora. Un inmueble
+# publicado a las 10 de la noche figuraba como del día siguiente.
+plantillas.env.filters["fecha"] = fecha
 
 #: Etiquetas de los tipos en plural, para las pestañas de la vitrina.
 ETIQUETAS_TIPO = {"casa": "Casas", "apartamento": "Apartamentos", "lote": "Lotes"}

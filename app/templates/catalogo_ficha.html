@@ -140,7 +140,7 @@
         <div><dt>Alcobas</dt><dd>{{ p.habitaciones or '—' }}</dd></div>
         <div><dt>Baños</dt><dd>{{ p.banos or '—' }}</dd></div>
         <div><dt>Área</dt><dd>{{ ('%.0f m²' % p.area_m2) if p.area_m2 else '—' }}</dd></div>
-        <div><dt>Publicado</dt><dd>{{ p.creada_en.strftime('%d/%m/%Y') }}</dd></div>
+        <div><dt>Publicado</dt><dd>{{ p.creada_en | fecha('%d/%m/%Y') }}</dd></div>
       </dl>
     </section>
 
@@ -249,7 +249,7 @@
         <header>
           <strong>{{ c.autor }}</strong>
           <span class="chip {{ 'tibio' if c.es_respuesta else 'frio' }}">{{ c.rol }}</span>
-          <time>{{ c.creado_en.strftime('%d/%m/%Y %H:%M') }}</time>
+          <time>{{ c.creado_en | fecha }}</time>
           {% if puede_editar %}
           <form method="post"
                 action="/dashboard/propiedades/{{ p.id }}/comentarios/{{ c.id }}/eliminar">

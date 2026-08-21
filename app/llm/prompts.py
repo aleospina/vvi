@@ -259,18 +259,31 @@ PLANTILLAS = {
         "de frente en vez de mostrarte algo que no encaja. ¿Ampliamos presupuesto o zona?"
     ),
     "matches_encabezado": "Con eso en mente, te dejo {n} opción(es) que sí encajan:",
+    #: `especificaciones` lo arma el gateway con lo que el inmueble sí tiene: un
+    #: lote no lleva "0 hab", que era justo lo que hacía parecer rota la ficha.
     "matches_item": (
-        "{i}. *{zona}, {ciudad}* — {tipo} de {habitaciones} hab · {area:.0f} m²\n"
+        "{i}. *{ubicacion}* — {tipo}{especificaciones}\n"
         "   💰 ${precio}\n"
         "   {frase}"
     ),
     #: Listado completo: ya sabemos ciudad y tipo, así que el encabezado los
-    #: nombra y cada ficha se aligera. Con ocho inmuebles, repetir la frase de
-    #: venta en cada uno convierte el mensaje en un muro que nadie lee.
+    #: nombra. La ficha cierra con la descripción del inmueble —recortada a una
+    #: línea— porque es lo que de verdad distingue un lote de otro; la frase de
+    #: venta se omite: repetida ocho veces convierte el mensaje en un muro.
     "matches_encabezado_listado": "Tengo {n} {tipos} en {ciudad}:",
     "matches_item_listado": (
-        "{i}. *{zona}, {ciudad}* — {tipo} · {habitaciones} hab · {area:.0f} m²\n"
-        "   💰 ${precio}"
+        "{i}. *{ubicacion}* — {tipo}{especificaciones}\n"
+        "   💰 ${precio}\n"
+        "   {descripcion}"
+    ),
+    #: Un solo inmueble no es una lista de uno: no lleva encabezado ("te dejo 1
+    #: opción(es)"), ni numeración, y la descripción va completa. Cuando el
+    #: comprador pidió hablar de ese y no de otro, recortarle la descripción a
+    #: una línea es devolverle menos de lo que preguntó.
+    "ficha_unica": (
+        "*{ubicacion}* — {tipo}{especificaciones}\n"
+        "💰 ${precio}\n\n"
+        "{descripcion}"
     ),
     "matches_pie": "¿Quieres agendar una *visita* o hablar con un *asesor*?",
     "handoff": (
@@ -279,6 +292,21 @@ PLANTILLAS = {
     ),
     #: Cuando ya hay una solicitud en la cola. Repetir el mensaje de arriba haría
     #: creer que se pidió otra vez; callar, que la primera se perdió.
+    #: Seguimiento posterior a la presentación (PRD §10). Una sola pregunta, y
+    #: una salida para quien todavía no ha comprado: si solo se preguntara por
+    #: el cierre, el mensaje sonaría a cobrador y contestaría la mitad.
+    "seguimiento_pregunta": (
+        "👋 ¡Hola! Te escribo para saber cómo te fue con {inmueble}.\n\n"
+        "¿Ya cerraste el negocio? Si todavía estás buscando, dime y seguimos "
+        "ayudándote sin problema."
+    ),
+    #: Cuando declara que ya compró. No se le pide nada más: el que verifica es
+    #: el operador, y ponerlo a él a dar explicaciones sería tratarlo como
+    #: sospechoso de algo que no hizo.
+    "seguimiento_cierre": (
+        "¡Qué buena noticia, muchas felicitaciones por tu nueva propiedad! 🎉\n\n"
+        "Gracias por contarme. Si más adelante buscas otra cosa, aquí estoy."
+    ),
     "handoff_en_cola": (
         "Tu solicitud ya está con el asesor 🙌 Mientras te contacta, sigue "
         "preguntándome lo que quieras de la cartera."

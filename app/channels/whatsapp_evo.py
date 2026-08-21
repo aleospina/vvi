@@ -147,6 +147,38 @@ def qr_de_conexion() -> dict:
         return r.json()
 
 
+#: Último QR que Evolution empujó por webhook, y el instante en que llegó.
+#: Evolution rota el código solo cada pocos segundos y lo anuncia por
+#: `QRCODE_UPDATED`. Guardarlo aquí es lo que permite que el panel muestre uno
+#: fresco **sin volver a llamar a `/instance/connect`**, que no pide otro código:
+#: reinicia el socket entero y aborta el emparejamiento que el operador esté
+#: haciendo en ese momento.
+#:
+#: En memoria y sin persistir, a propósito: es una credencial de sesión que
+#: caduca en segundos. Guardarla en la base sería conservar la llave del número
+#: mucho después de que dejara de servir para nada.
+_ULTIMO_QR: tuple[str, float] = ("", 0.0)
+
+#: Pasado este tiempo, el código guardado se considera muerto y no se sirve.
+VIGENCIA_QR_SEG = 90
+
+
+def guardar_qr(datos: dict) -> None:
+    """Anota el QR que acaba de llegar por webhook."""
+    global _ULTIMO_QR
+    uri = qr_data_uri(datos if isinstance(datos, dict) else {})
+    if uri:
+        _ULTIMO_QR = (uri, time.time())
+
+
+def ultimo_qr() -> str | None:
+    """El QR vigente que empujó Evolution, o None si no hay o ya venció."""
+    uri, cuando = _ULTIMO_QR
+    if not uri or time.time() - cuando > VIGENCIA_QR_SEG:
+        return None
+    return uri
+
+
 def qr_data_uri(datos: dict) -> str | None:
     """Normaliza el QR de Evolution a algo que un `<img src>` pueda pintar.
 

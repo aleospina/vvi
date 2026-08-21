@@ -27,7 +27,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from app.channels import conversacion, whatsapp_evo
 from app.config import settings
 from app.models import Canal
-from app.services import notificaciones
+from app.services import ajustes, notificaciones
 
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["whatsapp"])
@@ -136,11 +136,14 @@ def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
         return
 
     # Modo pruebas: con lista blanca configurada, el bot calla ante cualquier
-    # otro número. Es lo que permite vincular un teléfono personal sin que un
+    # otro número. La lista se lee en cada mensaje porque se puede cambiar desde
+    # el dashboard sin reiniciar: leerla una vez al arrancar haría que el cambio
+    # solo surtiera efecto en el próximo despliegue, que es justo lo que se
+    # quería evitar. Es lo que permite vincular un teléfono personal sin que un
     # familiar reciba el flujo de consentimiento — y sin que su mensaje entre al
     # motor. El silencio es deliberado: responder "no estás autorizado" sería
     # contestarle igual a quien no debía recibir nada.
-    permitidos = settings.numeros_prueba
+    permitidos = ajustes.numeros_prueba()
     if permitidos and numero not in permitidos:
         log.info(
             "WhatsApp: %s no está en la lista de pruebas (%d autorizados): ignorado.",
@@ -202,6 +205,11 @@ async def entrante(token: str, request: Request, tareas: BackgroundTasks):
         _mensaje_entrante(datos, tareas)
     elif evento == "connection.update" and isinstance(datos, dict):
         _conexion(datos)
+    elif evento == "qrcode.updated" and isinstance(datos, dict):
+        # Evolution rota el código solo. Guardarlo aquí es lo que permite al
+        # panel enseñar uno fresco sin pedir otra conexión: pedirla reinicia el
+        # socket y arruina el emparejamiento en curso.
+        whatsapp_evo.guardar_qr(datos)
     else:
         # Evolution puede mandar eventos a los que no estamos suscritos. Verlos
         # en el log es la diferencia entre "no llega nada" y "llega otra cosa".

@@ -234,12 +234,12 @@
       <form method="post" action="/dashboard/propiedades/{{ p.id }}/editar">
         <div class="linea">
           <div>
-            <label for="ciudad">Ciudad</label>
-            <select name="ciudad" id="ciudad" required>
-              {% for c in ciudades %}
-                <option value="{{ c }}" {% if c == p.ciudad %}selected{% endif %}>{{ c }}</option>
-              {% endfor %}
-            </select>
+            <label for="ciudad">Municipio</label>
+            <input name="ciudad" id="ciudad" list="municipios" required
+                   value="{{ p.ciudad }}" autocomplete="off" style="width:170px">
+            <datalist id="municipios">
+              {% for c in ciudades %}<option value="{{ c }}"></option>{% endfor %}
+            </datalist>
           </div>
           <div style="flex:1 1 200px">
             <label for="zona">Barrio o zona</label>
@@ -266,8 +266,10 @@
         <div class="linea" style="margin-top:12px">
           <div>
             <label for="precio">Precio (COP)</label>
+            {# Ni mínimo de 20 millones ni saltos de millón: el precio es el que
+               tenga el inmueble, y el navegador no es quién para discutirlo. #}
             <input type="number" name="precio" id="precio" value="{{ p.precio }}"
-                   required min="20000000" step="1000000">
+                   required min="1" step="1">
           </div>
           <div><label for="habitaciones">Hab.</label>
             <input type="number" name="habitaciones" id="habitaciones" value="{{ p.habitaciones }}" min="0" max="20" style="width:70px"></div>
@@ -323,7 +325,7 @@
             <header>
               <strong>{{ c.autor }}</strong>
               <span class="chip {{ 'tibio' if c.es_respuesta else 'frio' }}">{{ c.rol }}</span>
-              <time>{{ c.creado_en.strftime('%d/%m/%Y %H:%M') }}</time>
+              <time>{{ c.creado_en | fecha }}</time>
               {% if puede_editar %}
               <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios/{{ c.id }}/eliminar">
                 <button class="suave" title="Eliminar comentario">✕</button>
@@ -362,8 +364,8 @@
         <dt>Fuente</dt><dd><code>{{ p.fuente }}</code></dd>
         <dt>ID externo</dt><dd><code>{{ p.externo_id or '—' }}</code></dd>
         <dt>Mandato</dt><dd>{{ '✅ sí' if p.mandato else '❌ no' }}</dd>
-        <dt>Creada</dt><dd>{{ p.creada_en.strftime('%d/%m/%Y %H:%M') }}</dd>
-        <dt>Actualizada</dt><dd>{{ p.actualizada_en.strftime('%d/%m/%Y %H:%M') if p.actualizada_en else '—' }}</dd>
+        <dt>Creada</dt><dd>{{ p.creada_en | fecha }}</dd>
+        <dt>Actualizada</dt><dd>{{ p.actualizada_en | fecha }}</dd>
       </dl>
       <p class="leyenda" style="margin-top:12px">
         <em>Evidencia:</em> {{ p.mandato_evidencia or '—' }}

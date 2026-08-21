@@ -55,14 +55,20 @@ from app.security.sesion import (
     rol_de,
     validar_token,
 )
-from app.services import commission, fotos, ingesta, leads, portfolio, prospecting
+from app.services import (
+    ajustes, commission, fotos, geografia, ingesta, leads, portfolio, prospecting,
+    seguimiento,
+)
 from app.services.compliance import auditar, verificar_cadena
+from app.tiempo import fecha
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
 plantillas.env.filters["pesos"] = pesos
+# Todo lo que se guarda está en UTC; el operador tiene que leer su hora.
+plantillas.env.filters["fecha"] = fecha
 plantillas.env.filters["enmascarar"] = enmascarar
 
 
@@ -256,6 +262,9 @@ def inicio(request: Request, quien: Operador, db: Session = Depends(get_db)):
                     .limit(20)
                 )
             ),
+            # Compradores que dicen haber cerrado sin venta registrada: es la
+            # lista que hay que mirar todos los días (PRD §10).
+            cierres=seguimiento.cierres_declarados(db),
         ),
     )
 
@@ -318,6 +327,19 @@ def registrar_venta(
     return RedirectResponse(f"/dashboard/prospecto/{codigo}", status_code=303)
 
 
+@router.post("/seguimiento/ejecutar")
+def ejecutar_seguimiento(quien: Operador, db: Session = Depends(get_db)):
+    """Dispara una ronda de preguntas sin esperar al reloj.
+
+    La tarea de fondo corre cada hora; esto existe para poder probar el circuito
+    completo —y para el día que haya que empujarlo a mano— sin reiniciar el
+    proceso.
+    """
+    enviados = seguimiento.ejecutar(db)
+    log.info("Ronda de seguimiento manual de %s: %d envío(s).", quien, enviados)
+    return RedirectResponse("/dashboard", status_code=status.HTTP_303_SEE_OTHER)
+
+
 @router.post("/solicitud/{solicitud_id}/atender")
 def atender(solicitud_id: int, quien: Operador, db: Session = Depends(get_db)):
     solicitud = db.get(Solicitud, solicitud_id)
@@ -335,7 +357,8 @@ def cartera(request: Request, quien: Cualquiera, db: Session = Depends(get_db)):
     operador —importar un aviso con IA, dar de alta a mano, aprobar lo que llegó
     por ingesta, purgar lo no vendible— y se ve el inventario como cifras. Para
     mirar inmuebles uno por uno está `/inmuebles`, que además es exactamente lo
-    que ve un comprador: si algo se publicó por error, se nota allí.
+    que ve un comprador: si algo se publicó por error, se nota allí. Por eso los
+    filtros por tipo y municipio se fueron con la rejilla: viven en la vitrina.
 
     Lo retirado (inactivo, vendido, rechazado) sí se lista aquí, en tabla: no
     sale en la vitrina y sin este listado no habría forma de volver a abrirlo.
@@ -351,6 +374,7 @@ def cartera(request: Request, quien: Cualquiera, db: Session = Depends(get_db)):
             publicadas=len(publicables),
             conteo_tipos=portfolio.conteo_por_tipo(db),
             fuera=portfolio.fuera_de_vitrina(db),
+            ciudades=geografia.MUNICIPIOS,
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
             almacenamiento=fotos.diagnostico(db),
@@ -435,7 +459,7 @@ def ficha_propiedad(
             p=_propiedad(db, propiedad_id),
             tipos=[t.value for t in TipoInmueble],
             negocios=[n.value for n in TipoNegocio],
-            ciudades=settings.ciudades_cobertura,
+            ciudades=geografia.MUNICIPIOS,
         ),
     )
 
@@ -521,19 +545,17 @@ def editar_propiedad(
     if ciudad_ok is None:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"'{ciudad}' está fuera de la cobertura ({' y '.join(settings.ciudades_cobertura)}).",
+            f"'{ciudad}' no es un municipio de Antioquia ni de Risaralda.",
         )
     tipo_ok = ingesta.normalizar_tipo(tipo)
     if tipo_ok is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo no reconocido: '{tipo}'.")
     negocio_ok = ingesta.normalizar_negocio(negocio)
-    if not ingesta.precio_razonable(precio, negocio_ok):
-        minimo, maximo = ingesta.rango_precio(negocio_ok)
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            f"El precio {precio:,} está fuera del rango razonable para {negocio_ok} "
-            f"({minimo:,} a {maximo:,}).".replace(",", "."),
-        )
+    # El precio lo pone el operador tal cual: el rango razonable de la ingesta
+    # existe para atajar un extractor que leyó mal un aviso, no para discutirle
+    # a quien tiene el inmueble delante. Solo se rechaza lo que no es un precio.
+    if precio <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El precio debe ser mayor que cero.")
 
     cambios = {
         "ciudad": ciudad_ok, "zona": zona.strip()[:80], "tipo": tipo_ok,
@@ -667,10 +689,23 @@ def crear_propiedad(
     propietario: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    ciudad_ok = ingesta.normalizar_ciudad(ciudad)
+    if ciudad_ok is None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            f"'{ciudad}' no es un municipio de Antioquia ni de Risaralda.",
+        )
+    tipo_ok = ingesta.normalizar_tipo(tipo)
+    if tipo_ok is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo no reconocido: '{tipo}'.")
+    # Igual que al editar: el precio es el que diga el operador.
+    if precio <= 0:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El precio debe ser mayor que cero.")
+
     portfolio.crear(
         db,
         {
-            "ciudad": ciudad, "zona": zona, "tipo": tipo,
+            "ciudad": ciudad_ok, "zona": zona, "tipo": tipo_ok,
             "negocio": ingesta.normalizar_negocio(negocio),
             "habitaciones": habitaciones, "banos": banos, "area_m2": area_m2,
             "precio": precio, "descripcion": descripcion, "propietario": propietario,
@@ -736,7 +771,7 @@ def auditoria(request: Request, quien: Operador, db: Session = Depends(get_db)):
 
 
 @router.get("/whatsapp", response_class=HTMLResponse)
-def whatsapp(request: Request, quien: Operador):
+def whatsapp(request: Request, quien: Operador, db: Session = Depends(get_db)):
     """Estado del canal y vinculación del número."""
     return plantillas.TemplateResponse(
         request,
@@ -748,16 +783,91 @@ def whatsapp(request: Request, quien: Operador):
             instancia=settings.evolution_instancia,
             evolution_url=settings.evolution_url,
             url_webhook=whatsapp_evo.url_webhook() if settings.tiene_whatsapp else "",
-            numeros_prueba=sorted(settings.numeros_prueba),
+            numeros_prueba=sorted(ajustes.numeros_prueba(db)),
+            numeros_del_entorno=ajustes.desde_el_entorno(db),
             estado=whatsapp_evo.estado_conexion(),
         ),
     )
+
+
+@router.post("/whatsapp/numeros-prueba")
+def whatsapp_numeros_prueba(
+    quien: Operador,
+    numeros: Annotated[str, Form()] = "",
+    db: Session = Depends(get_db),
+):
+    """Cambia la lista blanca de pruebas sin tocar el `.env` ni reiniciar.
+
+    Vaciar el campo es una decisión válida y significa producción: el bot le
+    responde a todo el que escriba. Por eso se guarda el vacío en vez de volver
+    al valor del entorno.
+    """
+    ajustes.guardar(db, ajustes.NUMEROS_PRUEBA, ajustes.normalizar_lista(numeros), actor=quien)
+    return RedirectResponse("/dashboard/whatsapp", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.get("/whatsapp/estado")
 def whatsapp_estado(quien: Operador):
     """Estado en JSON, para que la página se actualice sola mientras se escanea."""
     return {"estado": whatsapp_evo.estado_conexion()}
+
+
+@router.get("/whatsapp/qr-actual")
+def whatsapp_qr_actual(quien: Operador):
+    """El QR vigente, sin tocar la conexión.
+
+    Existe para que el panel pueda refrescar la imagen mientras el operador
+    busca el teléfono. La versión anterior refrescaba llamando otra vez a
+    `/instance/connect`, y eso no pide otro código: reinicia el socket de
+    Baileys. Si el reinicio caía mientras alguien escaneaba, el teléfono
+    respondía «no se pudo vincular el dispositivo». Aquí solo se lee lo que
+    Evolution ya empujó por el webhook.
+    """
+    return {"qr": whatsapp_evo.ultimo_qr(), "estado": whatsapp_evo.estado_conexion()}
+
+
+@router.post("/whatsapp/qr")
+def whatsapp_qr(quien: Operador, db: Session = Depends(get_db)):
+    """Un QR fresco en JSON, para que la página lo renueve sin recargarse.
+
+    El QR de WhatsApp vive segundos: el operador pulsaba «Vincular», iba a
+    buscar el teléfono y volvía a un código ya muerto que la página no tenía
+    forma de reemplazar. Parecía que el QR no cargaba nunca. Con este endpoint
+    la vista se renueva sola mientras el teléfono aparece.
+
+    Se llama **una sola vez por intento**, al pulsar el botón: abre la conexión y
+    devuelve el primer código. Los siguientes los empuja Evolution por webhook y
+    el panel los lee de `/whatsapp/qr-actual`.
+    """
+    if not settings.tiene_whatsapp:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "El canal no está configurado: faltan EVOLUTION_URL, EVOLUTION_API_KEY "
+            "o EVOLUTION_WEBHOOK_TOKEN.",
+        )
+    try:
+        alta = whatsapp_evo.crear_instancia()
+        whatsapp_evo.configurar_webhook()
+        datos = whatsapp_evo.qr_de_conexion()
+    except httpx.HTTPError as e:
+        log.warning("No se pudo pedir el QR de WhatsApp: %s", e)
+        return {
+            "error": (
+                f"No se pudo hablar con Evolution API en {settings.evolution_url}. "
+                "¿Está levantado el gateway?"
+            )
+        }
+
+    auditar(
+        db, actor=quien, accion="whatsapp_vinculacion_iniciada", entidad="canal",
+        entidad_id=settings.evolution_instancia, detalle=f"instancia {alta}",
+    )
+
+    return {
+        "qr": whatsapp_evo.qr_data_uri(datos),
+        "codigo_pareo": datos.get("pairingCode"),
+        "estado": whatsapp_evo.estado_conexion(),
+    }
 
 
 @router.post("/whatsapp/vincular", response_class=HTMLResponse)
@@ -779,7 +889,8 @@ def whatsapp_vincular(request: Request, quien: Operador, db: Session = Depends(g
         "instancia": settings.evolution_instancia,
         "evolution_url": settings.evolution_url,
         "url_webhook": whatsapp_evo.url_webhook(),
-        "numeros_prueba": sorted(settings.numeros_prueba),
+        "numeros_prueba": sorted(ajustes.numeros_prueba(db)),
+        "numeros_del_entorno": ajustes.desde_el_entorno(db),
     }
 
     try:

@@ -79,6 +79,11 @@ COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
         # emparejamiento asume venta. Rellenarlo aquí afirmaría un dato que
         # nadie declaró.
         ("negocio", "VARCHAR(12)"),
+        ("foco", "VARCHAR(160)"),
+        ("canal_id", "VARCHAR(400)"),
+    ],
+    "solicitudes": [
+        ("protegido_hasta", "DATETIME"),
     ],
     "propiedades": [
         ("fuente", "VARCHAR(40) DEFAULT 'manual'"),

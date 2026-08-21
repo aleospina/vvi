@@ -360,6 +360,13 @@ class Prospecto(Base):
     red_origen: Mapped[str | None] = mapped_column(String(40), index=True)
 
     # Contacto — CIFRADO EN REPOSO
+    #: Identificador del canal en claro (cifrado en reposo), al lado del hash.
+    #: El índice ciego sirve para *encontrar* al prospecto cuando él escribe,
+    #: pero no para escribirle a él: no es reversible. El seguimiento posterior
+    #: —preguntarle si ya cerró— necesita poder iniciar la conversación, y en
+    #: Telegram el `chat_id` es el único camino. Entra con el mismo candado que
+    #: el teléfono y solo después del consentimiento.
+    canal_id: Mapped[str | None] = mapped_column(PII(400))
     nombre: Mapped[str | None] = mapped_column(PII(400))
     telefono: Mapped[str | None] = mapped_column(PII(400))
     usuario_canal: Mapped[str | None] = mapped_column(PII(400))
@@ -376,6 +383,15 @@ class Prospecto(Base):
     #: que de verdad delimita su búsqueda.
     municipio: Mapped[str | None] = mapped_column(String(64))
     zona: Mapped[str | None] = mapped_column(String(80))
+    #: Términos con los que el comprador acotó la conversación a una parte de la
+    #: cartera —"solo la ferretería de La Reforma", "el de Laureles"—. No es un
+    #: slot más: no cabe en ninguna columna del inmueble porque lo que lo
+    #: identifica está escrito en la zona o en la descripción de la ficha. Vive
+    #: en el prospecto para que el recorte sobreviva al siguiente mensaje: si
+    #: durara un turno, el "¿y cuánto vale?" que viene detrás le devolvería la
+    #: cartera entera. Se limpia al pedir la lista completa o al cambiar de
+    #: búsqueda.
+    foco: Mapped[str | None] = mapped_column(String(160))
     tipo: Mapped[str | None] = mapped_column(String(20))
     #: Qué viene a hacer: comprar, arrendar o permutar. Vacío mientras no lo
     #: diga; el emparejamiento asume venta, que es el negocio central. De él
@@ -463,9 +479,59 @@ class Solicitud(Base):
     detalle: Mapped[str] = mapped_column(Text, default="")
     creado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora)
     atendida_en: Mapped[datetime | None] = mapped_column(DateTime)
+    #: Hasta cuándo esta presentación genera comisión aunque el cierre ocurra
+    #: por fuera del sistema. Se congela al crear la solicitud y no se recalcula:
+    #: si mañana se cambia la política a 12 meses, las presentaciones viejas
+    #: siguen valiendo lo que valían el día que se hicieron. Eso es justo lo que
+    #: la vuelve oponible — una fecha que se mueve sola no prueba nada.
+    protegido_hasta: Mapped[datetime | None] = mapped_column(DateTime)
 
     prospecto: Mapped[Prospecto] = relationship(back_populates="solicitudes")
     propiedad: Mapped[Propiedad | None] = relationship()
+
+    @property
+    def proteccion_vigente(self) -> bool:
+        if self.protegido_hasta is None:
+            return False
+        return self.protegido_hasta > ahora()
+
+
+class Seguimiento(Base):
+    """Pregunta al comprador si el negocio se cerró (control de comisión).
+
+    El riesgo del modelo es que el asesor cierre por fuera y no lo reporte, y
+    preguntárselo a él es preguntarle al único con motivo para callar. El
+    comprador no tiene ese motivo: por eso el sistema le escribe a él, por el
+    mismo canal por el que llegó y con la autorización que ya dio.
+
+    Una fila por hito y por solicitud, siempre —también cuando el hito se venció
+    sin enviarse—: si el proceso estuvo caído dos semanas, lo que corresponde es
+    mandar una sola pregunta, no las tres atrasadas de golpe.
+    """
+
+    __tablename__ = "seguimientos"
+    __table_args__ = (UniqueConstraint("solicitud_id", "hito", name="uq_seguimiento_hito"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    prospecto_id: Mapped[int] = mapped_column(
+        ForeignKey("prospectos.id", ondelete="CASCADE"), index=True
+    )
+    solicitud_id: Mapped[int] = mapped_column(
+        ForeignKey("solicitudes.id", ondelete="CASCADE"), index=True
+    )
+    #: Días transcurridos desde la presentación que dispararon la pregunta.
+    hito: Mapped[int] = mapped_column(Integer)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora)
+    #: Nulo cuando el hito se registró sin preguntar nada, para no acumular.
+    enviado_en: Mapped[datetime | None] = mapped_column(DateTime)
+    respondido_en: Mapped[datetime | None] = mapped_column(DateTime)
+    #: cerro | no_cerro | omitido. El texto literal de la respuesta no se copia
+    #: aquí: ya vive cifrado en `mensajes`, y duplicar PII solo multiplica el
+    #: sitio donde puede filtrarse.
+    resultado: Mapped[str | None] = mapped_column(String(20), index=True)
+
+    prospecto: Mapped[Prospecto] = relationship()
+    solicitud: Mapped[Solicitud] = relationship()
 
 
 class Emparejamiento(Base):
@@ -503,6 +569,22 @@ class Venta(Base):
 
     prospecto: Mapped[Prospecto] = relationship(back_populates="ventas")
     propiedad: Mapped[Propiedad] = relationship()
+
+
+class Ajuste(Base):
+    """Ajuste operativo editable desde la interfaz (pisa al `.env`).
+
+    Deliberadamente genérico y deliberadamente pequeño: aquí no entra ningún
+    secreto —esos siguen siendo variables de entorno (RNF-05)— sino lo que un
+    operador necesita cambiar en medio de una prueba sin reiniciar el proceso.
+    """
+
+    __tablename__ = "ajustes"
+
+    clave: Mapped[str] = mapped_column(String(60), primary_key=True)
+    valor: Mapped[str] = mapped_column(Text, default="")
+    actualizado_por: Mapped[str] = mapped_column(String(60), default="")
+    actualizado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora, onupdate=ahora)
 
 
 class Campana(Base):

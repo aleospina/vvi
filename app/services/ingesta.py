@@ -50,6 +50,7 @@ from app.models import (
 )
 from app.security.crypto import indice_ciego
 from app.services.compliance import auditar
+from app.services import geografia
 from app.services.nlu_engine import CIUDADES
 from app.services.portfolio import siguiente_codigo
 
@@ -111,6 +112,11 @@ class Publicacion:
     propietario_telefono: str | None = None
     mandato: bool = False
     mandato_evidencia: str = ""
+    #: La escribió una persona campo por campo, con el inmueble delante, y no un
+    #: raspador ni el extractor de avisos. Solo la marca `publicacion_de_formulario`.
+    #: A quien la marca no se le acota el precio ni se le exige área metropolitana:
+    #: sabe lo que registra, y lo suyo pasa por revisión antes de publicarse.
+    de_formulario: bool = False
 
 
 class FuenteIngesta(Protocol):
@@ -142,14 +148,9 @@ def _normalizar(texto: str) -> str:
     return "".join(c for c in sin_tildes if unicodedata.category(c) != "Mn").strip()
 
 
-#: Municipios del área metropolitana que comercialmente operamos como una ciudad.
-ALIAS_CIUDAD = {
-    "medellin": "Medellín", "envigado": "Medellín", "sabaneta": "Medellín",
-    "itagui": "Medellín", "bello": "Medellín", "la estrella": "Medellín",
-    "caldas": "Medellín", "copacabana": "Medellín", "girardota": "Medellín",
-    "pereira": "Pereira", "dosquebradas": "Pereira", "la virginia": "Pereira",
-    "santa rosa de cabal": "Pereira",
-}
+# Los municipios y sus plazas viven en `app.services.geografia`, que es la
+# única lista. Antes este diccionario mapeaba municipio → plaza, y por eso un
+# inmueble de Envigado se guardaba como "Medellín": se perdía dónde estaba.
 
 #: Barrios y corregimientos con ciudad inequívoca, tomados del motor
 #: conversacional para no mantener dos listas en paralelo.
@@ -207,15 +208,13 @@ def normalizar_negocio(valor: str) -> str:
 
 
 def normalizar_ciudad(valor: str) -> str | None:
-    """Mapea un municipio a la ciudad de cobertura, o None si está fuera."""
-    plano = _normalizar(valor)
-    if plano in ALIAS_CIUDAD:
-        return ALIAS_CIUDAD[plano]
-    # La fuente puede traer "Envigado, Antioquia" o "Medellín (Antioquia)".
-    for alias, ciudad in ALIAS_CIUDAD.items():
-        if re.search(rf"\b{re.escape(alias)}\b", plano):
-            return ciudad
-    return None
+    """Municipio canónico para `Propiedad.ciudad`, o None si no es de la región.
+
+    Devuelve el municipio y no la plaza: un inmueble de Envigado se guarda como
+    Envigado. A quién puede ofrecérsele es otra pregunta, y la responde
+    `geografia.plaza_de` en el emparejamiento.
+    """
+    return geografia.normalizar_municipio(valor)
 
 
 def ciudad_por_zona(valor: str) -> str | None:
@@ -223,8 +222,8 @@ def ciudad_por_zona(valor: str) -> str | None:
 
     Reutiliza el diccionario del motor conversacional: los barrios que nombra un
     comprador son los mismos que aparecen en un aviso, y no tiene sentido
-    mantener dos listas que se desincronizan. `ALIAS_CIUDAD` solo cubre
-    municipios; esto cubre 'Cerritos', 'Laureles', 'El Poblado'…
+    mantener dos listas que se desincronizan. `geografia` solo cubre municipios;
+    esto cubre 'Cerritos', 'Laureles', 'El Poblado'…
     """
     plano = _normalizar(valor)
     if not plano:
@@ -258,8 +257,22 @@ def validar(pub: Publicacion) -> str | None:
         return "sin mandato de comercialización"
     if not pub.mandato_evidencia.strip():
         return "mandato sin evidencia registrada"
-    if normalizar_ciudad(pub.ciudad) is None:
+    # Lo que sigue se mide con dos varas, según quién escribió los datos.
+    #
+    # Un raspador, un feed o el extractor de avisos pueden equivocarse en
+    # silencio: de un aviso mal leído sale un municipio que nadie busca o la
+    # cuota de administración tomada por precio, y eso entra a la cartera sin
+    # que nadie lo mire. A ellos se les exige plaza y precio razonable.
+    #
+    # Del otro lado hay una persona llenando campos con el inmueble delante —el
+    # dueño en /publicar—: sabe dónde queda y cuánto vale, discutírselo es
+    # estorbarle, y lo suyo entra como `pendiente` y pasa por revisión humana.
+    if pub.de_formulario:
+        if normalizar_ciudad(pub.ciudad) is None:
+            return f"'{pub.ciudad or '(vacía)'}' no es un municipio de Antioquia ni de Risaralda"
+    elif geografia.plaza_de(pub.ciudad) is None:
         return f"ciudad fuera de cobertura: {pub.ciudad or '(vacía)'}"
+
     if normalizar_tipo(pub.tipo) is None:
         return f"tipo de inmueble no reconocido: {pub.tipo or '(vacío)'}"
     try:
@@ -267,7 +280,14 @@ def validar(pub: Publicacion) -> str | None:
     except (TypeError, ValueError):
         return f"precio ilegible: {pub.precio!r}"
     negocio = normalizar_negocio(pub.negocio)
-    if not precio_razonable(precio, negocio):
+    if pub.de_formulario:
+        # Al dueño no se le corrige el precio de su inmueble: solo se exige que
+        # sea un número positivo.
+        if precio <= 0:
+            return f"el precio debe ser mayor que cero: {precio}"
+    elif not precio_razonable(precio, negocio):
+        # El rango depende del negocio: 900.000 es un canon normal y un precio
+        # de venta imposible.
         return f"precio fuera de rango razonable para {negocio}: {precio}"
     if not pub.externo_id:
         return "falta el identificador de origen (necesario para deduplicar)"
@@ -710,4 +730,5 @@ def publicacion_de_formulario(
             f"Casilla de autorización de comercialización marcada por el "
             f"propietario en {origen} — {settings.empresa_nombre}"
         ),
+        de_formulario=True,
     )
