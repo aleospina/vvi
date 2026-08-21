@@ -584,3 +584,191 @@ footer .aviso{color:var(--tinta-3)}
   dl.ficha{grid-template-columns:1fr; gap:3px}
   dl.ficha dd{margin-bottom:10px}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Catálogo público (/inmuebles)
+   Misma paleta y mismos componentes que el dashboard —tarjeta `.inmueble`,
+   `.pastilla`, `.panel`—, con más aire: aquí el visitante decide en segundos
+   y el precio es lo primero que tiene que encontrar.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+body.vitrina{
+  background:
+    radial-gradient(1200px 460px at 50% -10%, var(--acento-suave), transparent 60%),
+    var(--papel);
+}
+body.vitrina .barra .marca{text-decoration:none}
+body.vitrina .barra .marca:hover{text-decoration:none}
+body.vitrina main{padding-bottom:64px}
+
+/* Aviso de cartera falsa. Debe ser imposible de confundir con una promoción,
+   de ahí el ladrillo y el ancho completo. */
+.franja-demo{
+  background:var(--ladrillo); color:#fff;
+  padding:11px 28px; font-size:13.5px; text-align:center;
+}
+.franja-demo code{
+  background:rgba(255,255,255,.18); padding:1px 6px; border-radius:4px;
+  font:400 12px/1 var(--mono);
+}
+
+/* ─────────────────────────── Portada y buscador ─────────────────────────── */
+
+.portada-vitrina{margin:8px 0 30px}
+.portada-vitrina h1{margin-bottom:6px}
+.portada-vitrina .leyenda{margin-bottom:22px}
+
+.buscador{
+  display:grid; gap:14px; align-items:end;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  background:var(--panel); border:1px solid var(--linea);
+  border-radius:var(--radio); padding:20px; box-shadow:var(--sombra-2);
+}
+.buscador .campo{margin:0}
+.buscador .campo.ancho{grid-column:1 / -1}
+.buscador .campo.estrecho{max-width:100%}
+.buscador input, .buscador select{width:100%}
+.buscador .boton-buscar button{width:100%}
+
+/* ─────────────────────────── Resultados ─────────────────────────── */
+
+.titulo-resultados{
+  display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+  margin:26px 0 16px;
+}
+.titulo-resultados .limpiar{font:400 13px/1 var(--texto); margin-left:auto}
+
+.inmueble .codigo{
+  margin-left:auto; font:400 11px/1 var(--mono);
+  color:var(--tinta-3); letter-spacing:.03em;
+}
+body.vitrina .inmueble .pie{align-items:center}
+
+.paginacion{
+  display:flex; gap:6px; flex-wrap:wrap; justify-content:center;
+  margin:34px 0 8px;
+}
+
+/* ─────────────────────────── Ficha ─────────────────────────── */
+
+.miga{font-size:13px; color:var(--tinta-2); margin:4px 0 14px}
+.miga a{color:var(--tinta-2)}
+.titulo-ficha{margin-bottom:4px}
+
+.ficha-publica{
+  display:grid; gap:24px; align-items:start;
+  grid-template-columns:minmax(0, 1.9fr) minmax(300px, 1fr);
+  margin-top:22px;
+}
+.ficha-principal{display:flex; flex-direction:column; gap:20px; min-width:0}
+.ficha-lateral{
+  display:flex; flex-direction:column; gap:18px;
+  position:sticky; top:82px;
+}
+
+.visor{
+  margin:0; border-radius:var(--radio); overflow:hidden;
+  border:1px solid var(--linea); background:var(--panel);
+  box-shadow:var(--sombra-2); aspect-ratio:4 / 3;
+}
+.visor img{width:100%; height:100%; object-fit:cover; display:block}
+.visor.sin-foto{background:var(--acento-suave)}
+.visor.sin-foto img{object-fit:contain; padding:12%}
+
+.tira{display:flex; gap:9px; overflow-x:auto; padding-bottom:4px}
+.tira .mini{
+  flex:0 0 88px; height:64px; padding:0; border-radius:var(--radio-xs);
+  overflow:hidden; border:2px solid transparent; background:none;
+  cursor:pointer; opacity:.72; transition:opacity .15s ease, border-color .15s ease;
+}
+.tira .mini img{width:100%; height:100%; object-fit:cover; display:block}
+.tira .mini:hover{opacity:1}
+.tira .mini.activa{opacity:1; border-color:var(--acento)}
+
+.detalles{
+  display:grid; gap:0 26px; margin:0;
+  grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));
+}
+.detalles > div{
+  display:flex; justify-content:space-between; gap:14px;
+  padding:9px 0; border-bottom:1px solid var(--linea);
+}
+.detalles dt{color:var(--tinta-2); font-size:13.5px}
+.detalles dd{
+  margin:0; font-weight:600; font-size:14px;
+  text-align:right; font-variant-numeric:tabular-nums;
+}
+
+.precio-panel{text-align:center}
+.precio-panel .rotulo{
+  font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--tinta-3);
+}
+.precio-grande{
+  font:600 32px/1.15 var(--display); color:var(--acento);
+  margin:8px 0 6px; font-variant-numeric:tabular-nums;
+}
+
+.tambien{margin-top:48px}
+.tambien h2{margin-bottom:16px}
+
+/* ─────────────────────────── Pie público ─────────────────────────── */
+
+.pie-publico{
+  margin-top:56px; border-top:1px solid var(--linea);
+  background:var(--panel); padding:36px 28px 26px;
+}
+.pie-columnas{
+  max-width:1240px; margin:0 auto; display:grid; gap:32px;
+  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+}
+.pie-publico h3{
+  font:600 12px/1 var(--texto); text-transform:uppercase;
+  letter-spacing:.08em; color:var(--tinta-3); margin:0 0 10px;
+}
+.pie-publico .aviso{
+  max-width:1240px; margin:28px auto 0; padding-top:18px;
+  border-top:1px solid var(--linea); font-size:12.5px; color:var(--tinta-3);
+}
+
+/* Botón flotante de WhatsApp. Es el patrón que el comprador colombiano ya
+   reconoce en cualquier sitio inmobiliario; discutirlo sería terquedad. */
+.wasap{
+  position:fixed; right:20px; bottom:20px; z-index:60;
+  width:52px; height:52px; border-radius:50%;
+  display:grid; place-items:center;
+  background:#25d366; color:#fff; box-shadow:var(--sombra-3);
+  transition:transform .18s cubic-bezier(.2,.7,.3,1);
+}
+.wasap:hover{transform:scale(1.07); text-decoration:none}
+
+@media (max-width:900px){
+  .ficha-publica{grid-template-columns:1fr}
+  .ficha-lateral{position:static}
+}
+
+/* Puente vitrina → dashboard. Solo lo ve quien tiene sesión, y se distingue del
+   contenido público a propósito: es andamiaje del operador, no de la oferta. */
+.barra-interna{
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  background:var(--tinta); color:#fff;
+  padding:11px 16px; border-radius:var(--radio-s); margin:14px 0 4px;
+  font-size:13.5px;
+}
+.barra-interna .boton{margin-left:auto}
+.inmueble .codigo.interno{color:var(--acento); text-decoration:none}
+.inmueble .codigo.interno:hover{text-decoration:underline}
+
+/* Arriendo y permuta se distinguen de la venta a simple vista: en una rejilla
+   mezclada, el precio solo se interpreta bien si el negocio se ve antes. */
+.insignia.alterna{background:var(--frio); color:#fff}
+.inmueble .precio small, .precio-grande small{
+  font:400 13px/1 var(--texto); color:var(--tinta-2); margin-left:2px;
+}
+.precio-grande small{font-size:15px}
+
+/* Notas del equipo en la ficha pública: se separan visualmente del contenido
+   de la oferta para que nadie las confunda con algo que ve el comprador. */
+.hilo-interno{border-left:3px solid var(--tinta); background:#fbfaf8}
+.hilo-interno h2{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.quien-soy{display:inline-flex; align-items:center; gap:8px; font-size:13px}

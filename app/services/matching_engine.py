@@ -13,7 +13,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.llm.client import cliente
-from app.models import Emparejamiento, Propiedad, Prospecto
+from app.models import NEGOCIO_POR_DEFECTO, Emparejamiento, Propiedad, Prospecto
 from app.services.nlu_engine import normalizar
 from app.services.portfolio import como_dict, municipio_de, plano
 
@@ -105,6 +105,11 @@ def buscar(db: Session, perfil: dict, limite: int = TOPE_RESULTADOS) -> list[Mat
         .where(
             Propiedad.ciudad == perfil["ciudad"],
             Propiedad.tipo == perfil["tipo"],
+            # Nunca se cruzan negocios. Es lo que impide ofrecer un arriendo de
+            # 2.500.000 a quien compra —parecería regalado— y una casa de 900
+            # millones a quien arrienda. Sin negocio declarado se asume venta,
+            # que es el negocio central y lo que era todo antes de esta columna.
+            Propiedad.negocio == (perfil.get("negocio") or NEGOCIO_POR_DEFECTO),
             Propiedad.estado == "disponible",
             Propiedad.precio >= piso,
         )
@@ -140,6 +145,10 @@ def conteo(db: Session, perfil: dict) -> tuple[int, int]:
             select(Propiedad).where(
                 Propiedad.ciudad == perfil["ciudad"],
                 Propiedad.tipo == perfil["tipo"],
+                # Mismo universo que `buscar`, negocio incluido: si el total
+                # contara las ventas mientras se muestran arriendos, el aviso
+                # de filtro diría "tengo 30" y el bot mostraría 2.
+                Propiedad.negocio == (perfil.get("negocio") or NEGOCIO_POR_DEFECTO),
                 Propiedad.estado == "disponible",
             )
         )
@@ -200,14 +209,20 @@ def emparejar(
 
 def contexto_cartera(db: Session, perfil: dict, limite: int = 8) -> str:
     """Resumen textual de la cartera pertinente, para anclar al LLM (RF-07)."""
-    consulta = select(Propiedad).where(Propiedad.estado == "disponible")
+    consulta = select(Propiedad).where(
+        Propiedad.estado == "disponible",
+        # El contexto que ancla al LLM tiene que ser del mismo negocio, o
+        # redactará sobre inmuebles que el motor jamás va a ofrecer.
+        Propiedad.negocio == (perfil.get("negocio") or NEGOCIO_POR_DEFECTO),
+    )
     if perfil.get("ciudad"):
         consulta = consulta.where(Propiedad.ciudad == perfil["ciudad"])
     if perfil.get("tipo"):
         consulta = consulta.where(Propiedad.tipo == perfil["tipo"])
     filas = list(db.scalars(consulta.order_by(Propiedad.precio).limit(limite)))
     return "\n".join(
-        f"- {p.id} | {p.tipo} | {p.zona}, {p.ciudad} | {p.habitaciones} hab | "
-        f"{p.area_m2:.0f} m² | ${p.precio:,}".replace(",", ".")
+        f"- {p.id} | {p.tipo} en {p.negocio} | {p.zona}, {p.ciudad} | "
+        f"{p.habitaciones} hab | {p.area_m2:.0f} m² | ${p.precio:,}"
+        f"{'/mes' if p.negocio == 'arriendo' else ''}".replace(",", ".")
         for p in filas
     )

@@ -50,6 +50,7 @@ def listar_propiedades(
 def crear_propiedad(datos: PropiedadIn, db: Session = Depends(get_db)):
     cuerpo = datos.model_dump(exclude_none=True)
     cuerpo["tipo"] = datos.tipo.value
+    cuerpo["negocio"] = datos.negocio.value
     return portfolio.crear(db, cuerpo)
 
 

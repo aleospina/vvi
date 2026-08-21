@@ -117,30 +117,58 @@ class TestVista:
         yield cli
         cli.__exit__(None, None, None)
 
-    def test_la_pagina_ofrece_los_filtros(self, panel, cartera):
+    def test_la_cartera_ya_no_lista_inventario(self, panel, cartera):
+        """Cartera alimenta el inventario; verlo es tarea de la vitrina.
+
+        Los FIL- están todos `disponible`, así que su sitio es /inmuebles. Que
+        no aparezcan aquí es la separación buscada, no una regresión.
+        """
         r = panel.get("/dashboard/propiedades")
         assert r.status_code == 200
-        assert "Lotes" in r.text and "Apartamentos" in r.text
-        assert "Dosquebradas" in r.text and "Envigado" in r.text
+        assert "FIL-01" not in r.text and "FIL-02" not in r.text
+        # Y tiene que quedar el camino hacia donde sí se ven.
+        assert 'href="/inmuebles"' in r.text
 
-    def test_filtrar_por_tipo_recorta_el_listado(self, panel, cartera):
-        r = panel.get("/dashboard/propiedades?tipo=lote")
-        assert "FIL-02" in r.text
-        assert "FIL-01" not in r.text
+    def test_la_cartera_resume_el_inventario_en_cifras(self, panel, cartera):
+        """Sin rejilla, el operador todavía necesita saber qué tiene."""
+        r = panel.get("/dashboard/propiedades")
+        assert "en la vitrina" in r.text
+        assert "casas" in r.text and "lotes" in r.text
 
-    def test_un_valor_inventado_no_vacia_la_cartera(self, panel, cartera):
-        """Mejor mostrar todo que dejar al operador ante una pantalla en blanco."""
-        r = panel.get("/dashboard/propiedades?tipo=castillo&municipio=Narnia")
-        assert r.status_code == 200
-        assert "FIL-01" in r.text
+    def test_lo_retirado_sigue_siendo_alcanzable(self, panel, cartera):
+        """Un inactivo no sale en la vitrina: si tampoco saliera aquí, se pierde."""
+        p = cartera.query(Propiedad).filter(Propiedad.id == "FIL-01").one()
+        p.estado = "inactiva"
+        cartera.commit()
+        try:
+            r = panel.get("/dashboard/propiedades")
+            assert "Fuera de la vitrina" in r.text
+            assert "FIL-01" in r.text
+        finally:
+            p.estado = "disponible"
+            cartera.commit()
 
-    def test_el_invitado_tambien_puede_filtrar(self, panel, cartera, monkeypatch):
-        """La cartera es lo único que el invitado ve; filtrarla no modifica nada."""
+    def test_el_invitado_no_se_queda_sin_donde_mirar(self, panel, cartera, monkeypatch):
+        """Al invitado se le movió el inventario a la vitrina; debe llegar a ella.
+
+        Su cuenta existe para consultar inmuebles y comentarlos. Si la Cartera
+        deja de listarlos y la vitrina no lo reconoce, se queda sin producto.
+        """
         monkeypatch.setattr(settings, "invitado_user", "invitado")
         monkeypatch.setattr(settings, "invitado_password", "invitado")
+        monkeypatch.setattr(settings, "catalogo_publico", True)
         from app.main import app
 
         with TestClient(app, follow_redirects=False) as cli:
             r = cli.post("/dashboard/login", data={"usuario": "invitado", "clave": "invitado"})
             assert r.status_code == 303
-            assert cli.get("/dashboard/propiedades?tipo=lote").status_code == 200
+            # El ingreso lo deja directamente donde puede trabajar.
+            assert r.headers["location"] == "/inmuebles"
+
+            vitrina = cli.get("/inmuebles")
+            assert vitrina.status_code == 200
+            assert "FIL-01" in vitrina.text
+            # No se le ofrece «volver al panel»: esa ruta lo devolvería aquí y
+            # el botón sería un bucle. Sí se le ofrece salir.
+            assert "Volver al panel" not in vitrina.text
+            assert "Cerrar sesión" in vitrina.text

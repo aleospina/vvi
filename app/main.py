@@ -14,7 +14,7 @@ from app import __version__
 from app.config import RAIZ, settings
 from app.db import inicializar
 from app.channels.telegram_bot import aviso_de_red, construir_app
-from app.routers import api, captacion, dashboard, whatsapp
+from app.routers import api, captacion, catalogo, dashboard, whatsapp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -121,6 +121,7 @@ app.mount("/static/fotos", StaticFiles(directory=str(settings.ruta_fotos)), name
 app.mount("/static", StaticFiles(directory=str(RAIZ / "app" / "static")), name="static")
 app.include_router(api.router)
 app.include_router(captacion.router)
+app.include_router(catalogo.router)
 app.include_router(dashboard.router)
 app.include_router(whatsapp.router)
 

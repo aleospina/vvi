@@ -110,6 +110,39 @@ class TipoInmueble(str, enum.Enum):
     LOTE = "lote"
 
 
+class TipoNegocio(str, enum.Enum):
+    """Qué se hace con el inmueble. Determina qué significa `precio`.
+
+    En `venta` el precio es el valor total; en `arriendo` es el **canon
+    mensual**. Son magnitudes con dos órdenes de diferencia, así que nunca se
+    comparan ni se ordenan juntas: el piso de precio de la cartera, el ranking
+    del emparejamiento y el filtro de presupuesto trabajan siempre dentro de un
+    mismo tipo de negocio. Mezclarlos haría que un arriendo de dos millones
+    pareciera la ganga del catálogo.
+
+    `permuta` es cambio de inmueble por inmueble; el precio es el avalúo de
+    referencia sobre el que se negocia la diferencia.
+    """
+
+    VENTA = "venta"
+    ARRIENDO = "arriendo"
+    PERMUTA = "permuta"
+
+
+#: Negocio por defecto en todo el sistema. La cartera nació siendo solo de
+#: venta: cualquier registro anterior a esta columna es una venta, y cualquier
+#: consulta que no diga lo contrario habla de ventas.
+NEGOCIO_POR_DEFECTO = TipoNegocio.VENTA.value
+
+#: Cómo se nombra el precio en cada negocio. Escribir "Precio de venta" sobre un
+#: canon mensual es un error caro: el comprador lee 2.500.000 y cree que compra.
+ROTULO_PRECIO = {
+    TipoNegocio.VENTA.value: "Precio de venta",
+    TipoNegocio.ARRIENDO.value: "Canon mensual",
+    TipoNegocio.PERMUTA.value: "Avalúo de referencia",
+}
+
+
 class EstadoPropiedad(str, enum.Enum):
     """Ciclo de vida de un inmueble en la cartera.
 
@@ -179,6 +212,11 @@ class Propiedad(Base):
     ciudad: Mapped[str] = mapped_column(String(64), index=True)
     zona: Mapped[str] = mapped_column(String(80))
     tipo: Mapped[str] = mapped_column(String(20), index=True)
+    #: venta | arriendo | permuta. Cambia el significado de `precio`, así que
+    #: acompaña a `precio` en toda consulta que compare importes.
+    negocio: Mapped[str] = mapped_column(
+        String(12), default=NEGOCIO_POR_DEFECTO, index=True
+    )
     habitaciones: Mapped[int] = mapped_column(Integer, default=0)
     banos: Mapped[int] = mapped_column(Integer, default=0)
     area_m2: Mapped[float] = mapped_column(Float, default=0)
@@ -339,6 +377,11 @@ class Prospecto(Base):
     municipio: Mapped[str | None] = mapped_column(String(64))
     zona: Mapped[str | None] = mapped_column(String(80))
     tipo: Mapped[str | None] = mapped_column(String(20))
+    #: Qué viene a hacer: comprar, arrendar o permutar. Vacío mientras no lo
+    #: diga; el emparejamiento asume venta, que es el negocio central. De él
+    #: depende cómo se lee `presupuesto_max`: un tope de 2 millones es absurdo
+    #: comprando y perfectamente normal arrendando.
+    negocio: Mapped[str | None] = mapped_column(String(12))
     presupuesto_min: Mapped[int | None] = mapped_column(Integer)
     presupuesto_max: Mapped[int | None] = mapped_column(Integer)
     habitaciones: Mapped[int | None] = mapped_column(Integer)

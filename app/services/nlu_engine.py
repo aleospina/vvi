@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 
 from app.config import settings
 from app.llm.client import cliente
-from app.models import Etiqueta, TipoInmueble
+from app.models import NEGOCIO_POR_DEFECTO, Etiqueta, TipoInmueble, TipoNegocio
 
 log = logging.getLogger(__name__)
 
@@ -74,6 +74,25 @@ TIPOS = {
     TipoInmueble.LOTE.value: ("lote", "lotes", "terreno", "terrenos", "parcela"),
 }
 
+#: Qué viene a hacer el prospecto. El orden importa: se comprueba de lo más
+#: específico a lo más general, porque "permuto mi apartamento por una casa"
+#: contiene también la palabra "apartamento" y la idea de compra.
+NEGOCIOS = (
+    (TipoNegocio.PERMUTA.value, (
+        "permuta", "permutar", "permuto", "cambio mi", "cambiar mi",
+        "intercambio", "por otro inmueble",
+    )),
+    (TipoNegocio.ARRIENDO.value, (
+        "arriendo", "arrendar", "arriendan", "arrendamiento", "alquiler",
+        "alquilar", "rentar", "en renta", "para alquilar", "mensualidad",
+        "canon", "tomar en arriendo",
+    )),
+    (TipoNegocio.VENTA.value, (
+        "comprar", "compra", "comprando", "en venta", "venden", "vender",
+        "adquirir", "de contado", "credito hipotecario", "hipotecario",
+    )),
+)
+
 PLAZOS = {
     "inmediato": ("ya", "de una", "inmediato", "esta semana", "urgente", "cuanto antes"),
     "1-3 meses": ("este mes", "proximo mes", "un mes", "dos meses", "tres meses", "1-3 meses"),
@@ -109,18 +128,43 @@ _RE_RANGO = re.compile(
 )
 _RE_ENTERO = re.compile(r"\b(\d{4,})\b")
 
+#: Piso para leer un número suelto como dinero comprando. Por debajo de esto
+#: casi siempre es otra cosa —un área, un año, un teléfono truncado—.
 MONTO_MINIMO_RAZONABLE = 20_000_000
-
-
+#: Arrendando, el mismo piso descartaría todos los cánones reales: un arriendo
+#: de 2.500.000 es caro, no ruido. Por debajo de 300.000 no hay arriendo en
+#: estas plazas, así que ahí sí vuelve a ser ruido.
+MONTO_MINIMO_ARRIENDO = 300_000
 def _a_pesos(valor: float) -> int:
-    """Interpreta '450' como 450 millones y '450000000' como sí mismo."""
+    """Interpreta '450' como 450 millones y '450000000' como sí mismo.
+
+    No depende del negocio: solo lo llaman las expresiones que ya capturaron la
+    unidad «millones» de forma explícita, y "2 millones de arriendo" son dos
+    millones igual que comprando.
+    """
     if valor < 10_000:
         return int(valor * 1_000_000)
     return int(valor)
 
 
-def extraer_montos(texto: str) -> list[int]:
-    """Devuelve los montos en pesos mencionados, en orden de aparición."""
+def negocio_de(texto: str) -> str | None:
+    """Qué negocio pide el texto, o None si no lo dice."""
+    plano = normalizar(texto)
+    for negocio, alias in NEGOCIOS:
+        if any(a in plano for a in alias):
+            return negocio
+    return None
+
+
+def extraer_montos(texto: str, *, negocio: str = NEGOCIO_POR_DEFECTO) -> list[int]:
+    """Devuelve los montos en pesos mencionados, en orden de aparición.
+
+    `negocio` cambia la escala de lectura: los mismos dígitos son millones
+    comprando y miles arrendando.
+    """
+    arrendando = negocio == TipoNegocio.ARRIENDO.value
+    piso = MONTO_MINIMO_ARRIENDO if arrendando else MONTO_MINIMO_RAZONABLE
+    corte = 100_000 if arrendando else 1_000_000
     limpio = _RE_AREA.sub(" ", normalizar(texto))
     limpio = _RE_HABS.sub(" ", limpio)
 
@@ -145,15 +189,17 @@ def extraer_montos(texto: str) -> list[int]:
 
     for m in _RE_ENTERO.finditer(consumido):
         valor = int(m.group(1))
-        if valor >= MONTO_MINIMO_RAZONABLE:
+        if valor >= piso:
             montos.append((m.start(), valor))
 
-    return [v for _, v in sorted(montos) if v >= 1_000_000]
+    return [v for _, v in sorted(montos) if v >= corte]
 
 
-def extraer_presupuesto(texto: str) -> tuple[int | None, int | None]:
+def extraer_presupuesto(
+    texto: str, *, negocio: str = NEGOCIO_POR_DEFECTO
+) -> tuple[int | None, int | None]:
     """Deduce (mínimo, máximo) del presupuesto a partir del lenguaje usado."""
-    montos = extraer_montos(texto)
+    montos = extraer_montos(texto, negocio=negocio)
     if not montos:
         return None, None
 
@@ -168,10 +214,20 @@ def extraer_presupuesto(texto: str) -> tuple[int | None, int | None]:
     return None, unico
 
 
-def extraer_slots(texto: str) -> dict:
-    """Extracción determinística sobre un mensaje suelto (sin costo de tokens)."""
+def extraer_slots(texto: str, *, negocio_previo: str | None = None) -> dict:
+    """Extracción determinística sobre un mensaje suelto (sin costo de tokens).
+
+    `negocio_previo` es el que ya declaró el prospecto en turnos anteriores. Se
+    necesita porque el importe se lee a distinta escala según el negocio: quien
+    dijo "busco arriendo" y ahora escribe "hasta 2.000.000" está poniendo un
+    canon, no un presupuesto de compra irrisorio.
+    """
     plano = normalizar(texto)
     slots: dict = {}
+
+    if (negocio := negocio_de(texto)) is not None:
+        slots["negocio"] = negocio
+    escala = slots.get("negocio") or negocio_previo or NEGOCIO_POR_DEFECTO
 
     for clave, ciudad in CIUDADES.items():
         if re.search(rf"\b{clave}\b", plano):
@@ -206,7 +262,7 @@ def extraer_slots(texto: str) -> dict:
         slots["presupuesto_min"] = None
         slots["presupuesto_max"] = None
     else:
-        pmin, pmax = extraer_presupuesto(texto)
+        pmin, pmax = extraer_presupuesto(texto, negocio=escala)
         if pmin or pmax:
             slots["presupuesto_min"] = pmin
             slots["presupuesto_max"] = pmax
@@ -359,6 +415,7 @@ def faltantes(slots: dict) -> list[str]:
     return faltan
 
 _VALIDOS_TIPO = {t.value for t in TipoInmueble}
+_VALIDOS_NEGOCIO = {n.value for n in TipoNegocio}
 
 
 def _sanear_slots(brutos: dict) -> dict:
@@ -370,6 +427,9 @@ def _sanear_slots(brutos: dict) -> dict:
     tipo = brutos.get("tipo")
     if tipo in _VALIDOS_TIPO:
         limpio["tipo"] = tipo
+    negocio = brutos.get("negocio")
+    if negocio in _VALIDOS_NEGOCIO:
+        limpio["negocio"] = negocio
     for campo in ("presupuesto_min", "presupuesto_max", "habitaciones"):
         valor = brutos.get(campo)
         if isinstance(valor, (int, float)) and valor > 0:
@@ -418,8 +478,10 @@ def analizar(
             log.warning("Clasificación por LLM no disponible, se usan reglas: %s", exc)
 
     # 2) Reglas sobre el último mensaje: mandan sobre el LLM porque es el dato
-    #    más fresco y su extracción es determinística.
-    slots.update(extraer_slots(mensaje))
+    #    más fresco y su extracción es determinística. El negocio ya conocido
+    #    entra como contexto: sin él, "hasta 2 millones" de quien busca arriendo
+    #    se leería con la escala de una compra y quedaría fuera de rango.
+    slots.update(extraer_slots(mensaje, negocio_previo=slots.get("negocio")))
 
     motivo = fuera_de_alcance(slots, precio_minimo_cartera)
 

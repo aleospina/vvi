@@ -41,6 +41,19 @@ OPERADOR = "operador"
 INVITADO = "invitado"
 
 COOKIE = "vvi_sesion"
+#: Alcance de la cookie. Estuvo limitada a `/dashboard` mientras el panel era
+#: lo único autenticado; con la vitrina pública en `/inmuebles` eso dejaba al
+#: operador sin forma de volver al panel ni de saltar a la ficha interna desde
+#: el inmueble que está mirando, porque el navegador no envía la cookie fuera de
+#: su ruta. Sigue siendo `httponly` y `samesite=lax`: lo que cambia es dónde
+#: viaja, no quién puede leerla ni falsificarla.
+RUTA_COOKIE = "/"
+#: Ruta que tuvo la cookie hasta la aparición de la vitrina. Se conserva solo
+#: para poder borrarla: las sesiones abiertas antes del cambio quedaron con
+#: este alcance y no las pisa la nueva, porque una cookie con otra ruta es otra
+#: cookie distinta para el navegador. Se puede eliminar cuando no queden
+#: sesiones vivas de esa época (ocho horas después de desplegar).
+RUTA_COOKIE_ANTERIOR = "/dashboard"
 #: Ocho horas: una jornada del operador sin volver a autenticarse.
 DURACION_SEGUNDOS = 8 * 60 * 60
 

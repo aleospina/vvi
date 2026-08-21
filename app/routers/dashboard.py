@@ -21,12 +21,13 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import desc, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import (
+    NEGOCIO_POR_DEFECTO,
     EstadoProspecto,
     FotoPropiedad,
     FuentePropiedad,
@@ -36,6 +37,7 @@ from app.models import (
     Prospecto,
     Solicitud,
     TipoInmueble,
+    TipoNegocio,
     Venta,
 )
 from app.channels import whatsapp_evo
@@ -46,6 +48,8 @@ from app.security.sesion import (
     DURACION_SEGUNDOS,
     INVITADO,
     OPERADOR,
+    RUTA_COOKIE,
+    RUTA_COOKIE_ANTERIOR,
     credenciales_validas,
     crear_token,
     rol_de,
@@ -81,8 +85,24 @@ def _sesion(request: Request) -> tuple[str, str]:
 
 
 def cualquiera(request: Request) -> str:
-    """Solo exige sesión. Vale para operador e invitado: vistas y comentarios."""
-    return _sesion(request)[0]
+    """Exige sesión de operador. El invitado sale hacia la vitrina.
+
+    El invitado es una cuenta de consulta, y desde que existe `/inmuebles` su
+    sitio es ese: allí ve el inventario tal como lo ve un comprador. El panel
+    dejó de listar inmuebles y solo contiene herramientas de operador —ingesta,
+    alta, aprobación, purga—, así que no le queda nada que hacer aquí.
+
+    Se responde con una redirección y no con 403 porque no es un intento de
+    hacer algo prohibido: es alguien que llegó a la puerta equivocada.
+    """
+    usuario, rol = _sesion(request)
+    if rol == INVITADO:
+        raise HTTPException(
+            status.HTTP_303_SEE_OTHER,
+            "El invitado consulta el inventario en la vitrina.",
+            headers={"Location": "/inmuebles"},
+        )
+    return usuario
 
 
 def operador(request: Request) -> str:
@@ -103,8 +123,19 @@ def operador(request: Request) -> str:
     return usuario
 
 
+def con_sesion(request: Request) -> str:
+    """Cualquier cuenta identificada, invitado incluido.
+
+    Existe solo para comentar. Es la única escritura que el invitado conserva
+    tras mudarse a la vitrina, y por eso no puede pasar por `cualquiera`, que
+    ahora lo devuelve a `/inmuebles`.
+    """
+    return _sesion(request)[0]
+
+
 Operador = Annotated[str, Depends(operador)]
 Cualquiera = Annotated[str, Depends(cualquiera)]
+ConSesion = Annotated[str, Depends(con_sesion)]
 
 
 def _prospecto(db: Session, codigo: str) -> Prospecto:
@@ -163,9 +194,15 @@ def login_envio(
             status_code=401,
         )
 
-    # El invitado no alcanza el tablero de prospectos: entra por la cartera.
-    destino = "/dashboard" if rol == OPERADOR else "/dashboard/propiedades"
+    # El invitado no entra al panel: su sitio es la vitrina, que es donde se ve
+    # el inventario. El operador va al tablero de prospectos.
+    destino = "/dashboard" if rol == OPERADOR else "/inmuebles"
     respuesta = RedirectResponse(destino, status_code=303)
+    # Barre la cookie de la ruta antigua. Una cookie no se sobrescribe entre
+    # rutas distintas: sin esto quedarían dos `vvi_sesion` vivas a la vez —la
+    # de `/dashboard` y la nueva—, el navegador enviaría ambas al panel y el
+    # servidor tomaría una cualquiera, que puede ser la caducada.
+    respuesta.delete_cookie(COOKIE, path=RUTA_COOKIE_ANTERIOR)
     respuesta.set_cookie(
         COOKIE,
         crear_token(usuario),
@@ -173,7 +210,7 @@ def login_envio(
         httponly=True,          # inaccesible a JavaScript
         samesite="lax",         # no viaja en peticiones de otros sitios
         secure=request.url.scheme == "https",
-        path="/dashboard",
+        path=RUTA_COOKIE,
     )
     return respuesta
 
@@ -182,7 +219,10 @@ def login_envio(
 def logout():
     """Cierra la sesión borrando la cookie."""
     respuesta = RedirectResponse("/dashboard/login", status_code=303)
-    respuesta.delete_cookie(COOKIE, path="/dashboard")
+    respuesta.delete_cookie(COOKIE, path=RUTA_COOKIE)
+    # Y también la de la ruta antigua, o una sesión abierta antes del cambio
+    # sobreviviría al botón de cerrar sesión.
+    respuesta.delete_cookie(COOKIE, path=RUTA_COOKIE_ANTERIOR)
     return respuesta
 
 
@@ -288,43 +328,34 @@ def atender(solicitud_id: int, quien: Operador, db: Session = Depends(get_db)):
 
 
 @router.get("/propiedades", response_class=HTMLResponse)
-def cartera(
-    request: Request,
-    quien: Cualquiera,
-    tipo: str = Query("", description="casa | apartamento | lote. Vacío = toda la cartera."),
-    municipio: str = Query("", description="Medellín, Envigado, Dosquebradas… Vacío = todos."),
-    db: Session = Depends(get_db),
-):
-    # Un valor inventado en la URL no debe vaciar la cartera en silencio: se
-    # ignora y se muestra todo, que es lo que el operador espera al ver la
-    # pestaña "Todos" resaltada.
-    tipo = tipo.strip().lower()
-    if tipo not in {t.value for t in TipoInmueble}:
-        tipo = ""
+def cartera(request: Request, quien: Cualquiera, db: Session = Depends(get_db)):
+    """Panel de entrada del inventario. **No lista inmuebles**: eso es la vitrina.
 
-    municipios = portfolio.conteo_por_municipio(db)
-    municipio = municipio.strip()
-    if municipio and municipio not in {m for _, m, _ in municipios}:
-        municipio = ""
+    La separación es deliberada. Aquí se hace lo que solo puede hacer un
+    operador —importar un aviso con IA, dar de alta a mano, aprobar lo que llegó
+    por ingesta, purgar lo no vendible— y se ve el inventario como cifras. Para
+    mirar inmuebles uno por uno está `/inmuebles`, que además es exactamente lo
+    que ve un comprador: si algo se publicó por error, se nota allí.
 
+    Lo retirado (inactivo, vendido, rechazado) sí se lista aquí, en tabla: no
+    sale en la vitrina y sin este listado no habría forma de volver a abrirlo.
+    """
+    publicables = portfolio.publicables(db, incluir_demo=settings.catalogo_muestra_demo)
     return plantillas.TemplateResponse(
         request,
         "propiedades.html",
         _base(
             request,
             quien,
-            propiedades=portfolio.listar(db, tipo=tipo or None, municipio=municipio or None),
-            tipo_activo=tipo,
-            municipio_activo=municipio,
-            municipios=municipios,
-            # El conteo por tipo va sobre la cartera completa, no sobre lo
-            # filtrado: si dijera "0" en las pestañas que no están activas, el
-            # filtro parecería no tener nada detrás.
+            total=db.scalar(select(func.count()).select_from(Propiedad)) or 0,
+            publicadas=len(publicables),
             conteo_tipos=portfolio.conteo_por_tipo(db),
+            fuera=portfolio.fuera_de_vitrina(db),
             pendientes=ingesta.pendientes(db),
             referencias=ingesta.referencias(db),
             almacenamiento=fotos.diagnostico(db),
             base_datos=settings.database_url,
+            catalogo_publico=settings.catalogo_publico,
         ),
     )
 
@@ -403,6 +434,7 @@ def ficha_propiedad(
             quien,
             p=_propiedad(db, propiedad_id),
             tipos=[t.value for t in TipoInmueble],
+            negocios=[n.value for n in TipoNegocio],
             ciudades=settings.ciudades_cobertura,
         ),
     )
@@ -412,8 +444,9 @@ def ficha_propiedad(
 def comentar_propiedad(
     propiedad_id: str,
     request: Request,
-    quien: Cualquiera,
+    quien: ConSesion,
     texto: str = Form(...),
+    volver: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """Añade un comentario al hilo. Es lo único que el invitado puede escribir."""
@@ -430,6 +463,11 @@ def comentar_propiedad(
         db, actor=quien, accion="comentario_agregado", entidad="propiedad",
         entidad_id=propiedad_id, detalle=contenido[:120],
     )
+    # El hilo vive en dos sitios —la ficha interna y la pública— y hay que
+    # devolver a la persona a la que estaba mirando. `volver` se acota a rutas
+    # propias: aceptar cualquier destino sería una redirección abierta.
+    if volver.startswith("/inmuebles/"):
+        return RedirectResponse(f"{volver}#comentarios", status_code=303)
     return RedirectResponse(f"/dashboard/propiedades/{propiedad_id}#comentarios", status_code=303)
 
 
@@ -457,6 +495,7 @@ def editar_propiedad(
     ciudad: str = Form(...),
     zona: str = Form(""),
     tipo: str = Form(...),
+    negocio: str = Form(NEGOCIO_POR_DEFECTO),
     precio: int = Form(...),
     habitaciones: int = Form(0),
     banos: int = Form(0),
@@ -487,14 +526,18 @@ def editar_propiedad(
     tipo_ok = ingesta.normalizar_tipo(tipo)
     if tipo_ok is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Tipo no reconocido: '{tipo}'.")
-    if not ingesta.PRECIO_MINIMO <= precio <= ingesta.PRECIO_MAXIMO:
+    negocio_ok = ingesta.normalizar_negocio(negocio)
+    if not ingesta.precio_razonable(precio, negocio_ok):
+        minimo, maximo = ingesta.rango_precio(negocio_ok)
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            f"El precio {precio:,} está fuera del rango razonable.".replace(",", "."),
+            f"El precio {precio:,} está fuera del rango razonable para {negocio_ok} "
+            f"({minimo:,} a {maximo:,}).".replace(",", "."),
         )
 
     cambios = {
         "ciudad": ciudad_ok, "zona": zona.strip()[:80], "tipo": tipo_ok,
+        "negocio": negocio_ok,
         "precio": int(precio), "habitaciones": int(habitaciones), "banos": int(banos),
         "area_m2": float(area_m2), "descripcion": descripcion.strip(),
         "propietario": propietario.strip()[:120], "url_origen": url_origen.strip()[:300],
@@ -615,6 +658,7 @@ def crear_propiedad(
     ciudad: str = Form(...),
     zona: str = Form(...),
     tipo: str = Form(...),
+    negocio: str = Form(NEGOCIO_POR_DEFECTO),
     habitaciones: int = Form(0),
     banos: int = Form(0),
     area_m2: float = Form(0),
@@ -627,6 +671,7 @@ def crear_propiedad(
         db,
         {
             "ciudad": ciudad, "zona": zona, "tipo": tipo,
+            "negocio": ingesta.normalizar_negocio(negocio),
             "habitaciones": habitaciones, "banos": banos, "area_m2": area_m2,
             "precio": precio, "descripcion": descripcion, "propietario": propietario,
         },

@@ -106,6 +106,27 @@ class Settings(BaseSettings):
     # Reglas duras de negocio (ADR-03)
     ciudades_cobertura: tuple[str, ...] = ("Medellín", "Pereira")
 
+    # ── Catálogo público ──────────────────────────────────────────────
+    #: Vitrina pública en /inmuebles. Es la única superficie del sistema que ve
+    #: alguien sin sesión, así que se puede apagar entera desde configuración.
+    catalogo_publico: bool = True
+    #: Deja entrar al catálogo los inmuebles SIN mandato (demo y referencia).
+    #: Existe solo para poder probar en local, donde toda la cartera es `demo`.
+    #: En producción publicaría inmuebles que no existen, así que además de venir
+    #: apagado fuerza `noindex` y un aviso permanente en pantalla mientras esté
+    #: encendido: si alguien lo deja puesto, se ve.
+    catalogo_muestra_demo: bool = False
+    #: Cuántos inmuebles por página en la vitrina.
+    catalogo_por_pagina: int = 12
+    #: Número de WhatsApp para el botón de contacto directo de la ficha, en
+    #: formato internacional sin signos (573001234567). Vacío = no se muestra.
+    whatsapp_contacto: str = ""
+
+    @property
+    def url_publica(self) -> str:
+        """Base para enlaces canónicos y datos estructurados. Sin barra final."""
+        return self.dashboard_url.rstrip("/")
+
     @property
     def numeros_prueba(self) -> frozenset[str]:
         """Lista blanca normalizada a dígitos: `+57 300 123 4567` → `573001234567`."""

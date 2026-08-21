@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Inmuebles{% endblock %} · {{ empresa }}</title>
+  <meta name="description" content="{% block descripcion %}Inmuebles en venta en {{ ciudades | join(' y ') }}.{% endblock %}">
+  {# Con la puerta de demostración abierta la vitrina muestra inmuebles
+     inventados. Que un buscador los indexe sería publicar oferta falsa, así
+     que el noindex es parte de la propia salvaguarda, no una optimización. #}
+  {% if modo_demo %}
+    <meta name="robots" content="noindex, nofollow">
+  {% else %}
+    {% block canonica %}{% endblock %}
+  {% endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="/static/estilos.css">
+  {% block cabeza %}{% endblock %}
+</head>
+<body class="vitrina">
+
+<header class="barra">
+  <a class="marca" href="/inmuebles">
+    <span class="logo">VVI</span>
+    <span class="sub">{{ empresa }}</span>
+  </a>
+  <nav>
+    <a href="/inmuebles" class="{{ 'activo' if request.url.path == '/inmuebles' }}">Inmuebles</a>
+    <a href="/publicar">Publica tu inmueble</a>
+  </nav>
+  <div class="quien">
+    {% if whatsapp %}
+      <a class="boton suave" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
+        Escríbenos
+      </a>
+    {% endif %}
+    {# Una sola puerta de vuelta, no dos. Llegó a haber «Cartera» y «Panel»: son
+       pantallas distintas, pero desde la vitrina ambas significan lo mismo
+       —salir de aquí—, y el menú del panel ya lleva a cualquier sitio una vez
+       dentro. Lleva a Cartera porque es de donde se entra a la vitrina y es el
+       contexto de inventario; sirve además para el invitado, que en el tablero
+       de prospectos recibiría un 403.
+
+       Está SIEMPRE, con sesión o sin ella. Condicionarla a la cookie resultó
+       ser una trampa: basta con que el navegador no la mande —cookie de una
+       ruta anterior, o entrar por `localhost` habiendo iniciado sesión en
+       `127.0.0.1`, que para las cookies son sitios distintos— para dejar al
+       operador encerrado. Sin sesión cae en el formulario de ingreso, que no
+       revela nada que no revele ya la propia URL. #}
+    {% if puede_editar %}
+      <a class="boton suave" href="/dashboard/propiedades">← Volver al panel</a>
+    {% elif sesion %}
+      {# El invitado no tiene panel al que volver: el suyo es este. Ofrecerle
+         «Volver al panel» lo mandaría a una ruta que lo devuelve aquí — un
+         bucle—. Lo que sí necesita es saber con qué cuenta entró y poder salir. #}
+      <span class="quien-soy">{{ sesion }} <span class="chip frio">solo lectura</span></span>
+      <form method="post" action="/dashboard/logout" style="display:inline">
+        <button class="suave" type="submit">Cerrar sesión</button>
+      </form>
+    {% else %}
+      <a class="boton suave" href="/dashboard/propiedades">Acceso operador</a>
+    {% endif %}
+  </div>
+</header>
+
+{% if modo_demo %}
+<div class="franja-demo">
+  <strong>Cartera de demostración.</strong>
+  Estos inmuebles son <strong>inventados</strong> y no están a la venta. La vitrina
+  está en modo de prueba (<code>CATALOGO_MUESTRA_DEMO</code>); apágalo antes de operar.
+</div>
+{% endif %}
+
+<main>
+  {% block contenido %}{% endblock %}
+</main>
+
+<footer class="pie-publico">
+  <div class="pie-columnas">
+    <div>
+      <h3>{{ empresa }}</h3>
+      <p class="leyenda" style="margin:0">
+        Inmuebles en {{ ciudades | join(' y ') }}. Te atiende un asistente con
+        inteligencia artificial y un asesor humano confirma cada visita.
+      </p>
+    </div>
+    <div>
+      <h3>¿Tienes un inmueble?</h3>
+      <p class="leyenda" style="margin:0 0 12px">
+        Publícalo con nosotros y lo mostramos a compradores ya calificados.
+      </p>
+      <a class="boton" href="/publicar">Ofrecer mi inmueble</a>
+    </div>
+    <div>
+      <h3>Datos personales</h3>
+      <p class="leyenda" style="margin:0">
+        No contactamos a nadie en frío. Todo dato entra con tu autorización, se
+        cifra y puedes pedir su consulta o eliminación cuando quieras.<br>
+        <a href="{{ politica }}" target="_blank" rel="noopener">Política de tratamiento de datos</a>
+      </p>
+    </div>
+  </div>
+  <p class="aviso">
+    Sistema inbound / opt-in conforme a la Ley 1581 de 2012.
+    {% if whatsapp %}WhatsApp <a href="https://wa.me/{{ whatsapp }}">+{{ whatsapp }}</a>.{% endif %}
+    {% if not sesion or puede_editar %}
+    <a href="/dashboard/propiedades" style="float:right">
+      {{ 'Volver al panel' if sesion else 'Acceso operador' }}
+    </a>
+    {% endif %}
+  </p>
+</footer>
+
+{% if whatsapp %}
+<a class="wasap" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener"
+   aria-label="Escríbenos por WhatsApp">
+  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="currentColor">
+    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 5.83 2.42 8.2 8.2 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.15.16-.29.18-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.44.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.65 4.2 3.71.59.25 1.04.4 1.4.52.59.18 1.12.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z"/>
+  </svg>
+</a>
+{% endif %}
+
+</body>
+</html>

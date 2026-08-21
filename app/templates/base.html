@@ -25,6 +25,9 @@
     <a href="/dashboard" class="{{ 'activo' if ruta == '/dashboard' }}">Prospectos</a>
     {% endif %}
     <a href="/dashboard/propiedades" class="{{ 'activo' if ruta.startswith('/dashboard/propiedades') }}">Cartera</a>
+    {# La vitrina es lo que ve un desconocido. Tenerla a un clic del inventario
+       hace que el operador note enseguida si algo salió publicado sin querer. #}
+    <a href="/inmuebles" target="_blank" rel="noopener">Vitrina ↗</a>
     {% if puede_editar %}
     <a href="/dashboard/captacion" class="{{ 'activo' if ruta.startswith('/dashboard/captacion') }}">Captación</a>
     <a href="/dashboard/whatsapp" class="{{ 'activo' if ruta.startswith('/dashboard/whatsapp') }}">WhatsApp</a>

@@ -4,8 +4,44 @@
 {% block contenido %}
 <h1>Cartera de propiedades</h1>
 <p class="leyenda">
-  El bot solo puede ofrecer inmuebles que estén aquí. Nunca inventa propiedades ni precios.
+  Aquí se <strong>alimenta</strong> el inventario: importar avisos con IA, dar de alta a
+  mano, aprobar lo que llegó por ingesta. Para <strong>ver</strong> los inmuebles uno por
+  uno está la <a href="/inmuebles" target="_blank" rel="noopener">vitrina</a>, que muestra
+  exactamente lo que ve un comprador. El bot solo puede ofrecer lo que esté cargado aquí:
+  nunca inventa propiedades ni precios.
 </p>
+
+<div class="rejilla">
+  <a class="tarjeta destacada" href="/inmuebles" target="_blank" rel="noopener">
+    <div class="cifra">{{ publicadas }}</div>
+    <div class="rotulo">en la vitrina ↗</div>
+  </a>
+  <div class="tarjeta">
+    <div class="cifra">{{ pendientes | length }}</div>
+    <div class="rotulo">por validar</div>
+  </div>
+  <div class="tarjeta">
+    <div class="cifra">{{ fuera | length }}</div>
+    <div class="rotulo">fuera de vitrina</div>
+  </div>
+  {% for clave, etiqueta in [('casa', 'casas'), ('apartamento', 'apartamentos'), ('lote', 'lotes')] %}
+    {% if conteo_tipos.get(clave) %}
+    <a class="tarjeta" href="/inmuebles?tipo={{ clave }}" target="_blank" rel="noopener">
+      <div class="cifra">{{ conteo_tipos[clave] }}</div>
+      <div class="rotulo">{{ etiqueta }}</div>
+    </a>
+    {% endif %}
+  {% endfor %}
+</div>
+
+{% if not catalogo_publico %}
+<div class="aviso-caja">
+  <p style="margin:0">
+    La vitrina pública está <strong>apagada</strong> (<code>CATALOGO_PUBLICO=false</code>),
+    así que <code>/inmuebles</code> responde 404 y no hay dónde ver el inventario.
+  </p>
+</div>
+{% endif %}
 
 {% if puede_editar and (almacenamiento.efimero or almacenamiento.faltantes) %}
 <div class="aviso-caja error">
@@ -168,10 +204,20 @@
       <label for="tipo">Tipo</label>
       <select name="tipo" id="tipo"><option>apartamento</option><option>casa</option><option>lote</option></select>
     </div>
+    <div>
+      <label for="negocio">Negocio</label>
+      <select name="negocio" id="negocio">
+        <option value="venta">venta</option>
+        <option value="arriendo">arriendo</option>
+        <option value="permuta">permuta</option>
+      </select>
+    </div>
     <div><label for="habitaciones">Hab.</label><input type="number" name="habitaciones" id="habitaciones" value="0" min="0" style="width:70px"></div>
     <div><label for="banos">Baños</label><input type="number" name="banos" id="banos" value="0" min="0" style="width:70px"></div>
     <div><label for="area_m2">Área m²</label><input type="number" name="area_m2" id="area_m2" value="0" min="0" step="0.1" style="width:90px"></div>
-    <div><label for="precio">Precio (COP)</label><input type="number" name="precio" id="precio" required min="1" step="1000000"></div>
+    {# Sin `step` fijo: 1.000.000 obligaría a redondear cualquier canon de
+       arriendo, que se escribe en cientos de miles. #}
+    <div><label for="precio">Precio / canon (COP)</label><input type="number" name="precio" id="precio" required min="1" step="50000"></div>
     <div><label for="propietario">Propietario</label><input name="propietario" id="propietario"></div>
     <div style="flex:1 1 260px"><label for="descripcion">Descripción</label><input name="descripcion" id="descripcion" style="width:100%"></div>
     <button>Agregar</button>
@@ -180,7 +226,7 @@
 
 {% endif %}
 
-{% if not propiedades %}
+{% if total == 0 %}
 <div class="aviso-caja">
   <h3>La cartera está vacía</h3>
   <p>
@@ -194,106 +240,49 @@
     <li>Cárgalo a mano en <em>Agregar propiedad</em>.</li>
   </ul>
 </div>
-{% else %}
-{# Los filtros son enlaces y no un formulario: así cada combinación tiene su
-   propia URL, se puede compartir con el asesor y el botón «atrás» funciona. #}
-{% macro url_filtro(t, m) %}/dashboard/propiedades{% if t or m %}?{% if t %}tipo={{ t | urlencode }}{% endif %}{% if t and m %}&amp;{% endif %}{% if m %}municipio={{ m | urlencode }}{% endif %}{% endif %}{% endmacro %}
+{% endif %}
 
-<div class="filtros">
-  <div class="filtro">
-    <span class="filtro-titulo">Tipo</span>
-    <a class="pastilla {{ 'activa' if not tipo_activo }}" href="{{ url_filtro('', municipio_activo) }}">
-      Todos <em>{{ conteo_tipos.values() | sum }}</em>
-    </a>
-    {% for clave, etiqueta in [('casa', 'Casas'), ('apartamento', 'Apartamentos'), ('lote', 'Lotes')] %}
-      {% if conteo_tipos.get(clave) %}
-      <a class="pastilla {{ 'activa' if tipo_activo == clave }}" href="{{ url_filtro(clave, municipio_activo) }}">
-        {{ etiqueta }} <em>{{ conteo_tipos[clave] }}</em>
-      </a>
-      {% endif %}
-    {% endfor %}
-  </div>
-
-  <div class="filtro">
-    <span class="filtro-titulo">Municipio</span>
-    <a class="pastilla {{ 'activa' if not municipio_activo }}" href="{{ url_filtro(tipo_activo, '') }}">Todos</a>
-    {% for ciudad, muni, n in municipios %}
-      <a class="pastilla {{ 'activa' if municipio_activo == muni }}" href="{{ url_filtro(tipo_activo, muni) }}"
-         title="{{ 'Cabecera' if muni == ciudad else 'Área metropolitana de ' + ciudad }}">
-        {{ muni }} <em>{{ n }}</em>
-      </a>
-    {% endfor %}
-  </div>
-</div>
-
-<h2>
-  {% if tipo_activo or municipio_activo %}
-    {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}
-    {%- if tipo_activo %} · {{ tipo_activo }}{% endif %}
-    {%- if municipio_activo %} · {{ municipio_activo }}{% endif %}
-  {% else %}
-    Cartera · {{ propiedades | length }} inmueble{{ '' if propiedades | length == 1 else 's' }}
-  {% endif %}
-</h2>
-
-{% if not propiedades %}
-<div class="aviso-caja">
-  <p>
-    No hay inmuebles con ese filtro. <a href="/dashboard/propiedades">Ver toda la cartera</a>.
+{% if fuera %}
+{# Estos inmuebles no salen en la vitrina y no están en la cola de pendientes:
+   si no se listaran aquí, no habría ningún enlace que los alcanzara. #}
+<div class="panel">
+  <h2 style="margin-top:0">Fuera de la vitrina ({{ fuera | length }})</h2>
+  <p class="leyenda">
+    Inmuebles retirados del mercado: inactivos, rechazados o ya vendidos. No los ve
+    ningún comprador. Ábrelos para consultarlos{% if puede_editar %} o para
+    reactivarlos{% endif %}.
   </p>
-</div>
-{% endif %}
-
-<div class="inmuebles">
-  {% for p in propiedades %}
-    <article class="inmueble">
-      <a href="/dashboard/propiedades/{{ p.id }}" class="foto" aria-label="Ver {{ p.id }}">
-        <img src="{{ p.portada }}" alt="" loading="lazy">
-        <span class="insignias">
-          <span class="insignia {{ 'viva' if p.estado == 'disponible' else ('apagada' if p.estado in ('inactiva','rechazada') else '') }}">
-            {{ p.estado.replace('_', ' ') }}
-          </span>
-          {% if p.es_referencia %}
-            <span class="insignia aviso" title="Sin mandato: no puede venderse ni generar comisión">
-              {{ 'demo · inventado' if p.fuente == 'demo' else 'referencia' }}
-            </span>
-          {% endif %}
-          {% if not p.externo_id %}
-            <span class="insignia apagada" title="Sin identificador de origen verificable">sin origen</span>
-          {% endif %}
-        </span>
-      </a>
-
-      <div class="cuerpo">
-        <div class="precio">{{ p.precio | pesos }}</div>
-        <div class="ubicacion">{{ p.zona or 'Zona sin definir' }}</div>
-        <div class="ciudad">{{ p.ciudad }} · {{ p.tipo }}</div>
-        <div class="specs">
-          {% if p.habitaciones %}<span><b>{{ p.habitaciones }}</b> hab</span>{% endif %}
-          {% if p.banos %}<span><b>{{ p.banos }}</b> baños</span>{% endif %}
-          {% if p.area_m2 %}<span><b>{{ '%.0f' % p.area_m2 }}</b> m²</span>{% endif %}
-          {% if not (p.habitaciones or p.banos or p.area_m2) %}
-            <span class="leyenda" style="margin:0">Sin especificaciones</span>
-          {% endif %}
-        </div>
-      </div>
-
-      {% if p.propietario %}<div class="origen">{{ p.propietario }}</div>{% endif %}
-
-      <div class="pie">
-        <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">{{ 'Editar' if puede_editar else 'Ver' }}</a>
-        {% if puede_editar and p.estado == 'disponible' %}
-          <form method="post" action="/dashboard/propiedades/{{ p.id }}/inactivar">
-            <button class="suave">Inactivar</button>
-          </form>
-        {% elif p.estado in ('inactiva', 'rechazada') %}
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th><th>Ciudad · Zona</th><th>Tipo</th>
+        <th class="num">Precio</th><th>Estado</th><th>Actualizado</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in fuera %}
+      <tr>
+        <td><a href="/dashboard/propiedades/{{ p.id }}">{{ p.id }}</a></td>
+        <td>{{ p.ciudad }} · {{ p.zona or '—' }}</td>
+        <td>{{ p.tipo }}</td>
+        <td class="num">{{ p.precio | pesos }}</td>
+        <td><span class="estado {{ p.estado }}">{{ p.estado.replace('_', ' ') }}</span></td>
+        <td class="leyenda" style="margin:0">{{ p.actualizada_en.strftime('%d/%m/%Y') }}</td>
+        <td class="linea">
+          <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">
+            {{ 'Revisar' if puede_editar else 'Ver' }}
+          </a>
+          {% if puede_editar and p.estado in ('inactiva', 'rechazada') %}
           <form method="post" action="/dashboard/propiedades/{{ p.id }}/reactivar">
-            <button>Reactivar</button>
+            <button class="suave">Reactivar</button>
           </form>
-        {% endif %}
-      </div>
-    </article>
-  {% endfor %}
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
 </div>
 {% endif %}
+
 {% endblock %}

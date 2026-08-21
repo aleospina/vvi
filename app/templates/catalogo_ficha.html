@@ -1,0 +1,335 @@
+{% extends "publico.html" %}
+
+{# El negocio va en el título: es lo primero que necesita saber quien recibe
+   el enlace por WhatsApp, y sin él el precio no se entiende. #}
+{% set titulo_inmueble = p.tipo | capitalize ~ ' en ' ~ p.negocio ~ ' en ' ~ (p.zona or municipio) %}
+
+{% block titulo %}{{ titulo_inmueble }}{% endblock %}
+{% block descripcion %}{{ titulo_inmueble }}, {{ municipio }}. {{ p.precio | pesos }}.{% if p.habitaciones %} {{ p.habitaciones }} alcobas.{% endif %}{% if p.area_m2 %} {{ '%.0f' % p.area_m2 }} m².{% endif %} Código {{ p.id }}.{% endblock %}
+{% block canonica %}<link rel="canonical" href="{{ base_publica }}{{ canonica }}">{% endblock %}
+
+{% block cabeza %}
+{# Datos estructurados: es lo que hace que el enlace se vea como una ficha y no
+   como un texto suelto cuando el asesor lo pega en WhatsApp, y lo que Google
+   necesita para entender que esto es una oferta y no un artículo. Solo sale
+   cuando el inmueble es real: en modo demo la plantilla base ya puso noindex. #}
+{% if not modo_demo %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "RealEstateListing",
+  "name": {{ titulo_inmueble | tojson }},
+  "url": {{ (base_publica ~ canonica) | tojson }},
+  "description": {{ (p.descripcion or titulo_inmueble) | tojson }},
+  "identifier": {{ p.id | tojson }},
+  "datePosted": {{ p.creada_en.isoformat() | tojson }},
+  {# En arriendo el importe es periódico: `UnitPriceSpecification` con
+     `billingDuration` es la forma de decirlo sin que un agregador lo lea como
+     precio de venta y publique una casa de dos millones y medio. #}
+  "offers": {
+    "@type": "Offer",
+    "priceCurrency": "COP",
+    "availability": "https://schema.org/InStock",
+    {%- if p.negocio == 'arriendo' %}
+    "priceSpecification": {
+      "@type": "UnitPriceSpecification",
+      "price": {{ p.precio }},
+      "priceCurrency": "COP",
+      "billingDuration": 1,
+      "billingIncrement": 1,
+      "unitCode": "MON"
+    }
+    {%- else %}
+    "price": {{ p.precio }}
+    {%- endif %}
+  },
+  "address": {
+    "@type": "PostalAddress",
+    "addressLocality": {{ municipio | tojson }},
+    "addressRegion": {{ p.ciudad | tojson }},
+    "addressCountry": "CO"
+  }
+  {%- if p.area_m2 %},
+  "floorSize": {"@type": "QuantitativeValue", "value": {{ p.area_m2 }}, "unitCode": "MTK"}
+  {%- endif %}
+  {%- if p.habitaciones %},
+  "numberOfRooms": {{ p.habitaciones }}
+  {%- endif %}
+}
+</script>
+{% endif %}
+{% endblock %}
+
+{% block contenido %}
+
+<p class="miga">
+  <a href="/inmuebles">Inmuebles</a> ·
+  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}">{{ etiquetas_negocio[p.negocio] }}</a> ·
+  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}&amp;municipio={{ municipio | urlencode }}">{{ municipio }}</a> ·
+  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}&amp;tipo={{ p.tipo | urlencode }}">{{ p.tipo | capitalize }}</a>
+</p>
+
+<h1 class="titulo-ficha">{{ titulo_inmueble }}</h1>
+{# `ciudad` guarda la plaza de cobertura y el municipio se deduce de la zona:
+   cuando coinciden, repetirlo da "Pereira, Pereira". #}
+<p class="leyenda">
+  {{ p.zona or 'Zona sin definir' }} · {{ municipio }}{% if municipio != p.ciudad %}, {{ p.ciudad }}{% endif %}
+  · Código {{ p.id }}
+</p>
+
+{% if sesion %}
+{# Barra de operador. No aporta ningún dato que la ficha pública no muestre:
+   es solo el puente hacia donde sí se puede editar y comentar. #}
+<div class="barra-interna">
+  <span>Estás viendo la ficha <strong>pública</strong> de {{ p.id }}.</span>
+  <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">
+    {{ 'Editar ficha interna' if puede_editar else 'Ver ficha interna y comentarios' }}
+  </a>
+</div>
+{% endif %}
+
+{% if p.es_referencia %}
+<div class="aviso-caja error">
+  <h3>Inmueble de demostración</h3>
+  <p>
+    Este registro es <strong>inventado</strong> y no corresponde a ninguna propiedad real.
+    Aparece porque la vitrina está en modo de prueba.
+  </p>
+</div>
+{% endif %}
+
+<div class="ficha-publica">
+  <div class="ficha-principal">
+
+    {# ── Galería ── #}
+    {% if p.fotos %}
+    <figure class="visor">
+      <img id="visor-foto" src="{{ p.fotos[0].url }}" alt="{{ titulo_inmueble }}">
+    </figure>
+    {% if p.fotos | length > 1 %}
+    <div class="tira">
+      {% for f in p.fotos %}
+        <button type="button" class="mini {{ 'activa' if loop.first }}" data-grande="{{ f.url }}"
+                aria-label="Ver foto {{ loop.index }} de {{ p.fotos | length }}">
+          <img src="{{ f.miniatura }}" alt="" loading="lazy">
+        </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {% else %}
+    <figure class="visor sin-foto">
+      <img src="{{ p.portada }}" alt="">
+    </figure>
+    {% endif %}
+
+    {# ── Detalles ── #}
+    <section class="panel">
+      <h2 style="margin-top:0">Detalles del inmueble</h2>
+      <dl class="detalles">
+        <div><dt>Código</dt><dd>{{ p.id }}</dd></div>
+        <div><dt>Tipo de inmueble</dt><dd>{{ p.tipo | capitalize }}</dd></div>
+        <div><dt>Tipo de negocio</dt><dd>{{ p.negocio | capitalize }}</dd></div>
+        {# `ciudad` es la plaza de cobertura (Medellín o Pereira), no un
+           departamento. El municipio solo se lista aparte cuando aporta algo:
+           en el área metropolitana es el dato que de verdad ubica al comprador. #}
+        <div><dt>Ciudad</dt><dd>{{ p.ciudad }}</dd></div>
+        {% if municipio != p.ciudad %}
+        <div><dt>Municipio</dt><dd>{{ municipio }}</dd></div>
+        {% endif %}
+        <div><dt>Zona / barrio</dt><dd>{{ p.zona or '—' }}</dd></div>
+        <div><dt>Alcobas</dt><dd>{{ p.habitaciones or '—' }}</dd></div>
+        <div><dt>Baños</dt><dd>{{ p.banos or '—' }}</dd></div>
+        <div><dt>Área</dt><dd>{{ ('%.0f m²' % p.area_m2) if p.area_m2 else '—' }}</dd></div>
+        <div><dt>Publicado</dt><dd>{{ p.creada_en.strftime('%d/%m/%Y') }}</dd></div>
+      </dl>
+    </section>
+
+    {% if p.descripcion %}
+    <section class="panel">
+      <h2 style="margin-top:0">Descripción</h2>
+      <p style="white-space:pre-wrap; margin:0">{{ p.descripcion }}</p>
+    </section>
+    {% endif %}
+  </div>
+
+  {# ── Columna de conversión ── #}
+  <aside class="ficha-lateral">
+    <div class="panel precio-panel">
+      <span class="rotulo">{{ rotulo_precio }}</span>
+      <div class="precio-grande">
+        {{ p.precio | pesos }}{% if p.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
+      </div>
+      <p class="leyenda" style="margin:0">
+        {# El precio por m² solo significa algo comprando: en arriendo daría una
+           cifra de tres dígitos que nadie usa para decidir. #}
+        {% if p.area_m2 and p.negocio != 'arriendo' %}
+          {{ (p.precio / p.area_m2) | round | int | pesos }} por m² ·
+        {% endif %}
+        Pesos colombianos
+        {%- if p.negocio == 'arriendo' %} · la administración puede ir aparte{% endif %}
+      </p>
+    </div>
+
+    <div class="panel" id="contacto">
+      {% if enviado %}
+        <h2 style="margin-top:0">¡Listo! 🎉</h2>
+        <p>
+          Recibimos tus datos con tu autorización (referencia
+          <strong>{{ codigo_prospecto }}</strong>). Te contactamos muy pronto por el
+          inmueble <strong>{{ p.id }}</strong>.
+        </p>
+        <p class="leyenda" style="margin-bottom:0">
+          Puedes pedir la consulta o eliminación de tus datos cuando quieras.
+          <a href="{{ politica }}" target="_blank" rel="noopener">Política de tratamiento</a>.
+        </p>
+      {% else %}
+        <h2 style="margin-top:0">Me interesa</h2>
+        <p class="leyenda">
+          Déjanos tus datos y te contamos todo sobre este inmueble. Te atiende un
+          asistente con inteligencia artificial; la visita la confirma un asesor.
+        </p>
+
+        {% if error %}
+          <div class="aviso-caja error"><p style="margin:0">{{ error }}</p></div>
+        {% endif %}
+
+        <form method="post" action="{{ canonica }}">
+          <div class="campo">
+            <label for="nombre">¿Cómo te llamas?</label>
+            <input type="text" name="nombre" id="nombre" required maxlength="80">
+          </div>
+          <div class="campo">
+            <label for="telefono">Teléfono o WhatsApp</label>
+            <input type="tel" name="telefono" id="telefono" required maxlength="20"
+                   placeholder="300 000 0000">
+          </div>
+          <div class="campo">
+            <label for="mensaje">¿Qué quieres saber?</label>
+            <textarea name="mensaje" id="mensaje" rows="3"
+                      placeholder="Ej.: ¿se puede visitar el sábado?"></textarea>
+          </div>
+
+          <div class="consentimiento">
+            <strong>Autorización de tratamiento de datos personales</strong>
+            <p style="margin:8px 0 0">{{ texto_consentimiento }}</p>
+            <label>
+              <input type="checkbox" name="autorizo" value="on" required>
+              <span>Sí, autorizo el tratamiento de mis datos y he leído la
+                <a href="{{ politica }}" target="_blank" rel="noopener">política de privacidad</a>.</span>
+            </label>
+          </div>
+
+          <button type="submit" style="width:100%">Quiero más información</button>
+        </form>
+
+        {% if whatsapp %}
+        <p class="leyenda" style="margin:14px 0 0; text-align:center">
+          O escríbenos por
+          <a href="https://wa.me/{{ whatsapp }}?text={{ ('Hola, me interesa el inmueble ' ~ p.id) | urlencode }}"
+             target="_blank" rel="noopener">WhatsApp</a>.
+        </p>
+        {% endif %}
+      {% endif %}
+    </div>
+  </aside>
+</div>
+
+{% if sesion %}
+{# Hilo interno sobre el inmueble. Solo lo ve quien tiene sesión: un comprador
+   no debe leer lo que el equipo anota sobre la propiedad que está mirando.
+   Vive aquí además de en la ficha interna porque el invitado ya no entra al
+   panel, y comentar es justamente para lo que existe su cuenta. #}
+<section class="panel hilo-interno" id="comentarios">
+  <h2 style="margin-top:0">Notas del equipo <span class="chip frio">no visible al público</span></h2>
+
+  {% if p.comentarios %}
+  <div class="hilo">
+    {% for c in p.comentarios %}
+      <article class="comentario {{ 'respuesta' if c.es_respuesta }}">
+        <header>
+          <strong>{{ c.autor }}</strong>
+          <span class="chip {{ 'tibio' if c.es_respuesta else 'frio' }}">{{ c.rol }}</span>
+          <time>{{ c.creado_en.strftime('%d/%m/%Y %H:%M') }}</time>
+          {% if puede_editar %}
+          <form method="post"
+                action="/dashboard/propiedades/{{ p.id }}/comentarios/{{ c.id }}/eliminar">
+            <button class="suave" title="Eliminar comentario">✕</button>
+          </form>
+          {% endif %}
+        </header>
+        <p>{{ c.texto }}</p>
+      </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="leyenda">Todavía no hay comentarios sobre este inmueble.</p>
+  {% endif %}
+
+  <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios"
+        style="margin-top:14px">
+    {# Devuelve a esta misma ficha; el servidor solo acepta rutas de /inmuebles/. #}
+    <input type="hidden" name="volver" value="{{ canonica }}">
+    <div class="campo">
+      <label for="texto">Añadir un comentario</label>
+      <textarea name="texto" id="texto" rows="2" required maxlength="2000"
+                placeholder="Una duda, una corrección, algo que notaste…"></textarea>
+    </div>
+    <button>Publicar comentario</button>
+  </form>
+</section>
+{% endif %}
+
+{% if similares %}
+<section class="tambien">
+  <h2>También te pueden servir</h2>
+  <div class="inmuebles">
+    {% for s in similares %}
+      <article class="inmueble">
+        <a href="{{ s | ruta }}" class="foto" aria-label="Ver {{ s.tipo }} en {{ s.zona or s.ciudad }}">
+          <img src="{{ s.portada }}" alt="" loading="lazy">
+          <span class="insignias">
+            <span class="insignia {{ 'viva' if s.negocio == 'venta' else 'alterna' }}">
+              {{ s.tipo }} · {{ s.negocio }}
+            </span>
+            {% if s.es_referencia %}<span class="insignia aviso">demo · no existe</span>{% endif %}
+          </span>
+        </a>
+        <div class="cuerpo">
+          <div class="precio">
+            {{ s.precio | pesos }}{% if s.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
+          </div>
+          <div class="ubicacion">{{ s.zona or 'Zona sin definir' }}</div>
+          <div class="ciudad">{{ s | municipio }}{% if (s | municipio) != s.ciudad %}, {{ s.ciudad }}{% endif %}</div>
+          <div class="specs">
+            {% if s.habitaciones %}<span><b>{{ s.habitaciones }}</b> alcobas</span>{% endif %}
+            {% if s.banos %}<span><b>{{ s.banos }}</b> baños</span>{% endif %}
+            {% if s.area_m2 %}<span><b>{{ '%.0f' % s.area_m2 }}</b> m²</span>{% endif %}
+          </div>
+        </div>
+        <div class="pie">
+          <a class="boton suave" href="{{ s | ruta }}">Ver inmueble</a>
+          <span class="codigo">{{ s.id }}</span>
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<script>
+// Galería sin dependencias: la tira cambia la imagen del visor. Si el JS no
+// carga, el visor ya muestra la portada y las miniaturas siguen siendo
+// imágenes visibles — la ficha nunca queda inservible.
+document.querySelectorAll('.tira .mini').forEach(function (boton) {
+  boton.addEventListener('click', function () {
+    var visor = document.getElementById('visor-foto');
+    if (!visor) return;
+    visor.src = boton.dataset.grande;
+    document.querySelectorAll('.tira .mini').forEach(function (b) {
+      b.classList.toggle('activa', b === boton);
+    });
+  });
+});
+</script>
+
+{% endblock %}

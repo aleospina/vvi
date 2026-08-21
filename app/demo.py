@@ -1,7 +1,7 @@
 """Cartera de demostración: `python -m app.demo`
 
-Estos 30 inmuebles son **inventados**. No corresponden a ninguna publicación
-real y no deben mostrarse a un comprador.
+Estos inmuebles son **inventados** —30 en venta y 8 en arriendo—. No
+corresponden a ninguna publicación real y no deben mostrarse a un comprador.
 
 Por eso entran con `fuente="demo"`, que está en `FUENTES_SIN_MANDATO`: el
 sistema bloquea registrar una venta sobre ellos, la cartera los marca en rojo y
@@ -20,8 +20,8 @@ import sys
 
 from sqlalchemy import select
 
-from app.db import sesion
-from app.models import EstadoPropiedad, FuentePropiedad, Propiedad
+from app.db import inicializar, sesion
+from app.models import EstadoPropiedad, FuentePropiedad, Propiedad, TipoNegocio
 from app.services.compliance import auditar
 
 EVIDENCIA = (
@@ -96,30 +96,64 @@ CARTERA: list[tuple] = [
      "Lote con acceso vehicular y servicios en la vía, uso mixto."),
 ]
 
+#: Arriendos de demostración. El precio es el **canon mensual**, no el valor
+#: del inmueble: los importes están en cientos de miles y en millones bajos a
+#: propósito, porque su razón de ser es comprobar que el sistema nunca los
+#: compara ni los ordena junto a los precios de venta de arriba.
+#: (id, ciudad, zona, tipo, hab, baños, m², canon, descripción)
+ARRIENDOS: list[tuple] = [
+    ("DEMO-ARR-01", "Pereira", "Pinares", "apartamento", 3, 2, 96, 2_500_000,
+     "Amoblado, incluye administración y parqueadero cubierto."),
+    ("DEMO-ARR-02", "Pereira", "Álamos", "apartamento", 2, 2, 72, 1_450_000,
+     "Unidad cerrada con piscina; administración aparte."),
+    ("DEMO-ARR-03", "Pereira", "Frailes, Dosquebradas", "apartamento", 2, 1, 58, 900_000,
+     "Tercer piso sin ascensor, cerca del Parque Industrial."),
+    ("DEMO-ARR-04", "Pereira", "Cerritos", "casa", 4, 3, 210, 4_200_000,
+     "Casa campestre con piscina, se arrienda por temporadas largas."),
+    ("DEMO-ARR-05", "Medellín", "Laureles", "apartamento", 2, 2, 78, 2_800_000,
+     "A dos cuadras de la Primera de Laureles, con balcón."),
+    ("DEMO-ARR-06", "Medellín", "Zúñiga, Envigado", "apartamento", 3, 2, 105, 3_600_000,
+     "Piso alto con vista, dos parqueaderos y depósito."),
+    ("DEMO-ARR-07", "Medellín", "Belén Rosales", "apartamento", 2, 1, 64, 1_600_000,
+     "Cerca del Aeroparque, unidad con portería 24 horas."),
+    ("DEMO-ARR-08", "Medellín", "Niquía, Bello", "apartamento", 3, 2, 68, 1_150_000,
+     "A pocos minutos de la estación del metro."),
+]
+
 
 def cargar() -> int:
     """Inserta los inmuebles que falten. Es idempotente: se puede repetir."""
+    # Crea y migra el esquema antes de insertar. Este script se ejecuta solo,
+    # sin pasar por el arranque de la aplicación, así que en una base creada
+    # antes de la última columna fallaba con "no such column" en vez de migrar.
+    inicializar(seed=False)
     creados = 0
     with sesion() as db:
         existentes = set(db.scalars(select(Propiedad.id)).all())
-        for (
-            pid, ciudad, zona, tipo, hab, banos, area, precio, descripcion
-        ) in CARTERA:
-            if pid in existentes:
-                continue
-            db.add(
-                Propiedad(
-                    id=pid, ciudad=ciudad, zona=zona, tipo=tipo,
-                    habitaciones=hab, banos=banos, area_m2=float(area), precio=precio,
-                    descripcion=descripcion,
-                    estado=EstadoPropiedad.DISPONIBLE.value,
-                    fuente=FuentePropiedad.DEMO.value,
-                    mandato=False,
-                    mandato_evidencia=EVIDENCIA,
-                    foto_url="/static/img/placeholder.svg",
+        # Los dos lotes tienen la misma forma y solo cambia el negocio: la
+        # diferencia real está en la escala del importe (valor total contra
+        # canon mensual), y de eso se encarga cada consulta, no la carga.
+        por_negocio = (
+            (TipoNegocio.VENTA.value, CARTERA),
+            (TipoNegocio.ARRIENDO.value, ARRIENDOS),
+        )
+        for negocio, lote in por_negocio:
+            for pid, ciudad, zona, tipo, hab, banos, area, precio, descripcion in lote:
+                if pid in existentes:
+                    continue
+                db.add(
+                    Propiedad(
+                        id=pid, ciudad=ciudad, zona=zona, tipo=tipo, negocio=negocio,
+                        habitaciones=hab, banos=banos, area_m2=float(area),
+                        precio=precio, descripcion=descripcion,
+                        estado=EstadoPropiedad.DISPONIBLE.value,
+                        fuente=FuentePropiedad.DEMO.value,
+                        mandato=False,
+                        mandato_evidencia=EVIDENCIA,
+                        foto_url="/static/img/placeholder.svg",
+                    )
                 )
-            )
-            creados += 1
+                creados += 1
 
         if creados:
             db.flush()

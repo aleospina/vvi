@@ -253,6 +253,14 @@
               {% endfor %}
             </select>
           </div>
+          <div>
+            <label for="negocio">Negocio</label>
+            <select name="negocio" id="negocio" required>
+              {% for n in negocios %}
+                <option value="{{ n }}" {% if n == p.negocio %}selected{% endif %}>{{ n }}</option>
+              {% endfor %}
+            </select>
+          </div>
         </div>
 
         <div class="linea" style="margin-top:12px">

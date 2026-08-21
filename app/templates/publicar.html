@@ -73,9 +73,19 @@
           </select>
         </div>
         <div class="campo">
-          <label for="precio">Precio de venta (COP)</label>
-          <input type="number" name="precio" id="precio" required min="20000000"
-                 step="1000000" placeholder="350000000">
+          <label for="negocio">¿Qué quieres hacer?</label>
+          <select name="negocio" id="negocio" required>
+            <option value="venta">Vender</option>
+            <option value="arriendo">Arrendar</option>
+            <option value="permuta">Permutar</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label for="precio" id="rotulo-precio">Precio de venta (COP)</label>
+          {# El mínimo lo valida el servidor según el negocio (`ingesta.rango_precio`);
+             aquí se baja para que arrendar no choque contra el `min` del navegador. #}
+          <input type="number" name="precio" id="precio" required min="300000"
+                 step="50000" placeholder="350000000">
         </div>
       </div>
 
@@ -129,6 +139,27 @@
         inmuebles cuyo propietario nos autoriza a comercializarlos.
       </p>
     </form>
+    <script>
+      // El rótulo del importe sigue al negocio: quien viene a arrendar y lee
+      // "Precio de venta" escribe el valor del inmueble, no el canon, y el
+      // resultado es un arriendo de 350 millones al mes en la vitrina.
+      (function () {
+        var negocio = document.getElementById('negocio');
+        var rotulo = document.getElementById('rotulo-precio');
+        var precio = document.getElementById('precio');
+        if (!negocio || !rotulo) return;
+        var textos = {
+          venta: ['Precio de venta (COP)', '350000000'],
+          arriendo: ['Canon mensual (COP)', '2500000'],
+          permuta: ['Avalúo de referencia (COP)', '350000000']
+        };
+        negocio.addEventListener('change', function () {
+          var t = textos[negocio.value] || textos.venta;
+          rotulo.textContent = t[0];
+          precio.placeholder = t[1];
+        });
+      })();
+    </script>
   {% endif %}
 </div>
 </body>

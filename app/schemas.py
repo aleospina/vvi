@@ -6,7 +6,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models import Canal, TipoInmueble
+from app.models import Canal, TipoInmueble, TipoNegocio
 
 
 class PropiedadIn(BaseModel):
@@ -14,6 +14,7 @@ class PropiedadIn(BaseModel):
     ciudad: str
     zona: str = ""
     tipo: TipoInmueble
+    negocio: TipoNegocio = TipoNegocio.VENTA
     habitaciones: int = 0
     banos: int = 0
     area_m2: float = 0
@@ -30,6 +31,7 @@ class PropiedadOut(BaseModel):
     ciudad: str
     zona: str
     tipo: str
+    negocio: str
     habitaciones: int
     banos: int
     area_m2: float

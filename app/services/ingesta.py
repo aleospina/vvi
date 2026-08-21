@@ -38,12 +38,14 @@ from app.config import settings
 from app.llm.client import cliente
 from app.models import (
     FUENTES_SIN_MANDATO,
+    NEGOCIO_POR_DEFECTO,
     Emparejamiento,
     EstadoPropiedad,
     FuentePropiedad,
     Propiedad,
     Solicitud,
     TipoInmueble,
+    TipoNegocio,
     Venta,
 )
 from app.security.crypto import indice_ciego
@@ -57,6 +59,26 @@ log = logging.getLogger(__name__)
 #: precio en miles, o el valor de la administración en vez del de venta).
 PRECIO_MINIMO = 20_000_000
 PRECIO_MAXIMO = 50_000_000_000
+
+#: Rango razonable del importe según el negocio. El de venta es el histórico y
+#: no cambia; el de arriendo existe porque un canon de 900.000 es perfectamente
+#: normal y el rango de venta lo rechazaría como «fuera de rango», dejando la
+#: cartera de arriendos vacía sin decir por qué.
+RANGO_PRECIO = {
+    TipoNegocio.VENTA.value: (PRECIO_MINIMO, PRECIO_MAXIMO),
+    TipoNegocio.PERMUTA.value: (PRECIO_MINIMO, PRECIO_MAXIMO),
+    TipoNegocio.ARRIENDO.value: (300_000, 200_000_000),
+}
+
+
+def rango_precio(negocio: str | None) -> tuple[int, int]:
+    """(mínimo, máximo) admisible del importe para ese negocio."""
+    return RANGO_PRECIO.get(negocio or NEGOCIO_POR_DEFECTO, (PRECIO_MINIMO, PRECIO_MAXIMO))
+
+
+def precio_razonable(precio: int, negocio: str | None) -> bool:
+    minimo, maximo = rango_precio(negocio)
+    return minimo <= precio <= maximo
 
 
 class MandatoAusente(PermissionError):
@@ -76,6 +98,8 @@ class Publicacion:
     ciudad: str
     tipo: str
     precio: int
+    #: venta | arriendo | permuta. Vacío = venta, ver `normalizar_negocio`.
+    negocio: str = NEGOCIO_POR_DEFECTO
     zona: str = ""
     habitaciones: int = 0
     banos: int = 0
@@ -131,6 +155,27 @@ ALIAS_CIUDAD = {
 #: conversacional para no mantener dos listas en paralelo.
 ZONAS_CONOCIDAS = CIUDADES
 
+#: Cómo viene escrito el negocio en un aviso real. Se comprueba en este orden:
+#: "permuto mi casa" también dice "casa", y "se vende o se arrienda" resuelve a
+#: lo primero que aparezca en esta tabla, que es la permuta y luego el arriendo.
+ALIAS_NEGOCIO = {
+    "permuta": TipoNegocio.PERMUTA.value,
+    "permuto": TipoNegocio.PERMUTA.value,
+    "permutar": TipoNegocio.PERMUTA.value,
+    "arriendo": TipoNegocio.ARRIENDO.value,
+    "arrienda": TipoNegocio.ARRIENDO.value,
+    "arrendar": TipoNegocio.ARRIENDO.value,
+    "arrendamiento": TipoNegocio.ARRIENDO.value,
+    "alquiler": TipoNegocio.ARRIENDO.value,
+    "alquila": TipoNegocio.ARRIENDO.value,
+    "renta": TipoNegocio.ARRIENDO.value,
+    "canon": TipoNegocio.ARRIENDO.value,
+    "venta": TipoNegocio.VENTA.value,
+    "vende": TipoNegocio.VENTA.value,
+    "vendo": TipoNegocio.VENTA.value,
+    "vender": TipoNegocio.VENTA.value,
+}
+
 ALIAS_TIPO = {
     "apartamento": TipoInmueble.APARTAMENTO.value,
     "apto": TipoInmueble.APARTAMENTO.value,
@@ -142,6 +187,23 @@ ALIAS_TIPO = {
     "terreno": TipoInmueble.LOTE.value,
     "parcela": TipoInmueble.LOTE.value,
 }
+
+
+def normalizar_negocio(valor: str) -> str:
+    """Negocio a partir de texto libre. Lo no reconocido cae en venta.
+
+    Cae en venta y no en None a propósito: es el negocio central, la cartera
+    entera lo era antes de existir esta columna, y un inmueble sin negocio no
+    tiene precio interpretable. Si el aviso dice arriendo, el operador lo ve en
+    la cola de validación y puede corregirlo antes de publicar.
+    """
+    plano = _normalizar(valor)
+    if plano in ALIAS_NEGOCIO:
+        return ALIAS_NEGOCIO[plano]
+    for alias, negocio in ALIAS_NEGOCIO.items():
+        if re.search(rf"\b{re.escape(alias)}", plano):
+            return negocio
+    return NEGOCIO_POR_DEFECTO
 
 
 def normalizar_ciudad(valor: str) -> str | None:
@@ -204,8 +266,9 @@ def validar(pub: Publicacion) -> str | None:
         precio = int(pub.precio)
     except (TypeError, ValueError):
         return f"precio ilegible: {pub.precio!r}"
-    if not PRECIO_MINIMO <= precio <= PRECIO_MAXIMO:
-        return f"precio fuera de rango razonable: {precio}"
+    negocio = normalizar_negocio(pub.negocio)
+    if not precio_razonable(precio, negocio):
+        return f"precio fuera de rango razonable para {negocio}: {precio}"
     if not pub.externo_id:
         return "falta el identificador de origen (necesario para deduplicar)"
     return None
@@ -246,6 +309,7 @@ def _campos(pub: Publicacion) -> dict:
         "ciudad": normalizar_ciudad(pub.ciudad),
         "zona": (pub.zona or "").strip()[:80],
         "tipo": normalizar_tipo(pub.tipo),
+        "negocio": normalizar_negocio(pub.negocio),
         "habitaciones": int(pub.habitaciones or 0),
         "banos": int(pub.banos or 0),
         "area_m2": float(pub.area_m2 or 0),
@@ -581,6 +645,10 @@ def publicacion_desde_texto(
         ciudad=ciudad,
         zona=zona,
         tipo=datos.get("tipo") or "",
+        # El extractor devuelve null cuando el aviso no dice de qué negocio se
+        # trata; el texto crudo suele decirlo igual ("se arrienda…"), así que
+        # `normalizar_negocio` tiene una segunda oportunidad antes del defecto.
+        negocio=datos.get("negocio") or normalizar_negocio(texto),
         precio=int(datos.get("precio") or 0),
         habitaciones=int(datos.get("habitaciones") or 0),
         banos=int(datos.get("banos") or 0),
@@ -601,6 +669,7 @@ def publicacion_de_formulario(
     ciudad: str,
     tipo: str,
     precio: int,
+    negocio: str = NEGOCIO_POR_DEFECTO,
     zona: str = "",
     habitaciones: int = 0,
     banos: int = 0,
@@ -628,6 +697,7 @@ def publicacion_de_formulario(
         ciudad=ciudad,
         zona=zona,
         tipo=tipo,
+        negocio=negocio,
         precio=precio,
         habitaciones=habitaciones,
         banos=banos,

@@ -121,6 +121,7 @@ def perfil(prospecto: Prospecto) -> dict:
         "municipio": prospecto.municipio,
         "zona": prospecto.zona,
         "tipo": prospecto.tipo,
+        "negocio": prospecto.negocio,
         "presupuesto_min": prospecto.presupuesto_min,
         "presupuesto_max": prospecto.presupuesto_max,
         "habitaciones": prospecto.habitaciones,
@@ -131,8 +132,8 @@ def perfil(prospecto: Prospecto) -> dict:
 def aplicar_analisis(db: Session, prospecto: Prospecto, analisis: Analisis) -> Prospecto:
     """Vuelca slots y score del clasificador sobre el prospecto (RF-05/06)."""
     for campo in (
-        "ciudad", "municipio", "zona", "tipo", "presupuesto_min", "presupuesto_max",
-        "habitaciones", "plazo_compra",
+        "ciudad", "municipio", "zona", "tipo", "negocio",
+        "presupuesto_min", "presupuesto_max", "habitaciones", "plazo_compra",
     ):
         valor = analisis.slots.get(campo)
         if valor not in (None, "", 0):

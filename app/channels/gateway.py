@@ -212,7 +212,12 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
         texto,
         leads.historial(prospecto),
         perfil_previo,
-        precio_minimo_cartera=precio_minimo(db, perfil_previo.get("ciudad")),
+        # El piso se mide dentro del mismo negocio: comparar un canon mensual
+        # contra el inmueble en venta más barato declararía «presupuesto bajo»
+        # a cualquiera que venga a arrendar.
+        precio_minimo_cartera=precio_minimo(
+            db, perfil_previo.get("ciudad"), perfil_previo.get("negocio")
+        ),
         cartera_contexto=matching_engine.contexto_cartera(db, perfil_previo),
     )
     leads.aplicar_analisis(db, prospecto, analisis)

@@ -75,9 +75,17 @@ CAMPANAS_SEMILLA = [
 COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
     "prospectos": [
         ("municipio", "VARCHAR(64)"),
+        # Sin valor por defecto: mientras el prospecto no diga a qué viene, el
+        # emparejamiento asume venta. Rellenarlo aquí afirmaría un dato que
+        # nadie declaró.
+        ("negocio", "VARCHAR(12)"),
     ],
     "propiedades": [
         ("fuente", "VARCHAR(40) DEFAULT 'manual'"),
+        # Toda la cartera anterior a esta columna es de venta: el sistema no
+        # sabía hacer otra cosa. El DEFAULT lo deja escrito en las filas viejas
+        # en lugar de dejar nulos que cada consulta tendría que interpretar.
+        ("negocio", "VARCHAR(12) DEFAULT 'venta'"),
         ("externo_id", "VARCHAR(120)"),
         ("url_origen", "VARCHAR(300) DEFAULT ''"),
         ("actualizada_en", "DATETIME"),

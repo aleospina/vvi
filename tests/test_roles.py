@@ -49,6 +49,27 @@ def propiedad_id():
         db.close()
 
 
+@pytest.fixture()
+def ficha_publica(propiedad_id):
+    """Ruta pública del inmueble de prueba. Es donde vive ahora el invitado.
+
+    Hay que aprobarlo: la ingesta lo deja en `pendiente_validacion` y la vitrina
+    solo publica lo `disponible`, así que sin este paso la ficha da 404.
+    """
+    from app.services import portfolio
+
+    inicializar(seed=False)
+    db = SessionLocal()
+    try:
+        p = portfolio.obtener(db, propiedad_id)
+        if p.estado != "disponible":
+            ingesta.aprobar(db, p, actor="test")
+            db.commit()
+        return portfolio.ruta_publica(p)
+    finally:
+        db.close()
+
+
 def _cliente(usuario: str, clave: str):
     from app.main import app
 
@@ -94,15 +115,22 @@ class TestCredenciales:
 
 
 class TestLoQuePuedeVer:
-    def test_entra_por_la_cartera(self, invitado):
+    def test_entra_por_la_vitrina(self, invitado):
+        """Su sitio es /inmuebles: el panel ya no lista inventario."""
         r = invitado.post(
             "/dashboard/login", data={"usuario": "invitado", "clave": CLAVE_INVITADO}
         )
-        assert r.headers["location"] == "/dashboard/propiedades"
+        assert r.headers["location"] == "/inmuebles"
 
-    def test_ve_la_cartera_y_la_ficha(self, invitado, propiedad_id):
-        assert invitado.get("/dashboard/propiedades").status_code == 200
-        assert invitado.get(f"/dashboard/propiedades/{propiedad_id}").status_code == 200
+    def test_ve_la_vitrina(self, invitado, propiedad_id):
+        assert invitado.get("/inmuebles").status_code == 200
+
+    @pytest.mark.parametrize("ruta", ["/dashboard/propiedades", "/dashboard/propiedades/{pid}"])
+    def test_el_panel_lo_devuelve_a_la_vitrina(self, invitado, propiedad_id, ruta):
+        """303 y no 403: no intenta algo prohibido, llegó a la puerta equivocada."""
+        r = invitado.get(ruta.format(pid=propiedad_id))
+        assert r.status_code == 303
+        assert r.headers["location"] == "/inmuebles"
 
     @pytest.mark.parametrize(
         "ruta", ["/dashboard", "/dashboard/captacion", "/dashboard/auditoria"]
@@ -111,12 +139,14 @@ class TestLoQuePuedeVer:
         """Prospectos, captación y auditoría exponen conversaciones y teléfonos."""
         assert invitado.get(ruta).status_code == 403
 
-    def test_no_ve_los_controles_de_escritura(self, invitado, propiedad_id):
-        html = invitado.get(f"/dashboard/propiedades/{propiedad_id}").text
+    def test_no_ve_los_controles_de_escritura(self, invitado, propiedad_id, ficha_publica):
+        """En la vitrina no hay nada que editar, y tampoco se le insinúa."""
+        html = invitado.get(ficha_publica).text
         assert "Editar datos" not in html
         assert "Guardar cambios" not in html
-        assert "Agregar imágenes" not in html
-        assert "solo lectura" in html          # la barra lo declara
+        assert "Editar ficha interna" not in html
+        # Sí puede comentar: es lo único para lo que existe su cuenta.
+        assert "Publicar comentario" in html
 
 
 class TestLoQueNoPuedeHacer:
@@ -203,13 +233,37 @@ class TestComentarios:
         )
         assert r.status_code == 400
 
-    def test_el_hilo_se_ve_en_la_ficha(self, invitado, propiedad_id):
+    def test_el_hilo_se_ve_en_la_ficha_publica(self, invitado, propiedad_id, ficha_publica):
+        """El invitado ya no entra al panel: su hilo vive en la vitrina."""
+        r = invitado.post(
+            f"/dashboard/propiedades/{propiedad_id}/comentarios",
+            data={"texto": "La foto 2 parece de otro inmueble", "volver": ficha_publica},
+        )
+        assert r.status_code == 303
+        assert r.headers["location"] == f"{ficha_publica}#comentarios"
+        assert "La foto 2 parece de otro inmueble" in invitado.get(ficha_publica).text
+
+    def test_el_publico_no_ve_las_notas_del_equipo(self, propiedad_id, ficha_publica, invitado):
+        """Son notas internas: un comprador no debe leerlas."""
         invitado.post(
             f"/dashboard/propiedades/{propiedad_id}/comentarios",
-            data={"texto": "La foto 2 parece de otro inmueble"},
+            data={"texto": "Ojo, el dueño negocia hasta 380"},
         )
-        html = invitado.get(f"/dashboard/propiedades/{propiedad_id}").text
-        assert "La foto 2 parece de otro inmueble" in html
+        from app.main import app
+
+        with TestClient(app, follow_redirects=False) as anonimo:
+            html = anonimo.get(ficha_publica).text
+            assert "Ojo, el dueño negocia hasta 380" not in html
+            assert "Notas del equipo" not in html
+
+    def test_volver_no_admite_destinos_ajenos(self, invitado, propiedad_id):
+        """`volver` es una redirección: solo puede apuntar a rutas propias."""
+        r = invitado.post(
+            f"/dashboard/propiedades/{propiedad_id}/comentarios",
+            data={"texto": "prueba", "volver": "https://evil.example/phish"},
+        )
+        assert r.status_code == 303
+        assert r.headers["location"].startswith("/dashboard/propiedades/")
 
     def test_borrar_el_inmueble_arrastra_sus_comentarios(self, db):
         from app.services import ingesta as ing

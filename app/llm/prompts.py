@@ -82,6 +82,12 @@ ESQUEMA_INMUEBLE: dict = {
                 {"type": "null"},
             ]
         },
+        "negocio": {
+            "anyOf": [
+                {"type": "string", "enum": ["venta", "arriendo", "permuta"]},
+                {"type": "null"},
+            ]
+        },
         "precio": {"type": ["integer", "null"]},
         "habitaciones": {"type": ["integer", "null"]},
         "banos": {"type": ["integer", "null"]},
@@ -93,7 +99,7 @@ ESQUEMA_INMUEBLE: dict = {
         "faltantes": {"type": "array", "items": {"type": "string"}},
     },
     "required": [
-        "ciudad", "zona", "tipo", "precio", "habitaciones", "banos",
+        "ciudad", "zona", "tipo", "negocio", "precio", "habitaciones", "banos",
         "area_m2", "descripcion", "propietario", "telefono",
         "confianza", "faltantes",
     ],
@@ -113,11 +119,21 @@ texto, devuélvelo como null y anótalo en `faltantes`. Un inmueble con datos
 inventados es peor que uno ausente, porque se le mostraría a un comprador como
 si fuera real. Es preferible devolver medio aviso vacío que uno adivinado.
 
+Tipo de negocio (`negocio`), y de él depende cómo se lee el precio:
+- "venta": se vende. `precio` es el valor total del inmueble.
+- "arriendo": se arrienda o alquila. `precio` es el **canon mensual**, no un
+  valor de venta. "Arriendo $2.500.000" son 2500000, no dos millones y medio de
+  precio de venta.
+- "permuta": se cambia por otro inmueble. `precio` es el avalúo de referencia.
+- Si el aviso no dice de qué negocio se trata, devuelve null: el sistema asume
+  venta y el operador lo revisa. No lo adivines por el monto.
+
 Precios en Colombia:
 - "350 millones", "350M", "$350.000.000" y "350'000.000" son 350000000.
 - "1.200 millones" y "1200 millones" son 1200000000.
 - Si el aviso menciona administración, cuota inicial o avalúo, NO los confundas
-  con el precio de venta. Si no hay precio de venta claro, devuelve null.
+  con el precio. En arriendo, la administración va aparte del canon.
+- Si no hay precio claro para el negocio detectado, devuelve null.
 - Devuelve el precio como entero en pesos, sin puntos ni símbolos.
 
 Ubicación:
