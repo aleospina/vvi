@@ -165,6 +165,7 @@ Entrada (Telegram · WhatsApp · landing · Lead Ads · ML · manual)
 |---|---|---|
 | Aviso de IA (RF-04) | Primer mensaje declara que es un asistente con IA, no una persona | `compliance.aviso_ia` |
 | Consentimiento previo (RF-16) | Antes de autorizar, **nada** se persiste: los chats pendientes viven en un `set` en memoria. Se archiva texto exacto, timestamp, canal, versión de política y evidencia | `test_cumplimiento.py::TestConsentimiento` |
+| Autorización por conversación | Despedirse ("gracias", "hasta luego") cierra la conversación; el siguiente mensaje del titular abre una nueva y **vuelve a pedir la autorización**. El cierre se guarda en la base, así que un reinicio no lo borra | `test_saludo_despedida.py::TestCicloDeConversacion` |
 | Cifrado en reposo (RF-17) | Nombre, teléfono, usuario y **texto de los mensajes** cifrados con Fernet vía `TypeDecorator`. Búsqueda por índice ciego HMAC-SHA256 | `test_pii_no_queda_en_claro_en_sqlite` |
 | Auditoría inmutable (RF-18) | Bitácora append-only donde cada fila encadena el hash de la anterior; el dashboard verifica la cadena | `test_alterar_un_registro_rompe_la_cadena` |
 | Bloqueo de saliente (RF-19) | `registrar_mensaje` con dirección saliente exige consentimiento vigente y lanza excepción si no | `test_prospecto_sin_consentimiento_bloquea_saliente` |

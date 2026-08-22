@@ -250,6 +250,38 @@ PLANTILLAS = {
         "¡Listo, gracias! Para mostrarte lo que de verdad te sirve: ¿en qué *ciudad y "
         "zona* buscas, qué *tipo* (casa/apto/lote) y cuál es tu *presupuesto* aproximado?"
     ),
+    #: Un "hola" a secas merece un hola. Antes caía en la rama de "faltan
+    #: datos" y el bot abría preguntando por presupuesto, que a una persona que
+    #: apenas saluda le suena a formulario. El saludo lleva la pregunta pegada
+    #: para no gastar un turno entero en cortesía.
+    "saludo": (
+        "¡Hola! 👋 Con mucho gusto te ayudo.\n\n"
+        "¿En qué *ciudad y zona* buscas, qué *tipo* (casa/apto/lote) y con qué "
+        "*presupuesto* aproximado? Con eso te muestro lo que de verdad te sirve."
+    ),
+    #: Saludo de quien ya nos había contado qué busca. Volverle a preguntar
+    #: ciudad y tipo, que están guardados, es hacerle repetir lo que ya dijo.
+    "saludo_retomar": (
+        "¡Hola de nuevo! 👋 ¿Seguimos con {busqueda}, o prefieres mirar otra cosa?"
+    ),
+    #: La calificación de quien vuelve tras despedirse. La autorización se pide
+    #: otra vez porque es otra conversación, pero su búsqueda sigue guardada:
+    #: hacerle repetir ciudad, tipo y presupuesto en cada visita convierte el
+    #: permiso en un peaje.
+    "calificacion_retomar": (
+        "¡Listo, gracias! Tenía anotado que buscabas {busqueda}. "
+        "¿Seguimos con eso o prefieres mirar otra cosa?"
+    ),
+    #: Despedida. Dice explícitamente que la conversación queda cerrada y que
+    #: volver implica autorizar otra vez: si no se anuncia, el titular vuelve a
+    #: escribir tres días después, se topa con la pregunta del consentimiento y
+    #: cree que el bot lo olvidó o que algo se rompió.
+    "despedida": (
+        "¡Con mucho gusto! 🙌 Fue un placer ayudarte.\n\n"
+        "Cierro aquí la conversación. Cuando quieras volver, escríbeme y "
+        "arrancamos de nuevo — te pediré otra vez la autorización de datos, que "
+        "es como debe ser en cada conversación nueva. ¡Que te vaya muy bien!"
+    ),
     "fuera_de_alcance": (
         "Por ahora solo manejo propiedades en {ciudades}, así que no quiero hacerte "
         "perder el tiempo. Si te sirve, te aviso apenas ampliemos cobertura."

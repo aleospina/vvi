@@ -518,6 +518,68 @@ def es_negativo(texto: str) -> bool:
     }
 
 
+# ─────────────────────────── Apertura y cierre ───────────────────────────
+
+#: Vocabulario de un saludo. `_NUCLEO_*` es la palabra que de verdad saluda;
+#: el resto solo puede acompañarla. Se exige que **todas** las palabras del
+#: mensaje estén en la lista: así "hola" saluda, pero "hola, busco apartamento
+#: en Pereira" sigue siendo una búsqueda y se atiende como tal. Un saludo que
+#: se traga la pregunta que venía pegada es peor que no saludar.
+_NUCLEO_SALUDO = frozenset(
+    "hola holis holi ola alo buenas buenos buen hey saludos tal quiubo qubo".split()
+)
+#: `normalizar` ya quitó tildes y eñes, así que aquí todo va sin ellas.
+_PALABRAS_SALUDO = _NUCLEO_SALUDO | frozenset(
+    "dias dia tardes tarde noches noche que mas como estas esta estan va "
+    "todo bien senor senora senorita amigo amiga".split()
+)
+
+#: Vocabulario de una despedida o un agradecimiento de cierre. Mismo criterio:
+#: "gracias" cierra, "gracias, ¿y cuánto vale el de Laureles?" no. El núcleo
+#: deja fuera "listo" y "ok" a propósito —son respuestas afirmativas, y en la
+#: puerta del consentimiento un "ok" es un sí, no un adiós—, pero los admite
+#: como acompañantes de un cierre explícito ("listo, gracias").
+_NUCLEO_DESPEDIDA = frozenset(
+    "gracias adios chao chaito chau bye luego pronto vemos abrazo "
+    "despido despedimos".split()
+)
+_PALABRAS_DESPEDIDA = _NUCLEO_DESPEDIDA | frozenset(
+    "muchas muchisimas mil millones hasta la proxima nos te me voy vamos "
+    "por todo tu ayuda el ok listo dale vale ya eso es no que estes "
+    "bien buen buena feliz dia tarde noche resto de igualmente "
+    "amable amigo senor".split()
+)
+
+
+#: Palabras sueltas, sin puntuación ni emojis. No sirve `_respuesta_plana`:
+#: esa solo limpia los extremos, y "hola, ¿qué tal?" dejaba un token "¿que" que
+#: no está en ninguna lista. Aquí la puntuación de apertura española y el 👋 que
+#: acompaña a media conversación tienen que desaparecer, no romper la lectura.
+_RE_PALABRAS = re.compile(r"[a-z0-9]+")
+
+
+def _solo_palabras_de(texto: str, permitidas: frozenset, nucleo: frozenset) -> bool:
+    """¿El mensaje entero está hecho de estas palabras, y al menos una es núcleo?"""
+    palabras = _RE_PALABRAS.findall(normalizar(texto))
+    if not palabras:
+        return False
+    return any(p in nucleo for p in palabras) and all(p in permitidas for p in palabras)
+
+
+def es_saludo(texto: str) -> bool:
+    """¿El mensaje es solo un saludo, sin ninguna pregunta pegada?"""
+    return _solo_palabras_de(texto, _PALABRAS_SALUDO, _NUCLEO_SALUDO)
+
+
+def es_despedida(texto: str) -> bool:
+    """¿El titular está cerrando la conversación? ("gracias", "hasta luego")
+
+    Ante la duda, False: cerrarle la conversación a quien seguía preguntando lo
+    obliga a autorizar otra vez para nada, y es más molesto que no despedirse.
+    """
+    return _solo_palabras_de(texto, _PALABRAS_DESPEDIDA, _NUCLEO_DESPEDIDA)
+
+
 # ─────────────────────────── Reglas duras ───────────────────────────
 
 

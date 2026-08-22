@@ -375,6 +375,14 @@ class Prospecto(Base):
     consentimiento: Mapped[bool] = mapped_column(Boolean, default=False)
     consentimiento_ts: Mapped[datetime | None] = mapped_column(DateTime)
 
+    #: Cuándo el titular dio la conversación por terminada ("gracias", "hasta
+    #: luego"). Mientras tenga fecha, el bot no atiende: el siguiente mensaje
+    #: abre una conversación nueva y vuelve a pedir la autorización de datos.
+    #: Va en la base y no en memoria porque una despedida no puede deshacerse
+    #: con un reinicio del proceso: quien se despidió tiene que volver a
+    #: autorizar, aunque el bot se haya caído entre medias.
+    conversacion_cerrada_ts: Mapped[datetime | None] = mapped_column(DateTime)
+
     # Slots de calificación (RF-05)
     ciudad: Mapped[str | None] = mapped_column(String(64))
     #: Municipio concreto del área metropolitana: Dosquebradas, Envigado…

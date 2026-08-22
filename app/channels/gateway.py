@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
-from app.models import Canal, Direccion, Prospecto
+from app.models import Canal, Direccion, Prospecto, ahora
 from app.services import leads, matching_engine, notificaciones, seguimiento
 from app.services.compliance import (
     aviso_ia,
@@ -29,7 +29,9 @@ from app.services.matching_engine import Match
 from app.services.nlu_engine import (
     analizar,
     es_afirmativo,
+    es_despedida,
     es_negativo,
+    es_saludo,
     extraer_slots,
     pide_listado_completo,
     pide_sin_tope,
@@ -67,6 +69,9 @@ class Respuesta:
     handoff: bool = False
     #: El comprador declaró que el negocio ya se cerró (PRD §10).
     cierre_declarado: bool = False
+    #: El titular se despidió: este turno cierra la conversación y el siguiente
+    #: mensaje suyo arranca una nueva, con su propia autorización.
+    conversacion_cerrada: bool = False
     prospecto: Prospecto | None = None
 
 
@@ -117,12 +122,68 @@ def alta_con_consentimiento(
         prospecto.telefono = prospecto.telefono or entrante.telefono
         prospecto.usuario_canal = prospecto.usuario_canal or entrante.usuario_canal
 
+    # Autorizar es, por definición, abrir conversación: si venía de una
+    # despedida, esta es la nueva y el recorte de la anterior no la gobierna.
+    # El perfil de búsqueda sí se conserva —ciudad, tipo, presupuesto—: hacerle
+    # repetir en cada visita lo que ya nos contó no es empezar de cero, es
+    # tratarlo como un desconocido.
+    prospecto.conversacion_cerrada_ts = None
+    prospecto.foco = None
+
     registrar_consentimiento(db, prospecto, canal=canal, evidencia=evidencia)
     return prospecto
 
 
 def rechazo_consentimiento() -> str:
     return PLANTILLAS["consentimiento_negado"]
+
+
+# ─────────────────────── Apertura y cierre de conversación ───────────────────────
+
+
+def conversacion_cerrada(prospecto: Prospecto) -> bool:
+    """¿El titular dio por terminada la conversación y aún no ha vuelto a autorizar?"""
+    return prospecto.conversacion_cerrada_ts is not None
+
+
+def cerrar_conversacion(db: Session, prospecto: Prospecto) -> None:
+    """Marca el cierre pedido por el titular ("gracias", "hasta luego").
+
+    No borra nada ni revoca la autorización archivada: el titular se despidió,
+    no ejerció su derecho de supresión —eso es /borrar—. Lo único que cambia es
+    que la próxima vez que escriba se le vuelve a pedir permiso, porque será
+    otra conversación.
+    """
+    prospecto.conversacion_cerrada_ts = ahora()
+    # El recorte a un inmueble concreto pertenece a la conversación que termina.
+    prospecto.foco = None
+    db.flush()
+
+
+def _busqueda_guardada(perfil: dict) -> str:
+    """"apartamentos en Envigado", o cadena vacía si aún no sabemos qué busca."""
+    tipo, ciudad = perfil.get("tipo"), perfil.get("municipio") or perfil.get("ciudad")
+    return f"{_plural(tipo, 2)} en {ciudad}" if tipo and ciudad else ""
+
+
+def _texto_saludo(perfil: dict) -> str:
+    """Saludo, con la búsqueda de antes si la hay."""
+    busqueda = _busqueda_guardada(perfil)
+    if busqueda:
+        return PLANTILLAS["saludo_retomar"].format(busqueda=busqueda)
+    return PLANTILLAS["saludo"]
+
+
+def pregunta_de_calificacion(prospecto: Prospecto) -> str:
+    """Lo que se pregunta justo después de que el titular autoriza.
+
+    A quien vuelve tras despedirse no se le pregunta desde cero: la
+    autorización es nueva, su búsqueda no.
+    """
+    busqueda = _busqueda_guardada(leads.perfil(prospecto))
+    if busqueda:
+        return PLANTILLAS["calificacion_retomar"].format(busqueda=busqueda)
+    return PLANTILLAS["calificacion"]
 
 
 # ─────────────────────────── Turno conversacional ───────────────────────────
@@ -390,12 +451,40 @@ def _leer_declaracion(db: Session, prospecto: Prospecto, texto: str) -> bool:
     return True
 
 
+def _turno_fijo(db: Session, prospecto: Prospecto, texto: str, **campos) -> Respuesta:
+    """Cierra el turno con una respuesta fija, dejándola en el historial."""
+    leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, texto)
+    return Respuesta(textos=[texto], prospecto=prospecto, **campos)
+
+
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     """Procesa un mensaje entrante de un titular que YA autorizó (DF-1 a DF-4)."""
     if not tiene_consentimiento_vigente(prospecto):
         return Respuesta(textos=[mensaje_bienvenida()], pide_consentimiento=True, prospecto=prospecto)
 
+    # El titular se despidió: lo que llegue ahora abre una conversación nueva y
+    # empieza por la autorización, no por donde quedó la anterior. Los canales
+    # lo resuelven antes de llegar aquí; esto cubre a quien entre por la API.
+    if conversacion_cerrada(prospecto):
+        return Respuesta(
+            textos=[mensaje_bienvenida()], pide_consentimiento=True, prospecto=prospecto
+        )
+
     leads.registrar_mensaje(db, prospecto, Direccion.ENTRANTE, texto)
+
+    # Un saludo o una despedida se resuelven aquí, sin pasar por el
+    # clasificador: no hay nada que clasificar y la respuesta no depende de la
+    # cartera. Van antes que todo lo demás porque un "hola" a secas caía en la
+    # rama de "faltan datos" y abría preguntando por presupuesto, y un "gracias"
+    # sin más devolvía el catálogo otra vez, que es lo contrario de despedirse.
+    if es_saludo(texto):
+        return _turno_fijo(db, prospecto, _texto_saludo(leads.perfil(prospecto)))
+
+    if es_despedida(texto):
+        cerrar_conversacion(db, prospecto)
+        return _turno_fijo(
+            db, prospecto, PLANTILLAS["despedida"], conversacion_cerrada=True
+        )
 
     declara_cierre = _leer_declaracion(db, prospecto, texto)
 

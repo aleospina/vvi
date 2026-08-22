@@ -97,7 +97,7 @@ def aceptar_consentimiento(
         )
         salidas = [
             "¡Gracias! Tu autorización quedó registrada. 🔐",
-            PLANTILLAS["calificacion"],
+            gateway.pregunta_de_calificacion(prospecto),
         ]
         for s in salidas:
             leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, s)
@@ -128,11 +128,19 @@ def turno(
     """
     with sesion() as db:
         prospecto = leads.buscar_por_canal(db, canal, cid)
-        if prospecto is not None and tiene_consentimiento_vigente(prospecto):
+        # Hay conversación abierta solo si autorizó **y** no se ha despedido.
+        # Quien cerró con un "hasta luego" vuelve por la misma puerta que un
+        # desconocido: su siguiente mensaje es el primero de otra conversación.
+        if (
+            prospecto is not None
+            and tiene_consentimiento_vigente(prospecto)
+            and not gateway.conversacion_cerrada(prospecto)
+        ):
             return gateway.procesar(db, prospecto, texto).textos
 
-    # A partir de aquí no hay consentimiento vigente: nada se persiste.
-    from app.services.nlu_engine import es_afirmativo, es_negativo
+    # A partir de aquí no hay conversación abierta: o nunca autorizó, o él mismo
+    # la cerró. En el primer caso, además, nada se persiste.
+    from app.services.nlu_engine import es_afirmativo, es_despedida, es_negativo
 
     if esta_pendiente(canal, cid):
         if es_afirmativo(texto):
@@ -141,6 +149,11 @@ def turno(
             )
         if es_negativo(texto):
             return rechazar_consentimiento(canal, cid)
+        # Despedirse en la puerta también es una respuesta: insistir con la
+        # autorización a quien ya dijo "gracias, chao" es no escucharlo.
+        if es_despedida(texto):
+            olvidar_pendiente(canal, cid)
+            return [PLANTILLAS["despedida"]]
         return [
             "Necesito tu autorización explícita para continuar. ¿Autorizas el "
             "tratamiento de tus datos? Responde *Sí* o *No*."
