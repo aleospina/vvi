@@ -26,7 +26,28 @@
       Puedes pedir la consulta, corrección o eliminación de tus datos en cualquier
       momento. Política de tratamiento: <a href="{{ politica }}">verla aquí</a>.
     </p>
+
+    {# Sin esto la pantalla de confirmación es un callejón sin salida: la página
+       no tiene cabecera ni menú, así que el único camino era el botón «atrás»
+       del navegador, que reenvía el formulario. #}
+    <div class="salidas">
+      {% if puede_editar %}
+        <a class="boton" href="/dashboard/propiedades">← Volver al panel</a>
+      {% elif catalogo_publico %}
+        <a class="boton" href="/inmuebles">← Ver los inmuebles</a>
+      {% endif %}
+      <a class="boton suave" href="/publicar">Publicar otro inmueble</a>
+    </div>
   {% else %}
+    {% if puede_editar %}
+      <p class="leyenda" style="margin-bottom:18px">
+        <a href="/dashboard/propiedades">← Volver al panel</a>
+      </p>
+    {% elif catalogo_publico %}
+      <p class="leyenda" style="margin-bottom:18px">
+        <a href="/inmuebles">← Ver los inmuebles publicados</a>
+      </p>
+    {% endif %}
     <h1>Publica tu inmueble en {{ ciudades | join(' o ') }}</h1>
     <p class="leyenda">
       Lo mostramos a compradores ya filtrados por nuestro asistente con IA. Solo

@@ -991,3 +991,10 @@ body.vitrina .inmueble .pie{align-items:center}
 .hilo-interno{border-left:3px solid var(--tinta); background:#fbfaf8}
 .hilo-interno h2{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
 .quien-soy{display:inline-flex; align-items:center; gap:8px; font-size:13px}
+
+/* Salidas de la pantalla de confirmación. Van juntas y con aire por encima:
+   son lo único que queda por hacer en esa página. */
+.salidas{
+  display:flex; gap:10px; flex-wrap:wrap;
+  margin-top:26px; padding-top:22px; border-top:1px solid var(--linea);
+}

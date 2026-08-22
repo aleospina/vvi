@@ -29,7 +29,7 @@ from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import ROTULO_PRECIO, TipoInmueble, TipoNegocio
 from app.services import portfolio, prospecting
-from app.security.sesion import COOKIE, OPERADOR, rol_de, validar_token
+from app.security.sesion import quien_mira
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
 from app.tiempo import fecha
@@ -88,23 +88,12 @@ def _entero(texto: str) -> int | None:
     return int(digitos) if digitos else None
 
 
-def _quien_mira(request: Request) -> tuple[str | None, bool]:
-    """(usuario, es_operador) de la sesión, si la hay.
-
-    La vitrina no autentica nada —es pública y así debe seguir—, pero sí cambia
-    lo que ofrece cuando quien mira ya tiene sesión: el camino de vuelta al
-    panel y el atajo a la ficha interna del inmueble que está viendo. Sin esto,
-    el operador que abre la vitrina queda en un callejón sin salida.
-    """
-    usuario = validar_token(request.cookies.get(COOKIE))
-    rol = rol_de(usuario) if usuario else None
-    if usuario is None or rol is None:
-        return None, False
-    return usuario, rol == OPERADOR
-
-
 def _contexto(request: Request, **extra) -> dict:
-    usuario, es_operador = _quien_mira(request)
+    # La vitrina no autentica nada —es pública y así debe seguir—, pero sí
+    # cambia lo que ofrece cuando quien mira ya tiene sesión: el camino de
+    # vuelta al panel y el atajo a la ficha interna del inmueble que está
+    # viendo. Sin esto, el operador que abre la vitrina queda encerrado.
+    usuario, es_operador = quien_mira(request.cookies)
     return {
         "request": request,
         # Solo deciden qué enlaces se pintan. No abren ningún dato: la ficha

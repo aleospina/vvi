@@ -140,3 +140,22 @@ def validar_token(token: str | None) -> str | None:
         return _deb64(usuario_b64)
     except (ValueError, UnicodeDecodeError):
         return None
+
+
+def quien_mira(cookies) -> tuple[str | None, bool]:
+    """(usuario, es_operador) de la sesión, o (None, False) si no hay.
+
+    Es para las páginas **públicas**, que no autentican a nadie pero sí cambian
+    los enlaces que ofrecen según quién esté mirando: el operador vuelve a su
+    panel, el visitante va a la vitrina. Vive aquí y no en un router porque ya
+    la necesitan dos —la vitrina y la captación de inmuebles— y una tercera
+    copia sería una definición de sesión que puede separarse de las otras.
+
+    Recibe el `request.cookies` en vez del `Request` para no arrastrar FastAPI
+    dentro del módulo de seguridad.
+    """
+    usuario = validar_token(cookies.get(COOKIE))
+    rol = rol_de(usuario) if usuario else None
+    if usuario is None or rol is None:
+        return None, False
+    return usuario, rol == OPERADOR

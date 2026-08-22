@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.config import RAIZ, settings
 from app.db import get_db
+from app.security.sesion import quien_mira
 from app.services import fotos, geografia, ingesta, prospecting
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
@@ -107,8 +108,18 @@ def landing_envio(
 # ─────────────────────────── Captación de inmuebles ───────────────────────────
 
 
-def _contexto_publicar(**extra) -> dict:
+def _contexto_publicar(request: Request, **extra) -> dict:
+    # Quién publica decide a dónde se vuelve: el dueño sale a la vitrina, que es
+    # la portada que conoce; el operador a su panel. Sin esto la página termina
+    # en una pantalla sin salida —el formulario no tiene cabecera ni menú— y
+    # quien acaba de publicar se queda ahí.
+    usuario, es_operador = quien_mira(request.cookies)
     return {
+        "request": request,
+        "sesion": usuario,
+        "puede_editar": es_operador,
+        # La vitrina puede estar apagada; entonces no hay adónde mandar al dueño.
+        "catalogo_publico": settings.catalogo_publico,
         "empresa": settings.empresa_nombre,
         "politica": settings.politica_privacidad_url,
         "texto_consentimiento": texto_consentimiento(),
@@ -131,7 +142,7 @@ def publicar(request: Request):
     Ambas comparten el mismo principio — nada entra sin un acto afirmativo del
     titular, y aquí ese acto incluye además el mandato de comercialización.
     """
-    return plantillas.TemplateResponse(request, "publicar.html", _contexto_publicar())
+    return plantillas.TemplateResponse(request, "publicar.html", _contexto_publicar(request))
 
 
 @router.post("/publicar", response_class=HTMLResponse)
@@ -153,7 +164,7 @@ def publicar_envio(
     db: Session = Depends(get_db),
 ):
     """Recibe el inmueble. Sin la casilla de mandato no se guarda nada."""
-    contexto = _contexto_publicar()
+    contexto = _contexto_publicar(request)
 
     if autorizo.lower() not in ("on", "true", "1", "si", "sí"):
         contexto["error"] = (
