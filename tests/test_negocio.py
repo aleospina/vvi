@@ -621,19 +621,20 @@ class TestConversacionCompleta:
         assert not r.matches, "el tipo ya estaba en el perfil: no cambia la búsqueda"
         assert len(r.textos) == 1, f"el handoff debe hablar solo: {r.textos}"
 
-    @pytest.mark.parametrize("terminal", ["vendido", "perdido"])
-    def test_un_lead_cerrado_que_pide_visita_llega_al_asesor(
-        self, db, prospecto_consentido, terminal
+    def test_un_lead_perdido_que_pide_visita_llega_al_asesor(
+        self, db, prospecto_consentido
     ):
         """Un estado terminal no puede tragarse la petición en silencio.
 
-        Encontrado en la base de producción: el lead tenía una venta registrada
-        en pruebas, así que quedó en `vendido`. Desde ahí, cada "quiero agendar
-        una visita al lote" volvía a listar los cinco lotes de Pereira y no
-        creaba solicitud ninguna: el comprador pedía un asesor que nadie iba a
-        llamar. Quien vuelve después de cerrada la ficha es justo a quien más
-        conviene pasarle un humano.
+        Desde `perdido`, cada "quiero agendar una visita al lote" volvía a listar
+        los cinco lotes de Pereira y no creaba solicitud ninguna: el comprador
+        pedía un asesor que nadie iba a llamar. Quien vuelve después de dado por
+        perdido es justo a quien más conviene pasarle un humano.
+
+        `vendido` es el otro caso y va aparte: ahí la conversación está cerrada y
+        lo que vuelve es un lead nuevo (`test_saludo_despedida.TestLeadVendido`).
         """
+        terminal = "perdido"
         gateway.procesar(db, prospecto_consentido, "Busco lote en Pereira hasta 700 millones")
         prospecto_consentido.estado = terminal
         db.flush()
@@ -749,12 +750,50 @@ class TestConversacionCompleta:
             assert len(r.matches) <= 3
             assert "Con eso en mente" in r.textos[0]
 
+    def test_el_llm_solo_no_puede_abrir_un_handoff(self, db, prospecto_consentido, monkeypatch):
+        """Regresión: el bot pasaba a un asesor sin que el comprador lo pidiera.
+
+        El LLM ve la conversación entera, y ahí está el pie con el que el bot
+        mismo ofrece la visita: devolvía `pide_visita` en true por habérsela
+        ofrecido nosotros. Pedir "lotes en Pereira" terminaba en "ya le pasé tus
+        datos a un asesor" y en una visita en la cola del operador que el
+        comprador nunca pidió ni espera.
+        """
+        from app.services.nlu_engine import Analisis
+
+        def analisis_contaminado(mensaje, historial, perfil, **kwargs):
+            return Analisis(slots=dict(perfil), pide_visita=True)
+
+        monkeypatch.setattr(gateway, "analizar", analisis_contaminado)
+        r = gateway.procesar(db, prospecto_consentido, "Lotes en Pereira")
+        db.commit()
+
+        assert not r.handoff, r.textos
+        assert prospecto_consentido.solicitudes == []
+        assert "asesor" not in " ".join(r.textos).lower()
+
+    def test_pedirlo_con_sus_palabras_si_abre_el_handoff(self, db, prospecto_consentido, monkeypatch):
+        """La otra mitad: el LLM en silencio no puede impedir lo que él sí pidió."""
+        from app.services.nlu_engine import Analisis
+
+        monkeypatch.setattr(
+            gateway,
+            "analizar",
+            lambda mensaje, historial, perfil, **kw: Analisis(
+                slots=dict(perfil), pide_visita=False
+            ),
+        )
+        r = gateway.procesar(db, prospecto_consentido, "Quiero agendar una visita")
+        db.commit()
+
+        assert r.handoff
+        assert len(prospecto_consentido.solicitudes) == 1
+
     def test_pedir_asesor_dos_veces_no_duplica_la_solicitud(self, db, prospecto_consentido):
         """El asesor no puede ver al mismo comprador cuatro veces en la cola.
 
-        `pide_visita` sigue en true en los turnos siguientes porque la petición
-        queda en el historial; sin deduplicar, cada mensaje posterior creaba otra
-        solicitud y otro aviso.
+        Sin deduplicar, cada "asesor" repetido creaba otra solicitud y otro
+        aviso, y el mismo comprador aparecía cuatro veces en la lista.
         """
         gateway.procesar(db, prospecto_consentido, "Asesor")
         gateway.procesar(db, prospecto_consentido, "Asesor")

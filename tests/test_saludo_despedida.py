@@ -300,3 +300,86 @@ class TestCicloDeConversacion:
         textos = conversacion.turno(CANAL, cid, "no gracias")
         assert textos == [PLANTILLAS["despedida"]]
         assert not conversacion.esta_pendiente(CANAL, cid)
+
+
+# ─────────────────────── Un lead vendido no sigue creciendo ───────────────────────
+
+
+class TestLeadVendido:
+    """Confirmar la venta cierra la conversación; volver a escribir abre otro lead.
+
+    Encontrado en producción: LEAD-000001 quedó en `vendido` y el bot le seguía
+    colgando mensajes. Una ficha cerrada que engorda es una ficha en la que el
+    operador ya no mira, y la búsqueda nueva quedaba sin poder atribuirse.
+    """
+
+    def test_vender_cierra_la_conversacion(self, db, prospecto_consentido):
+        prospecto_consentido.estado = "vendido"
+        db.flush()
+        assert gateway.conversacion_cerrada(prospecto_consentido)
+
+    def test_ya_no_se_le_cuelgan_mensajes(self, db, prospecto_consentido):
+        prospecto_consentido.estado = "vendido"
+        db.flush()
+        antes = len(prospecto_consentido.mensajes)
+
+        r = gateway.procesar(db, prospecto_consentido, "Busco lote en Pereira")
+
+        assert r.pide_consentimiento
+        assert not r.matches
+        assert len(prospecto_consentido.mensajes) == antes, "la ficha cerrada no crece"
+
+    def test_volver_a_escribir_abre_un_lead_nuevo(self, cid):
+        from app.db import sesion
+
+        _autorizar(cid)
+        with sesion() as db:
+            vendido = leads.buscar_por_canal(db, CANAL, cid)
+            vendido.estado = "vendido"
+            codigo_vendido = vendido.codigo
+
+        conversacion.turno(CANAL, cid, "Hola, busco otra cosa")
+        conversacion.turno(CANAL, cid, "Sí")
+
+        with sesion() as db:
+            fichas = leads.buscar_todos_por_canal(db, CANAL, cid)
+            assert len(fichas) == 2
+            assert fichas[0].codigo == codigo_vendido
+            assert fichas[0].estado == "vendido"
+            # El vigente es el nuevo, y arranca limpio: su búsqueda es otra.
+            actual = leads.buscar_por_canal(db, CANAL, cid)
+            assert actual.codigo != codigo_vendido
+            assert actual.estado == "nuevo"
+            assert actual.ciudad is None
+
+    def test_la_venta_registrada_no_se_toca(self, cid):
+        """La ficha cerrada conserva su estado, su comisión y su atribución."""
+        from app.db import sesion
+
+        _autorizar(cid)
+        with sesion() as db:
+            leads.buscar_por_canal(db, CANAL, cid).estado = "vendido"
+
+        conversacion.turno(CANAL, cid, "Hola")
+        conversacion.turno(CANAL, cid, "Sí")
+        conversacion.turno(CANAL, cid, "Busco lote en Pereira")
+
+        with sesion() as db:
+            vendido = leads.buscar_todos_por_canal(db, CANAL, cid)[0]
+            assert vendido.estado == "vendido"
+            assert vendido.ciudad is None, "la búsqueda nueva no se le cuelga encima"
+
+    def test_borrar_alcanza_tambien_al_lead_vendido(self, cid):
+        """Un borrado que dejara la ficha vendida intacta no sería un borrado."""
+        from app.db import sesion
+
+        _autorizar(cid)
+        with sesion() as db:
+            leads.buscar_por_canal(db, CANAL, cid).estado = "vendido"
+
+        conversacion.turno(CANAL, cid, "Hola")
+        conversacion.turno(CANAL, cid, "Sí")
+        conversacion.borrar_datos(CANAL, cid)
+
+        with sesion() as db:
+            assert leads.buscar_por_canal(db, CANAL, cid) is None

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -38,14 +38,30 @@ def siguiente_codigo(db: Session) -> str:
     return f"LEAD-{total + 1:06d}"
 
 
-def buscar_por_canal(db: Session, canal: str, canal_id: str) -> Prospecto | None:
-    """Busca por índice ciego: nunca descifra toda la tabla."""
-    return db.scalar(
-        select(Prospecto).where(
-            Prospecto.canal == canal,
-            Prospecto.canal_id_hash == indice_ciego(canal_id),
-        )
+def _por_canal(canal: str, canal_id: str):
+    return select(Prospecto).where(
+        Prospecto.canal == canal,
+        Prospecto.canal_id_hash == indice_ciego(canal_id),
     )
+
+
+def buscar_por_canal(db: Session, canal: str, canal_id: str) -> Prospecto | None:
+    """Busca por índice ciego: nunca descifra toda la tabla.
+
+    Un mismo chat puede tener más de un lead: quien ya compró y vuelve a buscar
+    abre uno nuevo, porque su búsqueda y su negocio son otros. El vigente es
+    siempre el último, y es el que atiende la conversación en curso.
+    """
+    return db.scalar(_por_canal(canal, canal_id).order_by(desc(Prospecto.id)).limit(1))
+
+
+def buscar_todos_por_canal(db: Session, canal: str, canal_id: str) -> list[Prospecto]:
+    """Todos los leads de ese chat, del más viejo al más nuevo.
+
+    Los derechos del titular son sobre *sus* datos, no sobre el último lead:
+    un /borrar tiene que alcanzar también al que quedó como vendido.
+    """
+    return list(db.scalars(_por_canal(canal, canal_id).order_by(Prospecto.id)))
 
 
 def crear(

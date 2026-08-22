@@ -196,7 +196,10 @@ Sin markdown, sin ``` y sin texto adicional.
 - `slots`: usa null en lo que el comprador no haya dicho. Los montos en pesos
   colombianos como enteros (450 millones -> 450000000).
 - `faltan_datos`: nombres de los slots que aún faltan para poder emparejar.
-- `pide_visita`: true solo si pidió visita, asesor humano o dejar sus datos.
+- `pide_visita`: true solo si el ÚLTIMO mensaje del comprador pide visita,
+  asesor humano o dejar sus datos. Que TÚ se lo hayas ofrecido antes no lo
+  pone en true, ni que lo pidiera hace varios turnos: el campo describe este
+  mensaje, no la conversación.
 - `respuesta_sugerida`: el mensaje que le enviarías ahora al comprador."""
 
 

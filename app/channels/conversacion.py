@@ -168,9 +168,19 @@ def turno(
 def mis_datos(canal: str, cid: str) -> str:
     """Derecho de consulta del titular (habeas data)."""
     with sesion() as db:
-        p = leads.buscar_por_canal(db, canal, cid)
-        if p is None:
+        fichas = leads.buscar_todos_por_canal(db, canal, cid)
+        if not fichas:
             return "No tengo ningún dato tuyo almacenado. 🙌"
+        p = fichas[-1]
+        # Quien ya compró y volvió a buscar tiene más de una ficha. Callarse las
+        # anteriores sería contestar a medias justo la pregunta que el titular
+        # tiene derecho a hacer.
+        anteriores = (
+            f"\n\nGuardo además {len(fichas) - 1} búsqueda(s) anterior(es) tuya(s); "
+            "/borrar las elimina todas."
+            if len(fichas) > 1
+            else ""
+        )
         return (
             f"*Tus datos en {settings.empresa_nombre}* (código {p.codigo})\n\n"
             f"• Nombre: {enmascarar(p.nombre)}\n"
@@ -181,17 +191,23 @@ def mis_datos(canal: str, cid: str) -> str:
             f"• Estado: {p.estado}\n"
             f"• Autorización: {'vigente desde ' + fecha(p.consentimiento_ts, '%d/%m/%Y') if p.consentimiento_ts else 'no otorgada'}\n\n"
             f"Tus datos de contacto están cifrados. Política: {settings.politica_privacidad_url}\n"
-            "Para eliminarlos escribe /borrar."
+            "Para eliminarlos escribe /borrar." + anteriores
         )
 
 
 def borrar_datos(canal: str, cid: str) -> str:
-    """Revocación y anonimización a petición del titular (habeas data)."""
+    """Revocación y anonimización a petición del titular (habeas data).
+
+    Alcanza a **todas** sus fichas, no solo a la de la conversación en curso:
+    quien ya compró y volvió a buscar tiene dos, y un borrado que dejara la
+    primera intacta no sería un borrado.
+    """
     with sesion() as db:
-        p = leads.buscar_por_canal(db, canal, cid)
-        if p is None:
+        fichas = leads.buscar_todos_por_canal(db, canal, cid)
+        if not fichas:
             return "No tengo datos tuyos que eliminar. 🙌"
-        revocar_y_anonimizar(db, p, actor=f"titular:{p.codigo}")
+        for p in fichas:
+            revocar_y_anonimizar(db, p, actor=f"titular:{p.codigo}")
         olvidar_pendiente(canal, cid)
         return (
             "Listo: eliminé tus datos de contacto y revoqué la autorización. "
