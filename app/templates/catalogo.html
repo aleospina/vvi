@@ -90,13 +90,20 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo">
-      <label for="min">{{ rotulo_precio }} desde</label>
-      <input type="text" inputmode="numeric" name="min" id="min" value="{{ filtros.min }}" placeholder="Desde">
-    </div>
-    <div class="campo">
-      <label for="max">{{ rotulo_precio }} hasta</label>
-      <input type="text" inputmode="numeric" name="max" id="max" value="{{ filtros.max }}" placeholder="Hasta">
+    {# Los dos extremos comparten rótulo: «Canon mensual desde» y «Canon mensual
+       hasta», uno al lado del otro, repetían la parte larga y no cabían en la
+       fila. El rótulo dice la escala una vez y los marcadores dicen cuál es
+       cuál. #}
+    <div class="campo rango-precio">
+      <label for="min" title="{{ rotulo_precio }}">{{ rotulo_precio }}</label>
+      <div class="rango">
+        <input type="text" inputmode="numeric" name="min" id="min"
+               value="{{ filtros.min }}" placeholder="Desde"
+               aria-label="{{ rotulo_precio }} desde">
+        <input type="text" inputmode="numeric" name="max" id="max"
+               value="{{ filtros.max }}" placeholder="Hasta"
+               aria-label="{{ rotulo_precio }} hasta">
+      </div>
     </div>
     <div class="campo estrecho">
       <label for="hab">Alcobas</label>

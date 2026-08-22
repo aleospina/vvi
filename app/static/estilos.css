@@ -845,17 +845,31 @@ body.vitrina main{padding-bottom:64px}
 .portada-vitrina h1{margin-bottom:6px}
 .portada-vitrina .leyenda{margin-bottom:22px}
 
+/* Una sola fila, no una rejilla. Con `grid` el campo de texto se llevaba un
+   renglón entero para él y los otros ocho se repartían en dos más, así que el
+   buscador ocupaba tres líneas y empujaba los resultados fuera de la pantalla.
+   En flex cada campo pide su ancho y cede el resto; solo se parte en varias
+   líneas cuando de verdad no cabe, que es lo que pasa en un móvil. */
 .buscador{
-  display:grid; gap:14px; align-items:end;
-  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+  display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
   background:var(--panel); border:1px solid var(--linea);
-  border-radius:var(--radio); padding:20px; box-shadow:var(--sombra-2);
+  border-radius:var(--radio); padding:18px 20px; box-shadow:var(--sombra-2);
 }
-.buscador .campo{margin:0}
-.buscador .campo.ancho{grid-column:1 / -1}
-.buscador .campo.estrecho{max-width:100%}
+/* `min-width:0` es lo que permite encoger: sin él, el ancho intrínseco del
+   contenido impone un mínimo y la fila se rompe antes de tiempo. */
+.buscador .campo{margin:0; flex:1 1 128px; min-width:0}
+.buscador .campo.ancho{flex:2 1 200px}
+.buscador .campo.estrecho{flex:0 1 92px}
+.buscador .campo.rango-precio{flex:1.6 1 176px}
+.buscador .rango{display:flex; gap:6px}
+.buscador .rango input{min-width:0}   /* que los dos puedan encogerse a la par */
+.buscador .boton-buscar{flex:0 0 auto}
+.buscador label{
+  display:block; font-size:11.5px; margin-bottom:5px; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
 .buscador input, .buscador select{width:100%}
-.buscador .boton-buscar button{width:100%}
+.buscador .boton-buscar button{width:100%; padding-left:22px; padding-right:22px}
 
 /* ─────────────────────────── Resultados ─────────────────────────── */
 
