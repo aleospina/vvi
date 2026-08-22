@@ -908,15 +908,61 @@ body.vitrina .inmueble .pie{align-items:center}
 }
 
 .visor{
+  position:relative;
   margin:0; border-radius:var(--radio); overflow:hidden;
   border:1px solid var(--linea); background:var(--panel);
   box-shadow:var(--sombra-2); aspect-ratio:4 / 3;
 }
 .visor img{width:100%; height:100%; object-fit:cover; display:block}
+/* Arrastrar la foto no debe seleccionarla ni iniciar el arrastre nativo del
+   navegador, que se come el gesto de pasar a la siguiente. */
+.visor.con-navegacion img{cursor:grab; user-select:none; -webkit-user-drag:none}
+.visor.con-navegacion img:active{cursor:grabbing}
+
+/* Flechas y contador. Son lo único que delata que hay más de una foto: la tira
+   de miniaturas se desplaza en horizontal y casi ningún navegador le dibuja
+   barra, así que doce fotos parecían tres. */
+.visor-nav{
+  position:absolute; top:50%; transform:translateY(-50%);
+  width:42px; height:42px; padding:0; border:none; border-radius:50%;
+  display:grid; place-items:center; cursor:pointer;
+  font:400 26px/1 var(--texto); color:var(--tinta);
+  background:rgba(255,255,255,.86); box-shadow:var(--sombra-2);
+  opacity:0; transition:opacity .16s ease, background .16s ease;
+}
+.visor-nav.anterior{left:12px}
+.visor-nav.siguiente{right:12px}
+.visor-nav:hover{background:#fff}
+/* Aparecen al acercarse, y nunca se esconden de quien navega con teclado. */
+.visor:hover .visor-nav, .visor-nav:focus-visible{opacity:1}
+
+/* En móvil no van. Ahí el gesto de arrastrar ya pasa de foto, y dos botones
+   sobre una pantalla pequeña tapan justo lo que se ha venido a ver. Se ocultan
+   con `display` y no con `opacity` para que tampoco intercepten el toque: una
+   flecha invisible que se come el arrastre es peor que una visible.
+   El contador se queda: sin flechas, es lo único que dice cuántas hay. */
+@media (pointer:coarse), (max-width:640px){
+  .visor-nav{display:none}
+}
+
+.visor-contador{
+  position:absolute; right:12px; bottom:12px;
+  padding:4px 10px; border-radius:999px;
+  background:rgba(14,26,23,.72); color:#fff;
+  font:500 12px/1 var(--texto); font-variant-numeric:tabular-nums;
+}
 .visor.sin-foto{background:var(--acento-suave)}
 .visor.sin-foto img{object-fit:contain; padding:12%}
 
-.tira{display:flex; gap:9px; overflow-x:auto; padding-bottom:4px}
+/* La barra se deja a la vista y fina: es la segunda pista de que la tira sigue
+   más allá del borde. Escondida del todo, doce fotos parecían tres. */
+.tira{
+  display:flex; gap:9px; overflow-x:auto; padding-bottom:6px;
+  scrollbar-width:thin; scroll-behavior:smooth;
+}
+.tira::-webkit-scrollbar{height:6px}
+.tira::-webkit-scrollbar-thumb{background:var(--linea-fuerte); border-radius:999px}
+.tira::-webkit-scrollbar-track{background:transparent}
 .tira .mini{
   flex:0 0 88px; height:64px; padding:0; border-radius:var(--radio-xs);
   overflow:hidden; border:2px solid transparent; background:none;
