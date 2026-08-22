@@ -24,6 +24,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
+from app import estaticos
 from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import (
@@ -66,6 +67,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
+# Cuelga la huella del CSS de la URL, o el navegador sigue pintando la
+# hoja anterior después de un despliegue (ver `app.estaticos`).
+estaticos.registrar(plantillas)
 plantillas.env.filters["pesos"] = pesos
 # Todo lo que se guarda está en UTC; el operador tiene que leer su hora.
 plantillas.env.filters["fecha"] = fecha

@@ -20,6 +20,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app import estaticos
 from app.config import RAIZ, settings
 from app.db import get_db
 from app.security.sesion import quien_mira
@@ -30,6 +31,9 @@ from app.services.prospecting import ConsentimientoAusente
 log = logging.getLogger(__name__)
 router = APIRouter(tags=["captación"])
 plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
+# Cuelga la huella del CSS de la URL, o el navegador sigue pintando la
+# hoja anterior después de un despliegue (ver `app.estaticos`).
+estaticos.registrar(plantillas)
 
 
 # ─────────────────────────── Landing opt-in ───────────────────────────

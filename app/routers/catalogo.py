@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.channels.gateway import pesos
+from app import estaticos
 from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import ROTULO_PRECIO, TipoInmueble, TipoNegocio
@@ -38,6 +39,9 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inmuebles", tags=["catálogo público"])
 plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
+# Cuelga la huella del CSS de la URL, o el navegador sigue pintando la
+# hoja anterior después de un despliegue (ver `app.estaticos`).
+estaticos.registrar(plantillas)
 plantillas.env.filters["pesos"] = pesos
 # Las plantillas no arman URLs ni deducen municipios por su cuenta: usan las
 # mismas funciones que el resto del sistema, para que cambiar la forma de la
