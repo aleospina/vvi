@@ -25,6 +25,17 @@
       Puedes pedir la consulta o eliminación de tus datos en cualquier momento
       escribiéndonos. Política de tratamiento: <a href="{{ politica }}">verla aquí</a>.
     </p>
+
+    {# Sin esto la pantalla de gracias es un callejón sin salida: la página no
+       tiene cabecera ni menú. Y mientras esperas el contacto, lo que quieres
+       ver es la cartera. #}
+    <div class="salidas">
+      {% if puede_editar %}
+        <a class="boton" href="/dashboard">← Volver al panel</a>
+      {% elif catalogo_publico %}
+        <a class="boton" href="/inmuebles">Ver los inmuebles disponibles</a>
+      {% endif %}
+    </div>
   {% else %}
     <h1>Encuentra tu vivienda en {{ ciudades | join(' o ') }}</h1>
     <p class="leyenda">
@@ -65,6 +76,11 @@
       <p class="leyenda" style="margin-top:14px; text-align:center">
         Sin tu autorización no guardamos ningún dato. Te atenderá un asistente con
         inteligencia artificial, no una persona.
+        {# Quien todavía no quiere dejar sus datos tiene igual dónde mirar: es
+           eso o que cierre la pestaña. #}
+        {% if catalogo_publico and not sesion %}
+          <br><a href="/inmuebles">O mira primero los inmuebles disponibles</a>.
+        {% endif %}
       </p>
     </form>
   {% endif %}

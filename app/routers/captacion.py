@@ -35,22 +35,37 @@ plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
 # ─────────────────────────── Landing opt-in ───────────────────────────
 
 
+def _contexto_landing(request: Request, slug: str, campana, **extra) -> dict:
+    """Contexto de la landing del comprador.
+
+    Igual que en `/publicar`, la página no tiene cabecera ni menú: al enviar el
+    formulario el comprador quedaba en la pantalla de gracias sin ningún enlace.
+    Aquí la salida además convierte —acaba de decir qué busca, así que enseñarle
+    la cartera es el paso siguiente natural, no un consuelo.
+    """
+    usuario, es_operador = quien_mira(request.cookies)
+    return {
+        "request": request,
+        "slug": slug,
+        "campana": campana,
+        "sesion": usuario,
+        "puede_editar": es_operador,
+        "catalogo_publico": settings.catalogo_publico,
+        "empresa": settings.empresa_nombre,
+        "politica": settings.politica_privacidad_url,
+        "texto_consentimiento": texto_consentimiento(),
+        "ciudades": settings.ciudades_cobertura,
+        "enviado": False,
+        **extra,
+    }
+
+
 @router.get("/c/{slug}", response_class=HTMLResponse)
 def landing(slug: str, request: Request, db: Session = Depends(get_db)):
     """Página pública a la que apuntan los enlaces de campaña de cada red."""
     campana = prospecting.registrar_visita(db, slug)
     return plantillas.TemplateResponse(
-        request,
-        "landing.html",
-        {
-            "slug": slug,
-            "campana": campana,
-            "empresa": settings.empresa_nombre,
-            "politica": settings.politica_privacidad_url,
-            "texto_consentimiento": texto_consentimiento(),
-            "ciudades": settings.ciudades_cobertura,
-            "enviado": False,
-        },
+        request, "landing.html", _contexto_landing(request, slug, campana)
     )
 
 
@@ -67,15 +82,7 @@ def landing_envio(
     """Recibe el formulario. Sin la casilla marcada no se guarda nada."""
     campana = prospecting.campana_por_slug(db, slug)
     red = campana.red if campana else "web"
-    contexto = {
-        "slug": slug,
-        "campana": campana,
-        "empresa": settings.empresa_nombre,
-        "politica": settings.politica_privacidad_url,
-        "texto_consentimiento": texto_consentimiento(),
-        "ciudades": settings.ciudades_cobertura,
-        "enviado": False,
-    }
+    contexto = _contexto_landing(request, slug, campana)
 
     if autorizo.lower() not in ("on", "true", "1", "si", "sí"):
         contexto["error"] = (

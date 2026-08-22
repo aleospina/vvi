@@ -582,11 +582,19 @@ tbody tr:hover{background:#fbfaf7}
 /* ─── Filtros de la cartera ───
    Pastillas y no un <select>: el operador ve de un vistazo cuánto inventario
    tiene de cada tipo y municipio, que es media consulta ya respondida. */
-.filtros{display:flex; flex-direction:column; gap:10px; margin:18px 0 14px}
+/* Los grupos van uno seguido del otro, no apilados: cada uno ocupa lo que
+   necesita y solo salta de línea cuando de verdad no cabe. En columna, tres
+   grupos de tres pastillas empujaban el listado media pantalla hacia abajo. */
+.filtros{
+  display:flex; flex-wrap:wrap; align-items:center;
+  gap:10px 26px; margin:18px 0 14px;
+}
 .filtro{display:flex; flex-wrap:wrap; align-items:center; gap:6px}
 .filtro-titulo{
   font-size:11.5px; font-weight:600; letter-spacing:.04em; text-transform:uppercase;
-  color:var(--tinta-3); min-width:78px;
+  color:var(--tinta-3);
+  /* El ancho mínimo alineaba los rótulos cuando iban en columna; en fila solo
+     abriría un hueco delante de cada uno. */
 }
 .pastilla{
   display:inline-flex; align-items:center; gap:6px;

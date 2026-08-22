@@ -1,9 +1,9 @@
-"""Salidas de `/publicar`: nadie se queda encerrado tras publicar.
+"""Salidas de las páginas públicas: nadie se queda encerrado tras enviar.
 
-La página no extiende la plantilla pública, así que no tiene cabecera ni menú:
-lo único que había tras confirmar era el botón «atrás» del navegador, que
-reenvía el formulario. Estos tests fijan que siempre haya una salida y que
-apunte a donde corresponde según quién publicó.
+`/publicar` y `/c/{slug}` no extienden la plantilla pública, así que no tienen
+cabecera ni menú: lo único que había tras confirmar era el botón «atrás» del
+navegador, que reenvía el formulario. Estos tests fijan que siempre haya una
+salida y que apunte a donde corresponde según quién la usó.
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.db import SessionLocal, inicializar
-from app.models import Propiedad
+from app.models import Propiedad, Prospecto
 
 #: Un inmueble válido mínimo para que el POST llegue a la confirmación.
 FORMULARIO = {
@@ -42,6 +42,10 @@ def web(monkeypatch):
         db.query(Propiedad).filter(Propiedad.propietario == "Marta Dueña").delete(
             synchronize_session=False
         )
+        # La landing crea prospectos; se borran uno a uno para que sus mensajes
+        # y consentimientos caigan por la cascada de la relación.
+        for p in db.query(Prospecto).filter(Prospecto.campana == "ig-bio-pereira"):
+            db.delete(p)
         db.commit()
     finally:
         db.close()
@@ -77,6 +81,34 @@ class TestDueno:
         assert 'href="/inmuebles"' not in html
         # Y aun así queda algo que hacer.
         assert "Publicar otro inmueble" in html
+
+
+class TestLandingDeCampana:
+    """`/c/{slug}` tenía el mismo callejón sin salida, del lado del comprador."""
+
+    RUTA = "/c/ig-bio-pereira"
+    LEAD = {"nombre": "Ana Compradora", "telefono": "3005551122", "autorizo": "on"}
+
+    def _enviar(self, cli):
+        r = cli.post(self.RUTA, data=self.LEAD)
+        assert r.status_code == 200, r.text[:300]
+        assert "¡Listo!" in r.text, "no llegó a la confirmación"
+        return r.text
+
+    def test_tras_dejar_los_datos_puede_ver_la_cartera(self, web):
+        html = self._enviar(web)
+        assert 'href="/inmuebles"' in html
+
+    def test_el_formulario_ofrece_mirar_antes_de_dejar_datos(self, web):
+        """Quien no quiere dar su teléfono todavía tiene dónde ir."""
+        assert 'href="/inmuebles"' in web.get(self.RUTA).text
+
+    def test_al_comprador_no_se_le_ofrece_el_panel(self, web):
+        assert "/dashboard" not in self._enviar(web)
+
+    def test_sin_vitrina_no_se_enlaza_una_ruta_que_da_404(self, web, monkeypatch):
+        monkeypatch.setattr(settings, "catalogo_publico", False)
+        assert 'href="/inmuebles"' not in self._enviar(web)
 
 
 class TestOperador:
