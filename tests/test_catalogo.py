@@ -451,6 +451,47 @@ class TestPuenteConElPanel:
         assert COOKIE in panel.cookies
         assert "← Volver al panel" in panel.get("/inmuebles").text
 
+    RUTA_BORRAR = "/inmuebles/casa-venta-pinares-pereira/CAT-01/eliminar"
+
+    def test_el_operador_puede_borrar_desde_la_vitrina(self, panel, cartera):
+        """Y vuelve al listado: la ficha de la que viene acaba de dejar de existir."""
+        r = panel.post(self.RUTA_BORRAR)
+        assert r.status_code == 303
+        assert r.headers["location"] == "/inmuebles"
+
+        cartera.expire_all()
+        assert portfolio.obtener(cartera, "CAT-01") is None
+        assert "CAT-01" not in panel.get("/inmuebles").text
+
+    def test_la_ficha_ofrece_el_boton_al_operador(self, panel, cartera):
+        assert "/CAT-01/eliminar" in panel.get(
+            "/inmuebles/casa-venta-pinares-pereira/CAT-01"
+        ).text
+
+    def test_al_visitante_no_se_le_ofrece_borrar(self, web, cartera):
+        texto = web.get("/inmuebles/casa-venta-pinares-pereira/CAT-01").text
+        assert "eliminar" not in texto.lower()
+
+    def test_un_desconocido_no_puede_borrar_llamando_la_ruta(self, web, cartera):
+        """Ocultar el botón no protege nada. Y se responde 404, no 403: para un
+        desconocido esta ruta no existe, igual que no existe la ficha de un
+        inmueble sin mandato."""
+        assert web.post(self.RUTA_BORRAR).status_code == 404
+        assert portfolio.obtener(cartera, "CAT-01") is not None
+
+    def test_el_invitado_tampoco_borra(self, web, cartera, monkeypatch):
+        monkeypatch.setattr(settings, "invitado_user", "invitado")
+        monkeypatch.setattr(settings, "invitado_password", "invitado")
+        r = web.post("/dashboard/login", data={"usuario": "invitado", "clave": "invitado"})
+        assert r.status_code == 303
+        assert web.post(self.RUTA_BORRAR).status_code == 404
+        assert portfolio.obtener(cartera, "CAT-01") is not None
+
+    def test_no_se_puede_borrar_lo_que_no_esta_publicado(self, panel, cartera):
+        """Un inmueble sin mandato no existe en la vitrina, tampoco para borrarlo."""
+        assert panel.post("/inmuebles/x/CAT-07/eliminar").status_code == 404
+        assert portfolio.obtener(cartera, "CAT-07") is not None
+
     def test_con_sesion_la_ficha_publica_sigue_sin_soltar_PII(self, panel, cartera):
         """Tener sesión pinta enlaces, no abre datos: para eso está el dashboard."""
         texto = panel.get("/inmuebles/casa-venta-pinares-pereira/CAT-01").text

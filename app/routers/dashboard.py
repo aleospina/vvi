@@ -583,7 +583,12 @@ def editar_propiedad(
 
 @router.post("/propiedades/{propiedad_id}/eliminar")
 def eliminar_propiedad(propiedad_id: str, quien: Operador, db: Session = Depends(get_db)):
-    """Borra el inmueble con sus fotos y comentarios. Solo el operador."""
+    """Borra el inmueble con sus fotos y comentarios. Solo el operador.
+
+    La vitrina tiene la suya en `routers.catalogo`: allí el destino de vuelta no
+    es una decisión —la ficha de la que se viene deja de existir— y hacerlo con
+    un campo oculto abriría una redirección que nadie necesita.
+    """
     try:
         ingesta.eliminar_inmueble(db, _propiedad(db, propiedad_id), actor=quien)
     except ingesta.TieneVenta as exc:

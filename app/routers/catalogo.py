@@ -29,7 +29,7 @@ from app import estaticos
 from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import ROTULO_PRECIO, TipoInmueble, TipoNegocio
-from app.services import portfolio, prospecting
+from app.services import ingesta, portfolio, prospecting
 from app.security.sesion import quien_mira
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
@@ -321,6 +321,32 @@ def _ficha(request: Request, db: Session, slug: str, codigo: str, **extra):
 def ficha(slug: str, codigo: str, request: Request, db: Session = Depends(get_db)):
     """Ficha pública. No muestra propietario ni su teléfono: eso es PII (RF-17)."""
     return _ficha(request, db, slug, codigo)
+
+
+@router.post("/{slug}/{codigo}/eliminar", dependencies=[Vitrina])
+def eliminar(slug: str, codigo: str, request: Request, db: Session = Depends(get_db)):
+    """Borra el inmueble que el operador está viendo y lo devuelve al listado.
+
+    La vitrina tiene su propia ruta en vez de reutilizar la del panel con un
+    campo oculto que diga a dónde volver: ese campo es una redirección abierta
+    en potencia y, sobre todo, aquí el destino no es una decisión —la ficha de
+    la que se viene acaba de dejar de existir—.
+
+    A quien no sea operador se le responde 404 y no 403: para un desconocido
+    esta ruta no existe, igual que no existe la ficha de un inmueble sin
+    mandato. El borrado en sí lo hace el mismo servicio del panel, con sus
+    mismas guardas —se niega si hay una venta registrada— y su misma auditoría.
+    """
+    _, es_operador = quien_mira(request.cookies)
+    if not es_operador:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontrado")
+
+    propiedad = _buscar_o_404(db, codigo)
+    try:
+        ingesta.eliminar_inmueble(db, propiedad, actor=quien_mira(request.cookies)[0])
+    except ingesta.TieneVenta as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return RedirectResponse("/inmuebles", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @router.post("/{slug}/{codigo}", response_class=HTMLResponse, dependencies=[Vitrina])

@@ -85,6 +85,17 @@
   <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">
     {{ 'Editar ficha interna' if puede_editar else 'Ver ficha interna y comentarios' }}
   </a>
+  {% if puede_editar %}
+  {# Borrar desde aquí tiene sentido: es donde se ve el inmueble entero —fotos,
+     precio, código— y se puede comprobar que es el que sobra. La confirmación
+     no es un trámite: esto arrastra las fotos y los comentarios, y no se
+     deshace. Para retirarlo de la vitrina sin perder nada está «Inactivar»,
+     en la ficha interna. #}
+  <form method="post" action="{{ canonica }}/eliminar"
+        onsubmit="return confirm('Se elimina {{ p.id }} con sus fotos y comentarios. No se puede deshacer.\n\nPara solo quitarlo de la vitrina, usa Inactivar en la ficha interna.');">
+    <button class="peligro" type="submit">Eliminar</button>
+  </form>
+  {% endif %}
 </div>
 {% endif %}
 
