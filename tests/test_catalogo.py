@@ -285,6 +285,73 @@ class TestFiltros:
         assert [p.id for p in portfolio.buscar_publicas(cartera, orden="precio_desc")] == orden[::-1]
 
 
+class TestFacetas:
+    """Cada fila se cuenta con los OTROS filtros, nunca con el suyo.
+
+    Contar con el propio puesto dejaría todas las opciones inactivas en cero y
+    la fila parecería rota. No contar los otros promete inventario que al
+    pulsar no aparece, que es el fallo que tenían estas pestañas: con «En
+    venta» activo decían «Apartamentos 2» incluyendo uno de arriendo.
+    """
+
+    @pytest.fixture()
+    def mixta(self, cartera):
+        """A la cartera publicable se le añade un arriendo."""
+        cartera.add(Propiedad(
+            id="CAT-09", ciudad="Pereira", zona="Pinares", tipo="apartamento",
+            negocio="arriendo", precio=2_500_000, habitaciones=3, banos=2,
+            area_m2=95, estado=EstadoPropiedad.DISPONIBLE.value,
+            fuente=FuentePropiedad.MANUAL.value, descripcion="Arriendo de prueba.",
+        ))
+        cartera.commit()
+        return cartera
+
+    def test_el_tipo_se_cuenta_dentro_del_negocio_activo(self, mixta):
+        """Publicables: 1 casa venta, 2 aptos venta, 1 apto arriendo."""
+        assert portfolio.conteo_publico_por_tipo(mixta, negocio="venta") == {
+            "casa": 1, "apartamento": 2, "lote": 0
+        }
+        assert portfolio.conteo_publico_por_tipo(mixta, negocio="arriendo") == {
+            "casa": 0, "apartamento": 1, "lote": 0
+        }
+
+    def test_el_negocio_se_cuenta_dentro_del_tipo_activo(self, mixta):
+        conteo = portfolio.conteo_publico_por_negocio(mixta, tipo="casa")
+        assert conteo["venta"] == 1
+        # El arriendo sigue ofreciéndose, pero dice la verdad: ninguna casa.
+        assert conteo["arriendo"] == 0
+
+    def test_el_municipio_se_cuenta_dentro_del_negocio_activo(self, mixta):
+        de = {m: n for _, m, n in portfolio.conteo_publico_por_municipio(mixta, negocio="arriendo")}
+        assert de["Pereira"] == 1
+        assert de["Dosquebradas"] == 0
+
+    def test_ninguna_opcion_desaparece_al_quedarse_en_cero(self, mixta):
+        """Que diga «0» es una respuesta; que se esfume parece un filtro roto."""
+        municipios = {m for _, m, _ in portfolio.conteo_publico_por_municipio(mixta, negocio="arriendo")}
+        assert {"Pereira", "Dosquebradas", "Envigado"} <= municipios
+        assert set(portfolio.conteo_publico_por_tipo(mixta, negocio="arriendo")) == {
+            "casa", "apartamento", "lote"
+        }
+
+    def test_la_faceta_no_se_acota_a_si_misma(self, mixta):
+        """Con «venta» activo, la fila de negocio sigue mostrando el arriendo."""
+        conteo = portfolio.conteo_publico_por_negocio(mixta)
+        assert conteo["venta"] == 3 and conteo["arriendo"] == 1
+
+    def test_la_pestana_promete_lo_que_luego_entrega(self, web, mixta):
+        """La comprobación de punta a punta: contar y filtrar deben coincidir."""
+        import re
+
+        pagina = web.get("/inmuebles?negocio=venta").text
+        prometido = int(
+            re.search(r'href="[^"]*tipo=apartamento[^"]*"[^>]*>\s*Apartamentos\s*<em>(\d+)</em>',
+                      pagina).group(1)
+        )
+        entregado = len(_ids_visibles(web.get("/inmuebles?negocio=venta&tipo=apartamento").text))
+        assert prometido == entregado, "la pestaña promete más de lo que muestra"
+
+
 class TestPaginacion:
     def test_los_filtros_sobreviven_al_cambio_de_pagina(self, web, cartera, monkeypatch):
         """El enlace a la página 2 tiene que arrastrar tipo y orden.

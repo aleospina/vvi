@@ -162,19 +162,23 @@ def vitrina(
     if tipo not in {t.value for t in TipoInmueble}:
         tipo = ""
 
-    negocios = portfolio.conteo_publico_por_negocio(db, incluir_demo=demo)
+    # Qué valores son válidos lo decide la cartera completa, no lo ya filtrado:
+    # si el municipio dejara de existir al elegir «En arriendo», el visitante
+    # perdería la opción y el camino de vuelta.
+    negocios_existentes = portfolio.conteo_publico_por_negocio(db, incluir_demo=demo)
     negocio = negocio.strip().lower()
-    if negocio not in negocios:
+    if negocio not in negocios_existentes:
         negocio = ""
     # Con inventario de un solo negocio, la pestaña sobra: ofrecer «En arriendo»
     # sabiendo que da cero es prometer algo que no hay. Se fija el único que
     # existe para que el rango de precio tenga una escala definida.
-    if not negocio and len(negocios) == 1:
-        negocio = next(iter(negocios))
+    if not negocio and len(negocios_existentes) == 1:
+        negocio = next(iter(negocios_existentes))
 
-    municipios = portfolio.conteo_publico_por_municipio(db, incluir_demo=demo)
     municipio = municipio.strip()
-    if municipio and municipio not in {m for _, m, _ in municipios}:
+    if municipio and municipio not in {
+        m for _, m, _ in portfolio.conteo_publico_por_municipio(db, incluir_demo=demo)
+    }:
         municipio = ""
 
     if orden not in portfolio.ORDENES:
@@ -216,9 +220,18 @@ def vitrina(
             total=len(encontrados),
             pagina=pagina,
             paginas=paginas,
-            conteo_tipos=portfolio.conteo_publico_por_tipo(db, incluir_demo=demo),
-            conteo_negocios=negocios,
-            municipios=municipios,
+            # Cada faceta se cuenta con los OTROS filtros aplicados, nunca con
+            # el suyo: así «Apartamentos 25» no promete arriendos cuando lo que
+            # está activo es «En venta», y ninguna fila se queda toda en cero.
+            conteo_tipos=portfolio.conteo_publico_por_tipo(
+                db, negocio=negocio or None, municipio=municipio or None, incluir_demo=demo
+            ),
+            conteo_negocios=portfolio.conteo_publico_por_negocio(
+                db, tipo=tipo or None, municipio=municipio or None, incluir_demo=demo
+            ),
+            municipios=portfolio.conteo_publico_por_municipio(
+                db, negocio=negocio or None, tipo=tipo or None, incluir_demo=demo
+            ),
             etiquetas_tipo=ETIQUETAS_TIPO,
             etiquetas_negocio=ETIQUETAS_NEGOCIO,
             # Sin negocio elegido el rango de precio compara cánones con
@@ -242,7 +255,7 @@ def vitrina(
                 # El negocio autoseleccionado por ser el único no cuenta como
                 # filtro puesto: «Quitar filtros» no debe insinuar que esconde
                 # inventario que no existe.
-                or (negocio and len(negocios) > 1)
+                or (negocio and len(negocios_existentes) > 1)
             ),
         ),
     )

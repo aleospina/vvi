@@ -56,8 +56,10 @@
       <label for="negocio">Negocio</label>
       <select name="negocio" id="negocio">
         <option value="">Todos</option>
+        {# Las opciones en cero se quedan: son la respuesta «de eso no tengo
+           con este filtro», y quitarlas dejaría al visitante sin la opción. #}
         {% for clave, etiqueta in etiquetas_negocio.items() %}
-          {% if conteo_negocios.get(clave) %}
+          {% if clave in conteo_negocios %}
           <option value="{{ clave }}" {{ 'selected' if filtros.negocio == clave }}>
             {{ etiqueta }} ({{ conteo_negocios[clave] }})
           </option>
@@ -71,11 +73,9 @@
       <select name="tipo" id="tipo">
         <option value="">Todos</option>
         {% for clave, etiqueta in etiquetas_tipo.items() %}
-          {% if conteo_tipos.get(clave) %}
           <option value="{{ clave }}" {{ 'selected' if filtros.tipo == clave }}>
-            {{ etiqueta }} ({{ conteo_tipos[clave] }})
+            {{ etiqueta }} ({{ conteo_tipos.get(clave, 0) }})
           </option>
-          {% endif %}
         {% endfor %}
       </select>
     </div>
@@ -138,10 +138,10 @@
       Todos <em>{{ conteo_negocios.values() | sum }}</em>
     </a>
     {% for clave, etiqueta in etiquetas_negocio.items() %}
-      {% if conteo_negocios.get(clave) %}
+      {% if clave in conteo_negocios %}
       {# Cambiar de negocio borra el rango de precio: 400.000.000 arrastrado
          desde «venta» a «arriendo» deja el listado vacío sin explicar por qué. #}
-      <a class="pastilla {{ 'activa' if filtros.negocio == clave }}"
+      <a class="pastilla {{ 'activa' if filtros.negocio == clave }} {{ 'vacia' if not conteo_negocios[clave] }}"
          href="{{ url_vitrina({'negocio': clave, 'min': '', 'max': '', 'pagina': ''}) }}">
         {{ etiqueta }} <em>{{ conteo_negocios[clave] }}</em>
       </a>
@@ -155,13 +155,13 @@
     <a class="pastilla {{ 'activa' if not filtros.tipo }}" href="{{ url_vitrina({'tipo': '', 'pagina': ''}) }}">
       Todos <em>{{ conteo_tipos.values() | sum }}</em>
     </a>
+    {# Ninguna pestaña se esconde por estar en cero: que diga «Lotes 0» es una
+       respuesta; que desaparezca parece que el filtro se rompió. #}
     {% for clave, etiqueta in etiquetas_tipo.items() %}
-      {% if conteo_tipos.get(clave) %}
-      <a class="pastilla {{ 'activa' if filtros.tipo == clave }}"
+      <a class="pastilla {{ 'activa' if filtros.tipo == clave }} {{ 'vacia' if not conteo_tipos.get(clave) }}"
          href="{{ url_vitrina({'tipo': clave, 'pagina': ''}) }}">
-        {{ etiqueta }} <em>{{ conteo_tipos[clave] }}</em>
+        {{ etiqueta }} <em>{{ conteo_tipos.get(clave, 0) }}</em>
       </a>
-      {% endif %}
     {% endfor %}
   </div>
 

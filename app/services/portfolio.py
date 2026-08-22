@@ -422,42 +422,92 @@ def similares(
     return sorted(candidatos, key=afinidad)[:limite]
 
 
-def conteo_publico_por_negocio(db: Session, *, incluir_demo: bool = False) -> dict[str, int]:
-    """Cuántos publicables hay en venta, en arriendo y en permuta."""
-    conteo: dict[str, int] = {}
-    for p in publicables(db, incluir_demo=incluir_demo):
-        clave = p.negocio or NEGOCIO_POR_DEFECTO
-        conteo[clave] = conteo.get(clave, 0) + 1
-    return conteo
+# Las tres facetas siguen la misma regla, la que ya usa el panel del operador:
+# cada fila se cuenta con los **otros** filtros aplicados, nunca con el suyo.
+# Contar con el propio filtro puesto dejaría todas las opciones inactivas en
+# cero y la fila parecería rota; no contar los otros promete inventario que al
+# pulsar no aparece —«Apartamentos 25» que al abrirlo son 9 porque el resto son
+# arriendos—. Y una opción en cero se muestra apagada en vez de esconderse: que
+# diga «0» es una respuesta, que desaparezca parece que el filtro se rompió.
 
 
-def conteo_publico_por_tipo(db: Session, *, incluir_demo: bool = False) -> dict[str, int]:
-    """Facetas de tipo sobre la vitrina completa, no sobre lo ya filtrado.
+def _encaja(propiedad: Propiedad, *, negocio=None, tipo=None, municipio=None) -> bool:
+    """¿Cumple este inmueble los filtros indicados? Los omitidos no filtran."""
+    if negocio and (propiedad.negocio or NEGOCIO_POR_DEFECTO) != negocio:
+        return False
+    if tipo and propiedad.tipo != tipo:
+        return False
+    if municipio and plano(municipio_de(propiedad)) != plano(municipio):
+        return False
+    return True
 
-    Igual que en el dashboard: si contara solo lo filtrado, las pestañas
-    inactivas dirían cero y el filtro parecería no tener nada detrás.
+
+def conteo_publico_por_negocio(
+    db: Session,
+    *,
+    tipo: str | None = None,
+    municipio: str | None = None,
+    incluir_demo: bool = False,
+) -> dict[str, int]:
+    """Cuántos hay en venta, en arriendo y en permuta, según tipo y municipio.
+
+    A diferencia de las otras dos, aquí solo aparecen los negocios que la
+    cartera tiene: una pestaña «En arriendo» sin un solo arriendo en todo el
+    inventario no es información, es una promesa. De eso depende además que la
+    vitrina pueda fijar el negocio cuando solo existe uno.
     """
     conteo: dict[str, int] = {}
     for p in publicables(db, incluir_demo=incluir_demo):
-        conteo[p.tipo] = conteo.get(p.tipo, 0) + 1
+        clave = p.negocio or NEGOCIO_POR_DEFECTO
+        conteo.setdefault(clave, 0)
+        if _encaja(p, tipo=tipo, municipio=municipio):
+            conteo[clave] += 1
+    return conteo
+
+
+def conteo_publico_por_tipo(
+    db: Session,
+    *,
+    negocio: str | None = None,
+    municipio: str | None = None,
+    incluir_demo: bool = False,
+) -> dict[str, int]:
+    """Cuántos hay de cada tipo, acotado al negocio y municipio elegidos.
+
+    Siempre devuelve los tres: uno sin inventario muestra «0» en vez de perder
+    su pestaña.
+    """
+    conteo: dict[str, int] = {t.value: 0 for t in TipoInmueble}
+    for p in publicables(db, incluir_demo=incluir_demo):
+        if _encaja(p, negocio=negocio, municipio=municipio):
+            conteo[p.tipo] = conteo.get(p.tipo, 0) + 1
     return conteo
 
 
 def conteo_publico_por_municipio(
-    db: Session, *, incluir_demo: bool = False
+    db: Session,
+    *,
+    negocio: str | None = None,
+    tipo: str | None = None,
+    incluir_demo: bool = False,
 ) -> list[tuple[str, str, int]]:
-    """(plaza, municipio, cuántos) de lo publicable, con la cabecera de primera.
+    """(plaza, municipio, cuántos), con la cabecera de plaza de primera.
 
     Se agrupa por plaza y no por `ciudad`: desde que `ciudad` guarda el
     municipio, agrupar por ella pondría a cada municipio en su propio grupo y la
-    fila de pestañas perdería el orden por área metropolitana. Un municipio
-    fuera de las dos plazas se agrupa bajo sí mismo, que es lo único honesto
-    que se puede decir de él.
+    fila perdería el orden por área metropolitana. Un municipio fuera de las dos
+    plazas se agrupa bajo sí mismo, que es lo único honesto que puede decirse.
+
+    Qué municipios aparecen lo decide la cartera publicable completa; el negocio
+    y el tipo solo cambian el número. Si un municipio desapareciera al elegir
+    «En arriendo», el visitante perdería la opción y el camino de vuelta.
     """
     conteo: dict[tuple[str, str], int] = {}
     for p in publicables(db, incluir_demo=incluir_demo):
         clave = (plaza_de(p.ciudad) or p.ciudad, municipio_de(p))
-        conteo[clave] = conteo.get(clave, 0) + 1
+        conteo.setdefault(clave, 0)
+        if _encaja(p, negocio=negocio, tipo=tipo):
+            conteo[clave] += 1
     return sorted(
         ((ciudad, municipio, n) for (ciudad, municipio), n in conteo.items()),
         key=lambda f: (f[0], f[1] != f[0], f[1]),
