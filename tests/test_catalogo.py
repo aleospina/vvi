@@ -224,6 +224,29 @@ class TestFiltros:
         r = web.get("/inmuebles?min=400.000.000&max=700.000.000")
         assert _ids_visibles(r.text) == {"CAT-01", "CAT-03"}
 
+    def test_el_importe_vuelve_con_separadores_de_miles(self, web, cartera):
+        """«600000000» es ilegible y a ojo se confunde con 60 o 6.000 millones."""
+        r = web.get("/inmuebles?min=300000000&max=700000000")
+        assert 'value="300.000.000"' in r.text
+        assert 'value="700.000.000"' in r.text
+        assert 'value="300000000"' not in r.text
+
+    def test_lo_que_no_es_un_importe_no_reaparece_filtrando(self, web, cartera):
+        """Se devuelve lo interpretado, no lo tecleado: si no era número, nada."""
+        r = web.get("/inmuebles?min=abc")
+        assert r.status_code == 200
+        assert "abc" not in r.text
+        assert _ids_visibles(r.text) == PUBLICABLES
+
+    def test_da_igual_como_se_escriba_el_importe(self, web, cartera):
+        """Con puntos, con espacios o pelado: el filtro entiende lo mismo."""
+        esperado = _ids_visibles(web.get("/inmuebles?max=500000000").text)
+        for escrito in ("500.000.000", "500 000 000", "$500.000.000"):
+            r = web.get(f"/inmuebles?max={escrito}")
+            assert _ids_visibles(r.text) == esperado, escrito
+            # Y siempre se devuelve en la misma forma canónica.
+            assert 'value="500.000.000"' in r.text
+
     def test_rango_invertido_se_endereza(self, web, cartera):
         """Desde 700 hasta 400 es un lapsus, no una petición de cero resultados."""
         r = web.get("/inmuebles?min=700000000&max=400000000")

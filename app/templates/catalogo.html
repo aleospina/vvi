@@ -244,6 +244,35 @@
   {% endfor %}
 </div>
 
+<script>
+// Puntos de miles mientras se escribe: «600000000» es ilegible y a ojo se
+// confunde con 60 o 6.000 millones. El servidor ya acepta el campo con puntos
+// —`_entero` se queda solo con los dígitos—, así que esto es presentación:
+// sin JavaScript el filtro sigue funcionando igual, solo que sin separar.
+(function () {
+  function formatear(campo) {
+    // Se cuentan los dígitos que había antes del cursor y se recoloca tras el
+    // mismo número: si no, escribir en medio de la cifra lo lanza al final.
+    var hasta = campo.selectionStart === null ? campo.value.length : campo.selectionStart;
+    var digitosAntes = campo.value.slice(0, hasta).replace(/\D/g, '').length;
+
+    var digitos = campo.value.replace(/\D/g, '');
+    campo.value = digitos.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+
+    var pos = 0, vistos = 0;
+    while (pos < campo.value.length && vistos < digitosAntes) {
+      if (campo.value[pos] >= '0' && campo.value[pos] <= '9') vistos++;
+      pos++;
+    }
+    try { campo.setSelectionRange(pos, pos); } catch (e) { /* campo sin foco */ }
+  }
+
+  document.querySelectorAll('.rango input').forEach(function (campo) {
+    campo.addEventListener('input', function () { formatear(campo); });
+  });
+})();
+</script>
+
 {% if paginas > 1 %}
 <nav class="paginacion" aria-label="Páginas de resultados">
   {% if pagina > 1 %}

@@ -92,6 +92,16 @@ def _entero(texto: str) -> int | None:
     return int(digitos) if digitos else None
 
 
+def _miles(valor: int | None) -> str:
+    """600000000 → '600.000.000'. Vacío si no hay importe.
+
+    Es la convención colombiana, la misma que usa `pesos` para los precios de
+    las fichas. Aquí va sin el signo porque el rótulo del campo ya dice que son
+    pesos y un `$` dentro de la casilla estorba al escribir.
+    """
+    return f"{valor:,}".replace(",", ".") if valor else ""
+
+
 def _contexto(request: Request, **extra) -> dict:
     # La vitrina no autentica nada —es pública y así debe seguir—, pero sí
     # cambia lo que ofrece cuando quien mira ya tiene sesión: el camino de
@@ -220,7 +230,11 @@ def vitrina(
             ordenes=ETIQUETAS_ORDEN,
             filtros={
                 "tipo": tipo, "negocio": negocio, "municipio": municipio,
-                "min": precio_desde.strip(), "max": precio_hasta.strip(),
+                # Se devuelve el importe ya interpretado y con separadores, no
+                # lo que se tecleó: así el campo confirma qué entendió el
+                # servidor —«600000000» vuelve como «600.000.000»— y lo que no
+                # era un número no reaparece como si estuviera filtrando.
+                "min": _miles(precio_min), "max": _miles(precio_max),
                 "hab": hab, "banos": banos, "q": q.strip(), "orden": orden,
             },
             hay_filtro=bool(
