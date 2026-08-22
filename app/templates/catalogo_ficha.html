@@ -81,7 +81,7 @@
 {# Barra de operador. No aporta ningún dato que la ficha pública no muestre:
    es solo el puente hacia donde sí se puede editar y comentar. #}
 <div class="barra-interna">
-  <span>Estás viendo la ficha <strong>pública</strong> de {{ p.id }}.</span>
+  <span><strong>Solo tú ves esta franja.</strong> Estás en la ficha pública de {{ p.id }}.</span>
   <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">
     {{ 'Editar ficha interna' if puede_editar else 'Ver ficha interna y comentarios' }}
   </a>

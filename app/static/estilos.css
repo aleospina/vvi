@@ -1036,12 +1036,21 @@ body.vitrina .inmueble .pie{align-items:center}
 
 /* Puente vitrina → dashboard. Solo lo ve quien tiene sesión, y se distingue del
    contenido público a propósito: es andamiaje del operador, no de la oferta. */
+/* Franja clara con el borde punteado: tiene que leerse como andamiaje del
+   operador y no como parte de la oferta, pero sin plantar un bloque negro en
+   medio de una página de papel cálido. El punteado dice «esto no es contenido»
+   mucho mejor que el contraste bruto, y así los botones vuelven a verse sobre
+   el fondo para el que están diseñados. Es el mismo lenguaje que ya usa el
+   hilo de notas, unos centímetros más abajo. */
 .barra-interna{
-  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
-  background:var(--tinta); color:#fff;
-  padding:11px 16px; border-radius:var(--radio-s); margin:14px 0 4px;
-  font-size:13.5px;
+  display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:#fbfaf8; color:var(--tinta-2);
+  border:1px dashed var(--linea-fuerte);
+  border-left:3px solid var(--tinta);
+  padding:10px 14px; border-radius:var(--radio-s); margin:14px 0 4px;
+  font-size:13px;
 }
+.barra-interna strong{color:var(--tinta); font-weight:600}
 /* El texto empuja: así las acciones quedan juntas a la derecha por muchas que
    sean, en vez de separarse entre ellas. */
 .barra-interna > span:first-child{margin-right:auto}
