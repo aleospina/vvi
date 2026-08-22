@@ -30,7 +30,7 @@ from app.config import RAIZ, settings
 from app.db import get_db
 from app.models import ROTULO_PRECIO, TipoInmueble, TipoNegocio
 from app.services import ingesta, portfolio, prospecting
-from app.security.sesion import quien_mira
+from app.security.sesion import INVITADO, quien_mira, rol_de
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
 from app.tiempo import fecha
@@ -321,6 +321,41 @@ def _ficha(request: Request, db: Session, slug: str, codigo: str, **extra):
 def ficha(slug: str, codigo: str, request: Request, db: Session = Depends(get_db)):
     """Ficha pública. No muestra propietario ni su teléfono: eso es PII (RF-17)."""
     return _ficha(request, db, slug, codigo)
+
+
+@router.post("/{slug}/{codigo}/comentarios", dependencies=[Vitrina])
+def comentar(
+    slug: str,
+    codigo: str,
+    request: Request,
+    texto: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    """Comentario en el hilo interno, escrito desde la ficha pública.
+
+    Es la única escritura que conserva el invitado desde que su sitio es la
+    vitrina. El hilo es el mismo que el de la ficha del panel: lo que escribe
+    aquí lo ve el operador allí, y al revés.
+
+    Sin sesión, 404: el hilo no existe para un desconocido —tampoco se le
+    muestra—, y decirle que existe pero no puede escribir no aporta nada.
+    """
+    usuario, _ = quien_mira(request.cookies)
+    if usuario is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No encontrado")
+
+    propiedad = _buscar_o_404(db, codigo)
+    try:
+        portfolio.comentar(
+            db, propiedad,
+            autor=usuario, rol=rol_de(usuario) or INVITADO, texto=texto,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return RedirectResponse(
+        f"{portfolio.ruta_publica(propiedad)}#comentarios",
+        status_code=status.HTTP_303_SEE_OTHER,
+    )
 
 
 @router.post("/{slug}/{codigo}/eliminar", dependencies=[Vitrina])

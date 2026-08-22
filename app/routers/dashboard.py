@@ -474,28 +474,22 @@ def comentar_propiedad(
     request: Request,
     quien: ConSesion,
     texto: str = Form(...),
-    volver: str = Form(""),
     db: Session = Depends(get_db),
 ):
-    """Añade un comentario al hilo. Es lo único que el invitado puede escribir."""
-    propiedad = _propiedad(db, propiedad_id)
-    contenido = texto.strip()
-    if not contenido:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "El comentario está vacío.")
+    """Añade un comentario al hilo desde la ficha interna.
 
-    propiedad.comentarios.append(
-        ComentarioPropiedad(autor=quien, rol=rol_de(quien) or INVITADO, texto=contenido[:2000])
-    )
-    db.flush()
-    auditar(
-        db, actor=quien, accion="comentario_agregado", entidad="propiedad",
-        entidad_id=propiedad_id, detalle=contenido[:120],
-    )
-    # El hilo vive en dos sitios —la ficha interna y la pública— y hay que
-    # devolver a la persona a la que estaba mirando. `volver` se acota a rutas
-    # propias: aceptar cualquier destino sería una redirección abierta.
-    if volver.startswith("/inmuebles/"):
-        return RedirectResponse(f"{volver}#comentarios", status_code=303)
+    La ficha de la vitrina tiene su propia ruta en `routers.catalogo`, que
+    devuelve allí. Se intentó primero con un campo oculto que dijera a dónde
+    volver y no funcionaba por HTTP real, aunque los tests con TestClient
+    pasaran: mejor dos rutas explícitas que un destino que viaja escondido.
+    """
+    try:
+        portfolio.comentar(
+            db, _propiedad(db, propiedad_id),
+            autor=quien, rol=rol_de(quien) or INVITADO, texto=texto,
+        )
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return RedirectResponse(f"/dashboard/propiedades/{propiedad_id}#comentarios", status_code=303)
 
 

@@ -236,12 +236,26 @@ class TestComentarios:
     def test_el_hilo_se_ve_en_la_ficha_publica(self, invitado, propiedad_id, ficha_publica):
         """El invitado ya no entra al panel: su hilo vive en la vitrina."""
         r = invitado.post(
-            f"/dashboard/propiedades/{propiedad_id}/comentarios",
-            data={"texto": "La foto 2 parece de otro inmueble", "volver": ficha_publica},
+            f"{ficha_publica}/comentarios",
+            data={"texto": "La foto 2 parece de otro inmueble"},
         )
         assert r.status_code == 303
         assert r.headers["location"] == f"{ficha_publica}#comentarios"
         assert "La foto 2 parece de otro inmueble" in invitado.get(ficha_publica).text
+
+    def test_es_el_mismo_hilo_en_las_dos_fichas(self, invitado, admin, propiedad_id, ficha_publica):
+        """Lo que el invitado escribe en la vitrina lo ve el operador en el panel."""
+        invitado.post(f"{ficha_publica}/comentarios", data={"texto": "¿Tiene parqueadero?"})
+        interna = admin.get(f"/dashboard/propiedades/{propiedad_id}").text
+        assert "¿Tiene parqueadero?" in interna
+
+    def test_sin_sesion_no_se_puede_comentar_en_la_vitrina(self, ficha_publica):
+        """404 y no 403: el hilo no existe para un desconocido, ni se le muestra."""
+        from app.main import app
+
+        with TestClient(app, follow_redirects=False) as anonimo:
+            r = anonimo.post(f"{ficha_publica}/comentarios", data={"texto": "hola"})
+            assert r.status_code == 404
 
     def test_el_publico_no_ve_las_notas_del_equipo(self, propiedad_id, ficha_publica, invitado):
         """Son notas internas: un comprador no debe leerlas."""
@@ -256,14 +270,19 @@ class TestComentarios:
             assert "Ojo, el dueño negocia hasta 380" not in html
             assert "Notas del equipo" not in html
 
-    def test_volver_no_admite_destinos_ajenos(self, invitado, propiedad_id):
-        """`volver` es una redirección: solo puede apuntar a rutas propias."""
-        r = invitado.post(
-            f"/dashboard/propiedades/{propiedad_id}/comentarios",
-            data={"texto": "prueba", "volver": "https://evil.example/phish"},
+    def test_cada_ficha_devuelve_a_la_suya(self, invitado, propiedad_id, ficha_publica):
+        """Dos rutas explícitas en vez de un destino que viaje escondido.
+
+        El campo oculto que lo indicaba no llegaba por HTTP real aunque los
+        tests con TestClient pasaran, así que el destino lo fija la ruta.
+        """
+        desde_panel = invitado.post(
+            f"/dashboard/propiedades/{propiedad_id}/comentarios", data={"texto": "desde el panel"}
         )
-        assert r.status_code == 303
-        assert r.headers["location"].startswith("/dashboard/propiedades/")
+        assert desde_panel.headers["location"] == f"/dashboard/propiedades/{propiedad_id}#comentarios"
+
+        desde_vitrina = invitado.post(f"{ficha_publica}/comentarios", data={"texto": "desde la vitrina"})
+        assert desde_vitrina.headers["location"] == f"{ficha_publica}#comentarios"
 
     def test_borrar_el_inmueble_arrastra_sus_comentarios(self, db):
         from app.services import ingesta as ing

@@ -289,10 +289,7 @@
   <p class="leyenda">Todavía no hay comentarios sobre este inmueble.</p>
   {% endif %}
 
-  <form method="post" action="/dashboard/propiedades/{{ p.id }}/comentarios"
-        style="margin-top:14px">
-    {# Devuelve a esta misma ficha; el servidor solo acepta rutas de /inmuebles/. #}
-    <input type="hidden" name="volver" value="{{ canonica }}">
+  <form method="post" action="{{ canonica }}/comentarios" style="margin-top:14px">
     <div class="campo">
       <label for="texto">Añadir un comentario</label>
       <textarea name="texto" id="texto" rows="2" required maxlength="2000"

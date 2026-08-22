@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.models import (
     FUENTES_SIN_MANDATO,
+    ComentarioPropiedad,
     NEGOCIO_POR_DEFECTO,
     EstadoPropiedad,
     FuentePropiedad,
@@ -573,3 +574,28 @@ def fuera_de_vitrina(db: Session) -> list[Propiedad]:
             .order_by(Propiedad.actualizada_en.desc())
         )
     )
+
+
+def comentar(
+    db: Session, propiedad: Propiedad, *, autor: str, rol: str, texto: str
+) -> ComentarioPropiedad:
+    """Añade un comentario al hilo interno del inmueble.
+
+    Vive aquí y no en un router porque lo usan dos —la ficha del panel y la de
+    la vitrina—, y el hilo es el mismo: lo que escribe el invitado desde el
+    catálogo tiene que verlo el operador en su ficha, y al revés.
+
+    El rol se guarda tal como está al escribir: un usuario puede cambiar de rol
+    después, y el hilo debe leerse como ocurrió.
+    """
+    contenido = (texto or "").strip()
+    if not contenido:
+        raise ValueError("El comentario está vacío.")
+    comentario = ComentarioPropiedad(autor=autor, rol=rol, texto=contenido[:2000])
+    propiedad.comentarios.append(comentario)
+    db.flush()
+    auditar(
+        db, actor=autor, accion="comentario_agregado", entidad="propiedad",
+        entidad_id=propiedad.id, detalle=contenido[:120],
+    )
+    return comentario
