@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models import Emparejamiento, EstadoProspecto, Propiedad, Prospecto, Venta
 from app.services.compliance import auditar
-from app.services.leads import cambiar_estado
+from app.services.leads import TransicionInvalida, cambiar_estado
 
 
 class VentaInvalida(ValueError):
@@ -70,10 +70,18 @@ def confirmar_venta(
     db.add(venta)
 
     propiedad.estado = "vendida"
-    cambiar_estado(
-        db, prospecto, EstadoProspecto.VENDIDO, actor=operador,
-        motivo=f"venta {venta.codigo}",
-    )
+    try:
+        cambiar_estado(
+            db, prospecto, EstadoProspecto.VENDIDO, actor=operador,
+            motivo=f"venta {venta.codigo}",
+        )
+    except TransicionInvalida as exc:
+        # Una venta que la máquina de estados rechaza es una venta inválida, no
+        # un fallo del servidor. Antes salía por arriba sin que nadie la
+        # atrapara y el operador veía un «Internal server error» al confirmar,
+        # sin más pista de qué había pasado. Traducirla aquí arregla las dos
+        # puertas —el panel y la API— en vez de una.
+        raise VentaInvalida(str(exc)) from exc
     db.flush()
 
     auditar(

@@ -52,10 +52,18 @@ class EstadoProspecto(str, enum.Enum):
 
 
 #: Transiciones permitidas. Las de cierre las dispara SIEMPRE un humano (ADR-05).
+#:
+#: `vendido` se admite desde **toda** etapa no terminal, incluidas `nuevo` y
+#: `calificado`. Si un asesor cerró sin pasar por el flujo, reportarlo debe ser
+#: trivial: poner fricción aquí incentiva justo lo que queremos evitar, que son
+#: las ventas no reportadas. Y el caso no es raro sino el corriente — quien
+#: pregunta por lotes y no suelta presupuesto se queda en `nuevo` para siempre,
+#: aunque ya haya visto la ficha del inmueble que acabó comprando.
 TRANSICIONES: dict[EstadoProspecto, set[EstadoProspecto]] = {
     EstadoProspecto.NUEVO: {
         EstadoProspecto.CALIFICADO,
         EstadoProspecto.FUERA_DE_ALCANCE,
+        EstadoProspecto.VENDIDO,
         EstadoProspecto.PERDIDO,
     },
     EstadoProspecto.CALIFICADO: {
@@ -64,11 +72,9 @@ TRANSICIONES: dict[EstadoProspecto, set[EstadoProspecto]] = {
         # Un prospecto calificado puede pedir visita sin haber visto matches.
         EstadoProspecto.VISITA,
         EstadoProspecto.FUERA_DE_ALCANCE,
+        EstadoProspecto.VENDIDO,
         EstadoProspecto.PERDIDO,
     },
-    # `vendido` se admite desde cualquier etapa con negocio abierto: si un asesor
-    # cerró sin pasar por el flujo, reportarlo debe ser trivial. Poner fricción
-    # aquí incentivaría justo lo que queremos evitar (ventas no reportadas).
     EstadoProspecto.EMPAREJADO: {
         EstadoProspecto.CONTACTADO,
         EstadoProspecto.VISITA,
@@ -89,7 +95,13 @@ TRANSICIONES: dict[EstadoProspecto, set[EstadoProspecto]] = {
     EstadoProspecto.OFERTA: {EstadoProspecto.VENDIDO, EstadoProspecto.PERDIDO},
     EstadoProspecto.VENDIDO: set(),
     EstadoProspecto.PERDIDO: set(),
-    EstadoProspecto.FUERA_DE_ALCANCE: {EstadoProspecto.CALIFICADO, EstadoProspecto.PERDIDO},
+    EstadoProspecto.FUERA_DE_ALCANCE: {
+        EstadoProspecto.CALIFICADO,
+        # Fuera de cobertura no quiere decir que no se le vendiera nada: si
+        # ocurrió, la comisión existe y tiene que poder registrarse.
+        EstadoProspecto.VENDIDO,
+        EstadoProspecto.PERDIDO,
+    },
 }
 
 #: Estados en los que el negocio ya está "en la calle" y por tanto exigen desenlace

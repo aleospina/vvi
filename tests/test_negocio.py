@@ -365,8 +365,13 @@ class TestMaquinaEstados:
         assert prospecto_consentido.estado == "calificado"
 
     def test_transicion_invalida_se_rechaza(self, db, prospecto_consentido):
+        """`nuevo` no salta a `oferta`: no ha visto cartera ni ha hablado con nadie.
+
+        `vendido` sí se admite desde aquí, y a propósito: reportar una venta no
+        puede depender de por dónde vaya la ficha.
+        """
         with pytest.raises(leads.TransicionInvalida):
-            leads.cambiar_estado(db, prospecto_consentido, EstadoProspecto.VENDIDO)
+            leads.cambiar_estado(db, prospecto_consentido, EstadoProspecto.OFERTA)
 
     def test_no_se_sale_de_un_estado_terminal(self, db, prospecto_consentido):
         for estado in (
@@ -399,6 +404,52 @@ class TestComision:
         for estado in (EstadoProspecto.CALIFICADO, EstadoProspecto.EMPAREJADO, EstadoProspecto.VISITA):
             leads.cambiar_estado(db, prospecto, estado)
         return db.get(Propiedad, "PROP-PER-001")
+
+    @pytest.mark.parametrize(
+        "estado", ["nuevo", "calificado", "emparejado", "contactado", "visita", "oferta", "fuera_de_alcance"]
+    )
+    def test_se_puede_reportar_la_venta_desde_cualquier_etapa_abierta(
+        self, db, prospecto_consentido, estado
+    ):
+        """Regresión: confirmar la venta de un lead en `nuevo` devolvía un 500.
+
+        El caso no es raro sino el corriente. Quien pregunta por lotes y no
+        suelta presupuesto se queda en `nuevo` para siempre, aunque ya haya
+        visto la ficha del inmueble que acabó comprando; el panel le ofrece el
+        formulario porque hay propiedad atribuible, y al confirmar la máquina de
+        estados se negaba con una excepción que nadie atrapaba.
+
+        Poner fricción a reportar una venta incentiva justo lo que el sistema
+        existe para evitar: las que no se reportan.
+        """
+        matching_engine.emparejar(
+            db, prospecto_consentido,
+            {"ciudad": "Pereira", "tipo": "casa", "presupuesto_max": 430_000_000},
+        )
+        prospecto_consentido.estado = estado
+        db.flush()
+
+        venta = commission.confirmar_venta(
+            db, prospecto=prospecto_consentido,
+            propiedad=db.get(Propiedad, "PROP-PER-001"),
+            precio_venta=290_000_001, operador="op_marta",
+        )
+        db.commit()
+
+        assert venta.comision_valor == 8_700_000
+        assert prospecto_consentido.estado == "vendido"
+
+    def test_desde_un_terminal_la_venta_se_rechaza_con_motivo(self, db, prospecto_consentido):
+        """No con un 500: el operador tiene que poder leer por qué no se pudo."""
+        propiedad = self._preparar(db, prospecto_consentido)
+        prospecto_consentido.estado = "perdido"
+        db.flush()
+
+        with pytest.raises(commission.VentaInvalida, match="perdido"):
+            commission.confirmar_venta(
+                db, prospecto=prospecto_consentido, propiedad=propiedad,
+                precio_venta=420_000_000, operador="op_marta",
+            )
 
     def test_confirmar_venta_calcula_y_atribuye(self, db, prospecto_consentido):
         """CU-3: el humano confirma, el sistema calcula y atribuye (RF-14/15)."""
