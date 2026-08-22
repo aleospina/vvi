@@ -531,7 +531,9 @@ _NUCLEO_SALUDO = frozenset(
 #: `normalizar` ya quitó tildes y eñes, así que aquí todo va sin ellas.
 _PALABRAS_SALUDO = _NUCLEO_SALUDO | frozenset(
     "dias dia tardes tarde noches noche que mas como estas esta estan va "
-    "todo bien senor senora senorita amigo amiga".split()
+    "todo bien senor senora senorita amigo amiga "
+    # Quien vuelve tras despedirse saluda así: "hola de nuevo", "hola otra vez".
+    "de nuevo nuevamente otra vez volvi regrese".split()
 )
 
 #: Vocabulario de una despedida o un agradecimiento de cierre. Mismo criterio:

@@ -81,9 +81,6 @@ COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
         ("negocio", "VARCHAR(12)"),
         ("foco", "VARCHAR(160)"),
         ("canal_id", "VARCHAR(400)"),
-        # Nula en toda la base anterior: nadie se había despedido todavía, así
-        # que ninguna conversación estaba cerrada.
-        ("conversacion_cerrada_ts", "DATETIME"),
     ],
     "solicitudes": [
         ("protegido_hasta", "DATETIME"),

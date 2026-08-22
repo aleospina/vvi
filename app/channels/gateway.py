@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
-from app.models import Canal, Direccion, EstadoProspecto, Prospecto, ahora
+from app.models import Canal, Direccion, EstadoProspecto, Prospecto
 from app.services import leads, matching_engine, notificaciones, seguimiento
 from app.services.compliance import (
     aviso_ia,
@@ -69,9 +69,6 @@ class Respuesta:
     handoff: bool = False
     #: El comprador declaró que el negocio ya se cerró (PRD §10).
     cierre_declarado: bool = False
-    #: El titular se despidió: este turno cierra la conversación y el siguiente
-    #: mensaje suyo arranca una nueva, con su propia autorización.
-    conversacion_cerrada: bool = False
     prospecto: Prospecto | None = None
 
 
@@ -128,12 +125,10 @@ def alta_con_consentimiento(
         prospecto.telefono = prospecto.telefono or entrante.telefono
         prospecto.usuario_canal = prospecto.usuario_canal or entrante.usuario_canal
 
-    # Autorizar es, por definición, abrir conversación: si venía de una
-    # despedida, esta es la nueva y el recorte de la anterior no la gobierna.
-    # El perfil de búsqueda sí se conserva —ciudad, tipo, presupuesto—: hacerle
-    # repetir en cada visita lo que ya nos contó no es empezar de cero, es
-    # tratarlo como un desconocido.
-    prospecto.conversacion_cerrada_ts = None
+    # Autorizar es, por definición, abrir conversación: el recorte a un inmueble
+    # de la anterior no gobierna esta. El perfil de búsqueda sí se conserva
+    # —ciudad, tipo, presupuesto—: hacerle repetir lo que ya nos contó no es
+    # empezar de cero, es tratarlo como un desconocido.
     prospecto.foco = None
 
     registrar_consentimiento(db, prospecto, canal=canal, evidencia=evidencia)
@@ -148,32 +143,19 @@ def rechazo_consentimiento() -> str:
 
 
 def conversacion_cerrada(prospecto: Prospecto) -> bool:
-    """¿Esta conversación terminó y aún no ha empezado la siguiente?
+    """¿Esta ficha ya está cerrada y lo que venga pertenece a otra?
 
-    Dos formas de terminar. El titular se despide, o el negocio se cierra: un
-    lead que el operador marcó como vendido no tiene conversación que continuar,
-    y seguir colgándole mensajes engorda una ficha que ya está cerrada. Que el
-    estado baste, sin bandera que poner aparte, evita el fallo de olvidarse de
+    Solo la cierra la venta. Despedirse no: un "gracias" y volver diez minutos
+    después es la misma conversación, y partirla en dos le pediría al comprador
+    una autorización nueva para seguir donde estaba, mientras el operador vería
+    dos fichas del mismo señor. Un lead vendido sí está cerrado —su negocio
+    terminó y tiene comisión atribuida—, así que lo que se busque después es
+    otra ficha.
+
+    Derivarlo del estado, sin bandera aparte, evita el fallo de olvidarse de
     ponerla en alguna de las rutas que confirman la venta.
     """
-    return (
-        prospecto.conversacion_cerrada_ts is not None
-        or prospecto.estado_enum == EstadoProspecto.VENDIDO
-    )
-
-
-def cerrar_conversacion(db: Session, prospecto: Prospecto) -> None:
-    """Marca el cierre pedido por el titular ("gracias", "hasta luego").
-
-    No borra nada ni revoca la autorización archivada: el titular se despidió,
-    no ejerció su derecho de supresión —eso es /borrar—. Lo único que cambia es
-    que la próxima vez que escriba se le vuelve a pedir permiso, porque será
-    otra conversación.
-    """
-    prospecto.conversacion_cerrada_ts = ahora()
-    # El recorte a un inmueble concreto pertenece a la conversación que termina.
-    prospecto.foco = None
-    db.flush()
+    return prospecto.estado_enum == EstadoProspecto.VENDIDO
 
 
 def _busqueda_guardada(perfil: dict) -> str:
@@ -193,8 +175,9 @@ def _texto_saludo(perfil: dict) -> str:
 def pregunta_de_calificacion(prospecto: Prospecto) -> str:
     """Lo que se pregunta justo después de que el titular autoriza.
 
-    A quien vuelve tras despedirse no se le pregunta desde cero: la
-    autorización es nueva, su búsqueda no.
+    A un titular conocido que vuelve a autorizar no se le pregunta desde cero:
+    la autorización es nueva, su búsqueda no. El lead que nace tras una venta sí
+    arranca en blanco, porque de él todavía no sabemos nada.
     """
     busqueda = _busqueda_guardada(leads.perfil(prospecto))
     if busqueda:
@@ -497,10 +480,13 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
         return _turno_fijo(db, prospecto, _texto_saludo(leads.perfil(prospecto)))
 
     if es_despedida(texto):
-        cerrar_conversacion(db, prospecto)
-        return _turno_fijo(
-            db, prospecto, PLANTILLAS["despedida"], conversacion_cerrada=True
-        )
+        # El recorte a un inmueble concreto —"solo la ferretería de La
+        # Reforma"— muere con la despedida: quien vuelva mañana no debería
+        # encontrarse la cartera acotada por algo que ya no recuerda haber
+        # pedido. Lo demás queda como está, en la misma ficha.
+        prospecto.foco = None
+        db.flush()
+        return _turno_fijo(db, prospecto, PLANTILLAS["despedida"])
 
     declara_cierre = _leer_declaracion(db, prospecto, texto)
 

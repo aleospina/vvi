@@ -3,12 +3,13 @@
 Tres reglas que se prueban aquí:
 
   1. Un saludo a secas se contesta saludando, no con un formulario.
-  2. Una despedida o un "gracias" final cierran la conversación y se anuncia.
-  3. Volver a escribir después de esa despedida es una conversación nueva, y
-     empieza por donde empiezan todas: pidiendo la autorización de datos.
+  2. Una despedida o un "gracias" final se contestan despidiéndose, y ahí
+     termina el turno: no se le devuelve el catálogo a quien dijo adiós.
+  3. Despedirse NO parte la ficha en dos. La única conversación que se cierra
+     de verdad es la del lead vendido, y lo que venga después es otro lead.
 
-La tercera es la que de verdad importa: es una regla de cumplimiento, no de
-cortesía, y por eso el cierre se guarda en la base y no en memoria.
+La tercera es la que de verdad importa, y es del operador: una ficha con la
+venta registrada no puede seguir engordando con la búsqueda siguiente.
 """
 
 from __future__ import annotations
@@ -43,6 +44,9 @@ class TestReconocerSaludo:
             "Hola 👋",
             "Hola, buenos días",
             "quiubo",
+            # Quien vuelve tras despedirse saluda así.
+            "Hola de nuevo",
+            "hola otra vez",
         ],
     )
     def test_saluda(self, texto):
@@ -142,18 +146,32 @@ class TestSaludoEnElTurno:
 
 
 class TestDespedidaEnElTurno:
-    def test_el_bot_anuncia_que_cierra(self, db, prospecto_consentido):
+    def test_el_bot_se_despide(self, db, prospecto_consentido):
         r = gateway.procesar(db, prospecto_consentido, "Muchas gracias, hasta luego")
         assert r.textos == [PLANTILLAS["despedida"]]
-        assert r.conversacion_cerrada
+        assert not r.matches, "a quien dijo adiós no se le devuelve el catálogo"
 
-    def test_el_cierre_queda_guardado(self, db, prospecto_consentido):
-        gateway.procesar(db, prospecto_consentido, "Chao")
-        assert gateway.conversacion_cerrada(prospecto_consentido)
-        assert prospecto_consentido.conversacion_cerrada_ts is not None
+    def test_no_promete_una_autorizacion_nueva(self, db, prospecto_consentido):
+        """La ficha sigue siendo la misma, así que la despedida no puede decir
+        que al volver se le pedirá permiso otra vez: no ocurre."""
+        r = gateway.procesar(db, prospecto_consentido, "Chao")
+        assert "autoriza" not in r.textos[0].lower()
+
+    def test_despedirse_no_parte_la_ficha(self, db, prospecto_consentido):
+        """Un "gracias" y volver al rato es la misma conversación y el mismo lead."""
+        gateway.procesar(db, prospecto_consentido, "gracias")
+        assert not gateway.conversacion_cerrada(prospecto_consentido)
+
+        r = gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira")
+        assert not r.pide_consentimiento
+        assert r.matches, "retoma donde lo dejó, sin volver a pedir permiso"
 
     def test_despedirse_suelta_el_foco(self, db, prospecto_consentido):
-        """El recorte a un inmueble pertenece a la conversación que termina."""
+        """El recorte a un inmueble sí muere con la despedida.
+
+        Quien vuelva mañana no debería encontrarse la cartera acotada por algo
+        que ya no recuerda haber pedido.
+        """
         prospecto_consentido.foco = "ferreteria la reforma"
         db.flush()
         gateway.procesar(db, prospecto_consentido, "gracias")
@@ -165,11 +183,10 @@ class TestDespedidaEnElTurno:
         assert prospecto_consentido.consentimiento
         assert prospecto_consentido.nombre
 
-    def test_no_cierra_con_un_gracias_que_trae_pregunta(self, db, prospecto_consentido):
+    def test_un_gracias_con_pregunta_se_contesta(self, db, prospecto_consentido):
         gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira")
         r = gateway.procesar(db, prospecto_consentido, "Gracias, ¿y cuánto vale?")
-        assert not r.conversacion_cerrada
-        assert not gateway.conversacion_cerrada(prospecto_consentido)
+        assert PLANTILLAS["despedida"] not in r.textos
 
     def test_declarar_que_ya_compro_no_es_despedirse(self, db, prospecto_consentido):
         """'Ya compramos, gracias' habla del negocio, y eso lo lee el seguimiento.
@@ -178,15 +195,7 @@ class TestDespedidaEnElTurno:
         destapa una venta no reportada— se perdería por venir con un gracias.
         """
         r = gateway.procesar(db, prospecto_consentido, "ya compramos, gracias")
-        assert not r.conversacion_cerrada
         assert PLANTILLAS["despedida"] not in r.textos
-
-    def test_con_la_conversacion_cerrada_no_se_atiende(self, db, prospecto_consentido):
-        """Backstop para quien entre por la API sin pasar por el canal."""
-        gateway.procesar(db, prospecto_consentido, "gracias")
-        r = gateway.procesar(db, prospecto_consentido, "Busco casa en Pereira")
-        assert r.pide_consentimiento
-        assert not r.matches
 
 
 # ─────────────────── El ciclo completo, canal incluido ───────────────────
@@ -217,76 +226,39 @@ def _autorizar(cid: str) -> None:
 
 
 class TestCicloDeConversacion:
-    def test_al_despedirse_se_cierra_y_se_avisa(self, cid):
+    def test_al_despedirse_el_bot_se_despide(self, cid):
         _autorizar(cid)
         textos = conversacion.turno(CANAL, cid, "Muchas gracias, hasta luego")
         assert textos == [PLANTILLAS["despedida"]]
 
-    def test_volver_a_escribir_vuelve_a_pedir_la_autorizacion(self, cid):
-        """El requisito de fondo: cada conversación nueva pide permiso otra vez."""
+    def test_volver_a_escribir_retoma_el_mismo_hilo(self, cid):
+        """Lo que el operador ve: una sola ficha, no dos trozos del mismo señor.
+
+        Despedirse y volver no puede pedir permiso otra vez ni abrir un lead:
+        anunciarlo y no hacerlo era peor todavía, porque el mensaje prometía un
+        corte que en la ficha no existía.
+        """
+        from app.db import sesion
+
         _autorizar(cid)
+        conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
         conversacion.turno(CANAL, cid, "gracias")
 
         textos = conversacion.turno(CANAL, cid, "Hola de nuevo")
-        assert len(textos) == 1
-        assert "¿Autorizas?" in textos[0]
-        assert conversacion.esta_pendiente(CANAL, cid)
+        assert "¿Autorizas?" not in textos[0]
+        assert not conversacion.esta_pendiente(CANAL, cid)
 
-    def test_no_se_atiende_la_busqueda_hasta_que_vuelva_a_autorizar(self, cid):
+        with sesion() as db:
+            fichas = leads.buscar_todos_por_canal(db, CANAL, cid)
+            assert len(fichas) == 1
+            assert len(fichas[0].consentimientos) == 1
+
+    def test_la_busqueda_sigue_atendiendose_despues_del_adios(self, cid):
         _autorizar(cid)
         conversacion.turno(CANAL, cid, "chao")
 
         textos = conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
-        assert "¿Autorizas?" in textos[0]
-
-    def test_al_autorizar_de_nuevo_la_conversacion_se_reabre(self, cid):
-        _autorizar(cid)
-        conversacion.turno(CANAL, cid, "hasta pronto")
-        conversacion.turno(CANAL, cid, "Hola")
-        conversacion.turno(CANAL, cid, "Sí")
-
-        textos = conversacion.turno(CANAL, cid, "Hola")
-        assert "Hola" in textos[0]
         assert "¿Autorizas?" not in textos[0]
-
-    def test_la_segunda_autorizacion_queda_archivada(self, cid):
-        """Dos conversaciones, dos consentimientos: la evidencia es por sesión."""
-        from app.db import sesion
-
-        _autorizar(cid)
-        conversacion.turno(CANAL, cid, "gracias")
-        conversacion.turno(CANAL, cid, "Hola")
-        conversacion.turno(CANAL, cid, "Sí")
-
-        with sesion() as db:
-            p = leads.buscar_por_canal(db, CANAL, cid)
-            assert len(p.consentimientos) == 2
-            assert p.conversacion_cerrada_ts is None
-
-    def test_reabrir_conserva_lo_que_ya_nos_habia_contado(self, cid):
-        """Empezar de cero no es tratarlo como un desconocido."""
-        from app.db import sesion
-
-        _autorizar(cid)
-        conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
-        conversacion.turno(CANAL, cid, "gracias")
-        conversacion.turno(CANAL, cid, "Hola")
-        conversacion.turno(CANAL, cid, "Sí")
-
-        with sesion() as db:
-            p = leads.buscar_por_canal(db, CANAL, cid)
-            assert p.ciudad == "Medellín"
-            assert p.tipo == "apartamento"
-
-    def test_al_reabrir_no_le_pregunta_lo_que_ya_sabe(self, cid):
-        """La autorización es nueva; su búsqueda no. No se pregunta desde cero."""
-        _autorizar(cid)
-        conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
-        conversacion.turno(CANAL, cid, "gracias")
-        conversacion.turno(CANAL, cid, "Hola")
-        textos = conversacion.turno(CANAL, cid, "Sí")
-
-        assert "apartamentos en Medellín" in textos[-1]
 
     def test_a_quien_llega_por_primera_vez_si_le_pregunta_todo(self, cid):
         textos = conversacion.turno(CANAL, cid, "Hola")
