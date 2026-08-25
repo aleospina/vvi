@@ -431,8 +431,15 @@ PRAGMA wal_checkpoint(TRUNCATE);
 
 ## Limitaciones conocidas (MVP de 72 h)
 
-- **Un solo canal conversacional**: Telegram. WhatsApp Cloud API queda para Fase 2 por los
-  tiempos de verificación de Meta (ADR-02).
+- **WhatsApp va por un cliente no oficial**: Evolution API sobre Baileys (ADR-02b). No
+  depende de la verificación de Meta, pero la cuenta puede restringirse por usarlo: de ahí
+  el número dedicado y la lista blanca de pruebas. La Cloud API oficial sigue pendiente;
+  el día que salga el WABA se cambia el tipo de instancia y `whatsapp_evo.py` no cambia.
+- **Instagram está implementado pero sin probar contra una cuenta real**: Meta no emite el
+  evento `messages` y la app sigue en modo desarrollo, a la espera de la revisión
+  (ADR-02c). El circuito sí funciona de punta a punta contra el simulador local
+  (`deploy/instagram/probar_local.py`). Tampoco manda fotos todavía: es otro endpoint y
+  otra cuota, y no tiene sentido montarlo antes de que el canal reciba mensajes.
 - **Cartera mockeada**, no sincronizada con portales.
 - **Sin ML entrenado**: clasificación por reglas + LLM zero-shot (ADR-03).
 - **SQLite**: adecuado para el piloto (cientos–miles de prospectos), no para alta
