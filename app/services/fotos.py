@@ -215,6 +215,20 @@ def rutas_para_enviar(propiedad: Propiedad, tope: int = TOPE_EN_CHAT) -> list[Pa
     return rutas
 
 
+def es_efimero() -> bool:
+    """¿El directorio de fotos cae dentro del árbol del código?
+
+    Si cae, cada despliegue lo reemplaza: las filas de la base sobreviven y los
+    archivos no, así que el inmueble aparece con su nombre y sin imagen. En
+    local es lo normal y no significa nada; en un servidor es el fallo mudo que
+    `diagnostico` existe para detectar.
+    """
+    try:
+        return DIRECTORIO.resolve().is_relative_to(RAIZ.resolve())
+    except (OSError, ValueError):
+        return False
+
+
 def diagnostico(db: Session) -> dict:
     """Estado del almacenamiento de imágenes.
 
@@ -225,15 +239,9 @@ def diagnostico(db: Session) -> dict:
     """
     registradas = list(db.scalars(select(FotoPropiedad)))
     faltantes = [f.archivo for f in registradas if not (DIRECTORIO / f.archivo).exists()]
-    # Si el directorio está dentro del árbol del código, cada despliegue lo
-    # reemplaza: es efímero aunque el servicio tenga un volumen montado.
-    try:
-        efimero = DIRECTORIO.resolve().is_relative_to(RAIZ.resolve())
-    except (OSError, ValueError):
-        efimero = False
     return {
         "directorio": str(DIRECTORIO),
-        "efimero": efimero,
+        "efimero": es_efimero(),
         "registradas": len(registradas),
         "faltantes": faltantes,
     }

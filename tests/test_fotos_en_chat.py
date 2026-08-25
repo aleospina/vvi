@@ -293,3 +293,94 @@ class TestTransporteTelegram:
         """La ficha en texto sigue siendo la respuesta aunque la galería falle."""
         chat = self._enviar([tmp_path / "no-existe.jpg"])
         assert chat.fotos == [] and chat.albumes == []
+
+
+# ─────────────────────────── Dónde se guardan ───────────────────────────
+
+
+class TestAlmacenamientoEfimero:
+    """El fallo mudo del despliegue: las filas sobreviven y los archivos no.
+
+    Pasa cuando se configura `DATABASE_URL` contra el volumen y se olvida
+    `FOTOS_DIR`. El síntoma llega un despliegue más tarde y no se parece a su
+    causa —el inmueble sigue en la cartera, con su nombre y sin imagen—, así que
+    lo que importa es que se diga antes, no que se deduzca después.
+    """
+
+    def test_el_directorio_junto_al_codigo_es_efimero(self, monkeypatch):
+        from app.config import RAIZ
+
+        monkeypatch.setattr(fotos, "DIRECTORIO", RAIZ / "app" / "static" / "fotos")
+        assert fotos.es_efimero() is True
+
+    def test_el_directorio_del_volumen_no_lo_es(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(fotos, "DIRECTORIO", tmp_path)
+        assert fotos.es_efimero() is False
+
+    def test_health_lo_reporta(self, monkeypatch, tmp_path):
+        """Es el endpoint que la plataforma consulta cada minuto."""
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        monkeypatch.setattr(fotos, "DIRECTORIO", tmp_path)
+        with TestClient(app) as cli:
+            assert cli.get("/health").json()["fotos_efimeras"] is False
+
+    def test_la_base_en_volumen_con_las_fotos_en_el_codigo_avisa(self, monkeypatch):
+        from app import main
+
+        monkeypatch.setattr(fotos, "es_efimero", lambda: True)
+        monkeypatch.setattr(settings, "database_url", "sqlite:////data/vvi.db")
+        assert main._base_junto_al_codigo() is False
+
+    def test_en_local_no_avisa_de_nada(self, monkeypatch):
+        """Junto al código está bien en un portátil: un aviso ahí es ruido.
+
+        Un aviso que salta en cada arranque enseña a ignorar los avisos.
+        """
+        from app import main
+        from app.config import RAIZ
+
+        monkeypatch.setattr(
+            settings, "database_url", f"sqlite:///{(RAIZ / 'data' / 'vvi.db').as_posix()}"
+        )
+        assert main._base_junto_al_codigo() is True
+
+    def test_una_base_que_no_es_sqlite_esta_siempre_fuera(self, monkeypatch):
+        monkeypatch.setattr(settings, "database_url", "postgresql://host/vvi")
+        from app import main
+
+        assert main._base_junto_al_codigo() is False
+
+    def test_el_aviso_sale_en_el_arranque(self, monkeypatch, caplog):
+        """Lo que importa no es el helper, es que la línea aparezca en el log."""
+        import logging
+
+        from fastapi.testclient import TestClient
+
+        from app.main import app
+
+        monkeypatch.setattr(fotos, "es_efimero", lambda: True)
+        monkeypatch.setattr(settings, "database_url", "sqlite:////data/vvi.db")
+        with caplog.at_level(logging.WARNING):
+            with TestClient(app):
+                pass
+        assert any("FOTOS_DIR" in r.message for r in caplog.records)
+
+    def test_en_local_el_arranque_calla(self, monkeypatch, caplog):
+        import logging
+
+        from fastapi.testclient import TestClient
+
+        from app.config import RAIZ
+        from app.main import app
+
+        monkeypatch.setattr(fotos, "es_efimero", lambda: True)
+        monkeypatch.setattr(
+            settings, "database_url", f"sqlite:///{(RAIZ / 'data' / 'vvi.db').as_posix()}"
+        )
+        with caplog.at_level(logging.WARNING):
+            with TestClient(app):
+                pass
+        assert not any("FOTOS_DIR" in r.message for r in caplog.records)

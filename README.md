@@ -254,8 +254,9 @@ elegir—.
 
 Van hasta `fotos.TOPE_EN_CHAT` (5) y solo las que existen en disco: si el directorio de
 fotos queda fuera del volumen, un redespliegue se lleva los archivos y deja las filas, y
-es mejor mandar tres que reventar el turno. `GET /health` y el panel reportan ese
-desajuste (`fotos.diagnostico`).
+es mejor mandar tres que reventar el turno. `GET /health` trae `fotos_efimeras` y el panel
+detalla el desajuste (`fotos.diagnostico`); además, si la base está en un volumen y
+`FOTOS_DIR` no, el arranque lo avisa.
 
 Cada canal las transporta a su manera: Telegram las agrupa en un **álbum** de un solo
 envío, y WhatsApp manda **una imagen por mensaje** (Evolution no tiene álbum), en base64

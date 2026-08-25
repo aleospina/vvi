@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -14,6 +15,7 @@ from app import __version__
 from app.config import RAIZ, settings
 from app.db import inicializar
 from app.channels import instagram_bot
+from app.services import fotos
 from app.channels.telegram_bot import aviso_de_red, construir_app
 from app.routers import api, captacion, catalogo, dashboard, instagram, whatsapp
 
@@ -28,6 +30,26 @@ logging.basicConfig(
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 log = logging.getLogger("vvi")
+
+
+def _base_junto_al_codigo() -> bool:
+    """¿La base de datos vive dentro del árbol del código?
+
+    Es lo que separa «esto es el portátil de alguien» de «esto es un servicio
+    con volumen montado». Una base que no es SQLite siempre está fuera.
+    """
+    url = settings.database_url
+    if not url.startswith("sqlite"):
+        return False
+    try:
+        ruta = Path(url.split("///", 1)[-1].lstrip("/"))
+        if url.startswith("sqlite:////"):
+            ruta = Path("/" + str(ruta))
+        return ruta.resolve().is_relative_to(RAIZ.resolve())
+    except (OSError, ValueError, IndexError):
+        # Sin poder resolverlo, callar: un aviso falso en cada arranque enseña a
+        # ignorar los avisos, que es peor que no tenerlos.
+        return True
 
 
 @asynccontextmanager
@@ -56,6 +78,20 @@ async def ciclo_vida(app: FastAPI):
         log.warning(
             "Instagram tiene token pero le falta INSTAGRAM_APP_SECRET o "
             "INSTAGRAM_VERIFY_TOKEN: el canal queda apagado."
+        )
+
+    # La base en el volumen y las fotos junto al código es la combinación que de
+    # verdad ocurre: se configura DATABASE_URL, se olvida FOTOS_DIR, y nada se
+    # queja. El síntoma llega un despliegue más tarde y no se parece a su causa
+    # —los inmuebles siguen en la cartera y sus imágenes no—, así que se
+    # diagnostica mirando huecos. Aquí se dice en el arranque, que es cuando
+    # todavía se puede corregir con una variable.
+    if fotos.es_efimero() and not _base_junto_al_codigo():
+        log.warning(
+            "La base de datos está en un volumen pero FOTOS_DIR no: las fotos se "
+            "guardan en %s, dentro del código, y el próximo despliegue se las lleva. "
+            "Apúntalo al volumen (FOTOS_DIR=\"/data/fotos\").",
+            settings.ruta_fotos,
         )
 
     bot = construir_app()
@@ -206,6 +242,10 @@ def salud():
         # cada healthcheck de la plataforma sería una llamada de red por minuto.
         "canal_whatsapp": settings.tiene_whatsapp,
         "canal_instagram": settings.tiene_instagram,
+        # Sin llamar a la base: `es_efimero` mira rutas, no filas, y este
+        # endpoint lo consulta la plataforma cada minuto. Es donde se ve que las
+        # fotos van a un directorio que el próximo despliegue reemplaza.
+        "fotos_efimeras": fotos.es_efimero(),
         "llm": settings.llm_provider if settings.tiene_llm else "reglas",
         "comision_pct": settings.comision_pct,
         "ciudades": list(settings.ciudades_cobertura),
