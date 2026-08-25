@@ -196,7 +196,10 @@ Sin markdown, sin ``` y sin texto adicional.
 - `slots`: usa null en lo que el comprador no haya dicho. Los montos en pesos
   colombianos como enteros (450 millones -> 450000000).
 - `faltan_datos`: nombres de los slots que aún faltan para poder emparejar.
-- `pide_visita`: true solo si pidió visita, asesor humano o dejar sus datos.
+- `pide_visita`: true solo si el ÚLTIMO mensaje del comprador pide visita,
+  asesor humano o dejar sus datos. Que TÚ se lo hayas ofrecido antes no lo
+  pone en true, ni que lo pidiera hace varios turnos: el campo describe este
+  mensaje, no la conversación.
 - `respuesta_sugerida`: el mensaje que le enviarías ahora al comprador."""
 
 
@@ -249,6 +252,37 @@ PLANTILLAS = {
     "calificacion": (
         "¡Listo, gracias! Para mostrarte lo que de verdad te sirve: ¿en qué *ciudad y "
         "zona* buscas, qué *tipo* (casa/apto/lote) y cuál es tu *presupuesto* aproximado?"
+    ),
+    #: Un "hola" a secas merece un hola. Antes caía en la rama de "faltan
+    #: datos" y el bot abría preguntando por presupuesto, que a una persona que
+    #: apenas saluda le suena a formulario. El saludo lleva la pregunta pegada
+    #: para no gastar un turno entero en cortesía.
+    "saludo": (
+        "¡Hola! 👋 Con mucho gusto te ayudo.\n\n"
+        "¿En qué *ciudad y zona* buscas, qué *tipo* (casa/apto/lote) y con qué "
+        "*presupuesto* aproximado? Con eso te muestro lo que de verdad te sirve."
+    ),
+    #: Saludo de quien ya nos había contado qué busca. Volverle a preguntar
+    #: ciudad y tipo, que están guardados, es hacerle repetir lo que ya dijo.
+    "saludo_retomar": (
+        "¡Hola de nuevo! 👋 ¿Seguimos con {busqueda}, o prefieres mirar otra cosa?"
+    ),
+    #: La calificación de un titular conocido que vuelve a autorizar: un /start
+    #: nuevo, o un lead que se había dado por perdido. Su búsqueda sigue
+    #: guardada, y hacerle repetir ciudad, tipo y presupuesto convertiría el
+    #: permiso en un peaje.
+    "calificacion_retomar": (
+        "¡Listo, gracias! Tenía anotado que buscabas {busqueda}. "
+        "¿Seguimos con eso o prefieres mirar otra cosa?"
+    ),
+    #: Despedida. Cierra el turno y lo dice, pero no promete más de lo que
+    #: ocurre: la ficha sigue siendo la misma y él retoma donde lo dejó.
+    #: Anunciar una autorización nueva sería teatro —el hilo continúa igual— y a
+    #: quien vuelve a los diez minutos le sonaría a que el bot lo olvidó.
+    "despedida": (
+        "¡Con mucho gusto! 🙌 Fue un placer ayudarte.\n\n"
+        "Cerramos por aquí entonces. Cuando quieras seguir mirando, escríbeme "
+        "y retomamos donde lo dejamos. ¡Que te vaya muy bien!"
     ),
     "fuera_de_alcance": (
         "Por ahora solo manejo propiedades en {ciudades}, así que no quiero hacerte "

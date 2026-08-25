@@ -97,7 +97,7 @@ def aceptar_consentimiento(
         )
         salidas = [
             "¡Gracias! Tu autorización quedó registrada. 🔐",
-            PLANTILLAS["calificacion"],
+            gateway.pregunta_de_calificacion(prospecto),
         ]
         for s in salidas:
             leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, s)
@@ -128,11 +128,20 @@ def turno(
     """
     with sesion() as db:
         prospecto = leads.buscar_por_canal(db, canal, cid)
-        if prospecto is not None and tiene_consentimiento_vigente(prospecto):
+        # Hay conversación abierta si autorizó y su ficha no está cerrada.
+        # La cierra la venta, no la despedida: quien ya compró vuelve por la
+        # misma puerta que un desconocido, porque su siguiente búsqueda es otro
+        # negocio y va en otro lead.
+        if (
+            prospecto is not None
+            and tiene_consentimiento_vigente(prospecto)
+            and not gateway.conversacion_cerrada(prospecto)
+        ):
             return gateway.procesar(db, prospecto, texto).textos
 
-    # A partir de aquí no hay consentimiento vigente: nada se persiste.
-    from app.services.nlu_engine import es_afirmativo, es_negativo
+    # A partir de aquí no hay conversación abierta: o nunca autorizó, o su ficha
+    # se cerró con una venta. En el primer caso, además, nada se persiste.
+    from app.services.nlu_engine import es_afirmativo, es_despedida, es_negativo
 
     if esta_pendiente(canal, cid):
         if es_afirmativo(texto):
@@ -141,6 +150,11 @@ def turno(
             )
         if es_negativo(texto):
             return rechazar_consentimiento(canal, cid)
+        # Despedirse en la puerta también es una respuesta: insistir con la
+        # autorización a quien ya dijo "gracias, chao" es no escucharlo.
+        if es_despedida(texto):
+            olvidar_pendiente(canal, cid)
+            return [PLANTILLAS["despedida"]]
         return [
             "Necesito tu autorización explícita para continuar. ¿Autorizas el "
             "tratamiento de tus datos? Responde *Sí* o *No*."
@@ -155,9 +169,19 @@ def turno(
 def mis_datos(canal: str, cid: str) -> str:
     """Derecho de consulta del titular (habeas data)."""
     with sesion() as db:
-        p = leads.buscar_por_canal(db, canal, cid)
-        if p is None:
+        fichas = leads.buscar_todos_por_canal(db, canal, cid)
+        if not fichas:
             return "No tengo ningún dato tuyo almacenado. 🙌"
+        p = fichas[-1]
+        # Quien ya compró y volvió a buscar tiene más de una ficha. Callarse las
+        # anteriores sería contestar a medias justo la pregunta que el titular
+        # tiene derecho a hacer.
+        anteriores = (
+            f"\n\nGuardo además {len(fichas) - 1} búsqueda(s) anterior(es) tuya(s); "
+            "/borrar las elimina todas."
+            if len(fichas) > 1
+            else ""
+        )
         return (
             f"*Tus datos en {settings.empresa_nombre}* (código {p.codigo})\n\n"
             f"• Nombre: {enmascarar(p.nombre)}\n"
@@ -168,17 +192,23 @@ def mis_datos(canal: str, cid: str) -> str:
             f"• Estado: {p.estado}\n"
             f"• Autorización: {'vigente desde ' + fecha(p.consentimiento_ts, '%d/%m/%Y') if p.consentimiento_ts else 'no otorgada'}\n\n"
             f"Tus datos de contacto están cifrados. Política: {settings.politica_privacidad_url}\n"
-            "Para eliminarlos escribe /borrar."
+            "Para eliminarlos escribe /borrar." + anteriores
         )
 
 
 def borrar_datos(canal: str, cid: str) -> str:
-    """Revocación y anonimización a petición del titular (habeas data)."""
+    """Revocación y anonimización a petición del titular (habeas data).
+
+    Alcanza a **todas** sus fichas, no solo a la de la conversación en curso:
+    quien ya compró y volvió a buscar tiene dos, y un borrado que dejara la
+    primera intacta no sería un borrado.
+    """
     with sesion() as db:
-        p = leads.buscar_por_canal(db, canal, cid)
-        if p is None:
+        fichas = leads.buscar_todos_por_canal(db, canal, cid)
+        if not fichas:
             return "No tengo datos tuyos que eliminar. 🙌"
-        revocar_y_anonimizar(db, p, actor=f"titular:{p.codigo}")
+        for p in fichas:
+            revocar_y_anonimizar(db, p, actor=f"titular:{p.codigo}")
         olvidar_pendiente(canal, cid)
         return (
             "Listo: eliminé tus datos de contacto y revoqué la autorización. "

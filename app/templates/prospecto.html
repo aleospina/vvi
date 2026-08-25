@@ -82,7 +82,10 @@
         </div>
         <div>
           <label for="precio_venta">Precio final de venta (COP)</label>
-          <input type="number" name="precio_venta" id="precio_venta" min="1" step="1000000" required>
+          {# El precio de cierre es el de la escritura, no un múltiplo redondo:
+             con step="1000000" el navegador rechazaba 290.000.001 y obligaba a
+             falsear la cifra sobre la que se calcula la comisión. #}
+          <input type="number" name="precio_venta" id="precio_venta" min="1" step="1" required>
         </div>
         <button>Confirmar venta y calcular comisión</button>
       </form>

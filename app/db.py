@@ -102,6 +102,18 @@ COLUMNAS_NUEVAS: dict[str, list[tuple[str, str]]] = {
 }
 
 
+#: Columnas que existieron y ya no las lee nadie. Se dejan caer al arrancar:
+#: una columna huérfana es ruido en cada `PRAGMA table_info` y en cada
+#: inspección del esquema, y quien lea la tabla dentro de seis meses no tiene
+#: modo de saber que está muerta.
+COLUMNAS_RETIRADAS: dict[str, list[str]] = {
+    # Duró un commit. La despedida marcaba aquí el cierre de la conversación;
+    # ahora la única que cierra es la venta, y eso se deriva del estado del
+    # prospecto sin necesidad de guardar nada.
+    "prospectos": ["conversacion_cerrada_ts"],
+}
+
+
 def _migrar(conexion) -> None:
     """Añade columnas faltantes sin tocar los datos existentes."""
     for tabla, columnas in COLUMNAS_NUEVAS.items():
@@ -114,6 +126,38 @@ def _migrar(conexion) -> None:
             if nombre not in existentes:
                 conexion.exec_driver_sql(
                     f"ALTER TABLE {tabla} ADD COLUMN {nombre} {definicion}"
+                )
+
+
+def _retirar_columnas() -> None:
+    """Deja caer las columnas muertas, sin poder tumbar el arranque.
+
+    `ALTER TABLE ... DROP COLUMN` existe en SQLite desde la 3.35 (2021), y falla
+    si la columna cuelga de un índice, una vista o un trigger. En cualquiera de
+    esos casos la columna se queda donde está: es inerte, y perder el arranque
+    de la aplicación por limpiar ruido sería un cambio peor que el ruido.
+
+    Cada retirada va en su propia transacción, para que un fallo no arrastre a
+    las demás ni a las columnas que `_migrar` acaba de añadir.
+    """
+    for tabla, columnas in COLUMNAS_RETIRADAS.items():
+        for nombre in columnas:
+            try:
+                with engine.begin() as conexion:
+                    existentes = {
+                        fila[1]
+                        for fila in conexion.exec_driver_sql(f"PRAGMA table_info({tabla})")
+                    }
+                    if nombre not in existentes:
+                        continue
+                    conexion.exec_driver_sql(
+                        f"ALTER TABLE {tabla} DROP COLUMN {nombre}"
+                    )
+                log.info("Columna retirada: %s.%s", tabla, nombre)
+            except Exception:  # noqa: BLE001 - degradación deliberada
+                log.warning(
+                    "No se pudo retirar %s.%s; se deja como está.",
+                    tabla, nombre, exc_info=True,
                 )
 
 
@@ -136,6 +180,7 @@ def inicializar(seed: bool = True) -> None:
     if settings.database_url.startswith("sqlite"):
         with engine.begin() as conexion:
             _migrar(conexion)
+        _retirar_columnas()
     if not seed:
         return
 

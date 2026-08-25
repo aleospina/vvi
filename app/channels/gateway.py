@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
-from app.models import Canal, Direccion, Prospecto
+from app.models import Canal, Direccion, EstadoProspecto, Prospecto
 from app.services import leads, matching_engine, notificaciones, seguimiento
 from app.services.compliance import (
     aviso_ia,
@@ -29,7 +29,9 @@ from app.services.matching_engine import Match
 from app.services.nlu_engine import (
     analizar,
     es_afirmativo,
+    es_despedida,
     es_negativo,
+    es_saludo,
     extraer_slots,
     pide_listado_completo,
     pide_sin_tope,
@@ -96,6 +98,12 @@ def alta_con_consentimiento(
     """
     canal = entrante.canal.value if isinstance(entrante.canal, Canal) else str(entrante.canal)
     prospecto = leads.buscar_por_canal(db, canal, entrante.canal_id)
+    if prospecto is not None and prospecto.estado_enum == EstadoProspecto.VENDIDO:
+        # Ya compró. Lo que empieza ahora es otra búsqueda y otro negocio, así
+        # que es otro lead: colgarlo del vendido mezclaría dos conversaciones en
+        # una ficha cerrada, dejaría la venta registrada sin poder atribuir la
+        # siguiente, y el operador vería crecer un lead que ya dio por terminado.
+        prospecto = None
     if prospecto is None:
         prospecto = leads.crear(
             db,
@@ -117,12 +125,64 @@ def alta_con_consentimiento(
         prospecto.telefono = prospecto.telefono or entrante.telefono
         prospecto.usuario_canal = prospecto.usuario_canal or entrante.usuario_canal
 
+    # Autorizar es, por definición, abrir conversación: el recorte a un inmueble
+    # de la anterior no gobierna esta. El perfil de búsqueda sí se conserva
+    # —ciudad, tipo, presupuesto—: hacerle repetir lo que ya nos contó no es
+    # empezar de cero, es tratarlo como un desconocido.
+    prospecto.foco = None
+
     registrar_consentimiento(db, prospecto, canal=canal, evidencia=evidencia)
     return prospecto
 
 
 def rechazo_consentimiento() -> str:
     return PLANTILLAS["consentimiento_negado"]
+
+
+# ─────────────────────── Apertura y cierre de conversación ───────────────────────
+
+
+def conversacion_cerrada(prospecto: Prospecto) -> bool:
+    """¿Esta ficha ya está cerrada y lo que venga pertenece a otra?
+
+    Solo la cierra la venta. Despedirse no: un "gracias" y volver diez minutos
+    después es la misma conversación, y partirla en dos le pediría al comprador
+    una autorización nueva para seguir donde estaba, mientras el operador vería
+    dos fichas del mismo señor. Un lead vendido sí está cerrado —su negocio
+    terminó y tiene comisión atribuida—, así que lo que se busque después es
+    otra ficha.
+
+    Derivarlo del estado, sin bandera aparte, evita el fallo de olvidarse de
+    ponerla en alguna de las rutas que confirman la venta.
+    """
+    return prospecto.estado_enum == EstadoProspecto.VENDIDO
+
+
+def _busqueda_guardada(perfil: dict) -> str:
+    """"apartamentos en Envigado", o cadena vacía si aún no sabemos qué busca."""
+    tipo, ciudad = perfil.get("tipo"), perfil.get("municipio") or perfil.get("ciudad")
+    return f"{_plural(tipo, 2)} en {ciudad}" if tipo and ciudad else ""
+
+
+def _texto_saludo(perfil: dict) -> str:
+    """Saludo, con la búsqueda de antes si la hay."""
+    busqueda = _busqueda_guardada(perfil)
+    if busqueda:
+        return PLANTILLAS["saludo_retomar"].format(busqueda=busqueda)
+    return PLANTILLAS["saludo"]
+
+
+def pregunta_de_calificacion(prospecto: Prospecto) -> str:
+    """Lo que se pregunta justo después de que el titular autoriza.
+
+    A un titular conocido que vuelve a autorizar no se le pregunta desde cero:
+    la autorización es nueva, su búsqueda no. El lead que nace tras una venta sí
+    arranca en blanco, porque de él todavía no sabemos nada.
+    """
+    busqueda = _busqueda_guardada(leads.perfil(prospecto))
+    if busqueda:
+        return PLANTILLAS["calificacion_retomar"].format(busqueda=busqueda)
+    return PLANTILLAS["calificacion"]
 
 
 # ─────────────────────────── Turno conversacional ───────────────────────────
@@ -390,12 +450,43 @@ def _leer_declaracion(db: Session, prospecto: Prospecto, texto: str) -> bool:
     return True
 
 
+def _turno_fijo(db: Session, prospecto: Prospecto, texto: str, **campos) -> Respuesta:
+    """Cierra el turno con una respuesta fija, dejándola en el historial."""
+    leads.registrar_mensaje(db, prospecto, Direccion.SALIENTE, texto)
+    return Respuesta(textos=[texto], prospecto=prospecto, **campos)
+
+
 def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     """Procesa un mensaje entrante de un titular que YA autorizó (DF-1 a DF-4)."""
     if not tiene_consentimiento_vigente(prospecto):
         return Respuesta(textos=[mensaje_bienvenida()], pide_consentimiento=True, prospecto=prospecto)
 
+    # El titular se despidió: lo que llegue ahora abre una conversación nueva y
+    # empieza por la autorización, no por donde quedó la anterior. Los canales
+    # lo resuelven antes de llegar aquí; esto cubre a quien entre por la API.
+    if conversacion_cerrada(prospecto):
+        return Respuesta(
+            textos=[mensaje_bienvenida()], pide_consentimiento=True, prospecto=prospecto
+        )
+
     leads.registrar_mensaje(db, prospecto, Direccion.ENTRANTE, texto)
+
+    # Un saludo o una despedida se resuelven aquí, sin pasar por el
+    # clasificador: no hay nada que clasificar y la respuesta no depende de la
+    # cartera. Van antes que todo lo demás porque un "hola" a secas caía en la
+    # rama de "faltan datos" y abría preguntando por presupuesto, y un "gracias"
+    # sin más devolvía el catálogo otra vez, que es lo contrario de despedirse.
+    if es_saludo(texto):
+        return _turno_fijo(db, prospecto, _texto_saludo(leads.perfil(prospecto)))
+
+    if es_despedida(texto):
+        # El recorte a un inmueble concreto —"solo la ferretería de La
+        # Reforma"— muere con la despedida: quien vuelva mañana no debería
+        # encontrarse la cartera acotada por algo que ya no recuerda haber
+        # pedido. Lo demás queda como está, en la misma ficha.
+        prospecto.foco = None
+        db.flush()
+        return _turno_fijo(db, prospecto, PLANTILLAS["despedida"])
 
     declara_cierre = _leer_declaracion(db, prospecto, texto)
 
@@ -421,6 +512,17 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # foco —cambiar de búsqueda lo suelta— y el handoff, más abajo.
     cambia_busqueda = _cambia_la_busqueda(texto, perfil_previo)
 
+    # ¿Está pidiendo un humano AHORA? Se lee del mensaje de este turno y con la
+    # regla determinística, nunca del análisis acumulado. `analisis.pide_visita`
+    # incluye la lectura que el LLM hace de la conversación entera, y ahí está
+    # el pie con el que el bot mismo ofrece la visita: el modelo lo devolvía en
+    # true por habérsela ofrecido nosotros, así que pedir "lotes en Pereira"
+    # terminaba en "ya le pasé tus datos a un asesor" sin que el comprador
+    # hubiera escrito nada parecido. Un handoff que nadie pidió le anuncia una
+    # llamada que no espera y mete en la cola del operador una visita que no
+    # existe. El handoff lo abre él, con sus palabras, o no se abre.
+    pidio_asesor = pide_visita(texto)
+
     # Acotar la conversación a un inmueble concreto ("háblame solo de la
     # ferretería de La Reforma") es una petición tan legítima como el municipio o
     # el presupuesto, pero no cabe en ningún slot: lo que lo identifica está
@@ -431,7 +533,7 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # que ya estaba. Pedir visita no: "visita al lote" es contestar el pie del
     # mensaje anterior, no pedir la cartera de lotes.
     suelta_el_foco = cambia_busqueda or (
-        _nombra_la_busqueda(texto) and not pide_visita(texto)
+        _nombra_la_busqueda(texto) and not pidio_asesor
     )
     foco = matching_engine.foco_del_turno(
         db, texto, leads.perfil(prospecto), limpiar=suelta_el_foco
@@ -452,26 +554,22 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # terminar con "ya le pasé tus datos al asesor", el turno no puede además
     # pedirle nada al comprador: quedaría sin saber si debe responder o esperar.
     #
-    # `pide_visita` sigue en true en los turnos siguientes, porque la petición
-    # está en el historial que ve el LLM. Por eso el handoff solo se dispara
-    # cuando NO hay ya una solicitud en la cola: si no, cada mensaje posterior
-    # crearía otra solicitud, otro aviso al asesor, y el comprador dejaría de
-    # recibir respuestas a lo que en realidad está preguntando.
+    # Pedirlo dos veces no son dos solicitudes: el handoff solo se dispara
+    # cuando NO hay ya una en la cola. Si no, el mismo comprador aparece cuatro
+    # veces en la lista del asesor y el asesor deja de mirarla.
     #
-    # Un estado terminal no cancela la petición. Antes, un lead en `vendido` o
-    # `perdido` que pedía visita no disparaba nada: el turno se iba al bloque 3
-    # y le repetía el catálogo, así que el comprador quedaba pidiendo un asesor
-    # que nadie iba a llamar. La máquina de estados no necesitaba esa guardia
+    # Estar dado por `perdido` no cancela la petición. Antes, un lead ahí que
+    # pedía visita no disparaba nada: el turno se iba al bloque 3 y le repetía
+    # el catálogo, así que el comprador quedaba pidiendo un asesor que nadie iba
+    # a llamar. La máquina de estados no necesitaba esa guardia
     # —`solicitar_handoff` ya decide por su cuenta si el estado puede moverse, y
-    # desde un terminal no lo mueve—, y quien vuelve después de cerrada la
-    # ficha, comprador o lead dado por perdido, es justo a quien más conviene
-    # pasarle un humano.
+    # desde un terminal no lo mueve—, y quien vuelve después de darlo por
+    # perdido es justo a quien más conviene pasarle un humano. `vendido` no
+    # llega hasta aquí: su conversación está cerrada y lo que vuelve es un lead
+    # nuevo (ver `conversacion_cerrada`).
     handoff_en_cola = leads.tiene_solicitud_pendiente(db, prospecto)
-    hara_handoff = analisis.pide_visita and not handoff_en_cola
-    # Para el recordatorio se mira SOLO el mensaje de ahora, no el análisis
-    # acumulado: si no, el aviso se pegaría a cada respuesta durante el resto
-    # de la conversación.
-    repite_peticion = pide_visita(texto) and handoff_en_cola
+    hara_handoff = pidio_asesor and not handoff_en_cola
+    repite_peticion = pidio_asesor and handoff_en_cola
 
     # Contestar "visita" o "asesor" a la pregunta del pie —"¿Quieres agendar una
     # *visita* o hablar con un *asesor*?"— no es una búsqueda nueva: es la
@@ -480,11 +578,7 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
     # entendió, y entierra la confirmación, que es lo único que importa en ese
     # turno. Si el mensaje sí mueve la búsqueda ("mejor quiero ver los de
     # Medellín"), la cartera vuelve a salir: ahí sí preguntó por algo.
-    solo_handoff = (
-        (hara_handoff or repite_peticion)
-        and pide_visita(texto)
-        and not cambia_busqueda
-    )
+    solo_handoff = (hara_handoff or repite_peticion) and not cambia_busqueda
 
     # Quien acaba de decir que ya compró no necesita ver la cartera otra vez:
     # se le agradece y se cierra. Lo que sigue —verificar si esa venta está
