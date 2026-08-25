@@ -31,6 +31,9 @@ log = logging.getLogger(__name__)
 #: Lista blanca de números de prueba del canal de WhatsApp.
 NUMEROS_PRUEBA = "evolution_numeros_prueba"
 
+#: Lista blanca de cuentas de prueba del canal de Instagram.
+USUARIOS_PRUEBA = "instagram_usuarios_prueba"
+
 #: Indicativo de Colombia. Un celular local escrito como lo escribe cualquiera
 #: —«3001234567»— no coincide con el «573001234567» que manda WhatsApp, y el
 #: resultado es que el operador pone su número y el bot lo sigue ignorando.
@@ -94,6 +97,36 @@ def numeros_prueba(db: Session | None = None) -> frozenset[str]:
 
     bruto = settings.evolution_numeros_prueba if guardado is None else guardado
     return frozenset(n for n in normalizar_lista(bruto).split(",") if n)
+
+
+def normalizar_usuario(bruto: str) -> str:
+    """Deja una cuenta de Instagram comparable con lo que llega del webhook.
+
+    El operador escribe `@InmoDemo` porque es lo que ve en el perfil; Meta manda
+    `inmodemo` en el campo `username`, y un IGSID numérico si la cuenta no
+    resolvió. Sin normalizar, la arroba y una mayúscula bastan para que el
+    operador ponga su propia cuenta y el bot lo siga ignorando — el mismo error
+    que el indicativo en WhatsApp.
+    """
+    return bruto.strip().lstrip("@").strip().lower()
+
+
+def normalizar_lista_usuarios(bruto: str) -> str:
+    """Normaliza una lista separada por comas, sin repetidos y en orden."""
+    cuentas = {normalizar_usuario(trozo) for trozo in bruto.split(",")}
+    return ",".join(sorted(c for c in cuentas if c))
+
+
+def usuarios_prueba(db: Session | None = None) -> frozenset[str]:
+    """La lista blanca vigente de Instagram: la de la base si existe, si no la del `.env`."""
+    if db is None:
+        with sesion() as propia:
+            guardado = _leer(propia, USUARIOS_PRUEBA)
+    else:
+        guardado = _leer(db, USUARIOS_PRUEBA)
+
+    bruto = settings.instagram_usuarios_prueba if guardado is None else guardado
+    return frozenset(u for u in normalizar_lista_usuarios(bruto).split(",") if u)
 
 
 def desde_el_entorno(db: Session | None = None) -> bool:

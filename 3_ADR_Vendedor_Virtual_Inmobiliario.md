@@ -88,6 +88,38 @@
 
 ---
 
+## ADR-02c — Instagram en Fase 3 vía la Messaging API de Meta (extensión de ADR-02)
+
+**Contexto.** El PRD nombra Instagram como la red donde está el comprador de vivienda mirando fotos de inmuebles, y ADR-01 cerró la puerta al scraping y al primer contacto. Lo que sí es legítimo —y es la mitad del inbound real de una inmobiliaria— es el DM que el comprador escribe él mismo, y la respuesta a una historia. Hasta ahora eso caía en el buzón de la cuenta y lo atendía una persona a mano, o no lo atendía nadie.
+
+**Decisión.** Habilitar Instagram como tercer canal conversacional con la **Messaging API oficial de Meta** (`graph.instagram.com`, Instagram Login), con webhook firmado en `/webhooks/instagram`, reusando la máquina de consentimiento de `channels/conversacion.py`.
+
+**Justificación.**
+- **Es API oficial.** A diferencia de ADR-02b, no hay riesgo de que la cuenta se restrinja por usar un cliente no soportado: la cuenta de la inmobiliaria es su activo de marketing y no se puede arriesgar como se arriesga un número dedicado.
+- El identificador de canal (IGSID) **no es un teléfono ni un correo**: Instagram no entrega datos de contacto. Es menos PII de la que ya circula por WhatsApp, tratada con el mismo índice ciego y cifrado.
+- No hay servicios nuevos que operar: un webhook más dentro del mismo proceso, frente a los tres contenedores que trajo Evolution.
+- Hay botones de verdad (`quick_replies`), así que la autorización se puede pedir con un toque en vez de con un «sí» mecanografiado que hay que interpretar.
+
+**Condiciones de uso.**
+1. **Cuenta profesional** (empresa o creador) y app de Meta con `instagram_business_manage_messages`; la revisión de Meta es requisito para salir del modo desarrollo.
+2. **Firma obligatoria.** Cada webhook se verifica con `X-Hub-Signature-256` sobre el cuerpo crudo. Sin `INSTAGRAM_APP_SECRET` el canal se considera no configurado: una ruta pública que acepta eventos sin verificar es una puerta para inyectar conversaciones ajenas.
+3. **Lista blanca** (`INSTAGRAM_USUARIOS_PRUEBA`), por lo mismo que en WhatsApp: el modo desarrollo de Meta ya limita quién escribe, pero aprobada la revisión el perfil atiende a todo el mundo de golpe.
+4. **Ventana de 24 horas.** Solo se puede escribir dentro de las 24 h desde el último mensaje del titular; el seguimiento al comprador sale con la etiqueta `HUMAN_AGENT`, que la estira a 7 días y aplica a lo que es —una pregunta sobre un negocio en curso, no una promoción—.
+
+**Implicaciones.**
+- ✅ Se atiende el inbound de la red donde el comprador ya está mirando inmuebles, sin contactar a nadie en frío.
+- ➖ **1000 bytes por mensaje** (bytes, no caracteres: un emoji gasta 4) y **sin Markdown**. Un listado de inmuebles hay que trocearlo por la costura correcta —entre fichas, nunca por la mitad de una— y limpiarle el marcado que escriben las plantillas. Ambos son problemas de transporte y se resuelven en `channels/instagram_bot.py`: el gateway devuelve los mismos textos para los tres canales.
+- ➖ La ventana de 24 h / 7 días pone un techo duro al seguimiento: pasado ese plazo, el hito se pierde y no hay etiqueta que lo salve.
+- ➕ Meta **sí firma** sus webhooks, así que la ruta no necesita el segmento secreto que sí lleva la de WhatsApp.
+
+**Alternativas rechazadas.**
+- *Automatizar la app de Instagram con un cliente no oficial:* rechazada; viola los ToS y arriesga la cuenta de marca, que a diferencia de un número dedicado no se puede reemplazar.
+- *Quedarse con el link-in-bio a la landing opt-in:* insuficiente por sí sola; sigue vigente como captación (ADR-01), pero deja sin respuesta a quien manda un DM, que es la mayoría.
+- *Atender los DM a mano desde el buzón:* es el estado actual y es justo lo que el MVP existe para resolver.
+
+
+---
+
 ## ADR-03 — Clasificación de prospectos: híbrido reglas + LLM (no ML entrenado)
 
 **Contexto.** Hay que identificar intención de compra y extraer datos (ciudad, tipo, presupuesto) en 72 h, sin dataset propio.

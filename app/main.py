@@ -13,8 +13,9 @@ from fastapi.staticfiles import StaticFiles
 from app import __version__
 from app.config import RAIZ, settings
 from app.db import inicializar
+from app.channels import instagram_bot
 from app.channels.telegram_bot import aviso_de_red, construir_app
-from app.routers import api, captacion, catalogo, dashboard, whatsapp
+from app.routers import api, captacion, catalogo, dashboard, instagram, whatsapp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,6 +45,18 @@ async def ciclo_vida(app: FastAPI):
 
     if settings.tiene_whatsapp:
         log.info("Canal WhatsApp activo (Evolution API en %s).", settings.evolution_url)
+
+    if settings.tiene_instagram:
+        log.info(
+            "Canal Instagram activo (webhook en %s).", instagram_bot.url_webhook()
+        )
+    elif settings.instagram_token:
+        # Token sin app secret o sin verify token: el canal no recibiría nada y
+        # el síntoma sería silencio. Decirlo aquí ahorra la búsqueda.
+        log.warning(
+            "Instagram tiene token pero le falta INSTAGRAM_APP_SECRET o "
+            "INSTAGRAM_VERIFY_TOKEN: el canal queda apagado."
+        )
 
     bot = construir_app()
     app.state.bot = bot
@@ -174,6 +187,7 @@ app.include_router(api.router)
 app.include_router(captacion.router)
 app.include_router(catalogo.router)
 app.include_router(dashboard.router)
+app.include_router(instagram.router)
 app.include_router(whatsapp.router)
 
 
@@ -191,6 +205,7 @@ def salud():
         # Solo si está configurado: consultar el estado real a Evolution en
         # cada healthcheck de la plataforma sería una llamada de red por minuto.
         "canal_whatsapp": settings.tiene_whatsapp,
+        "canal_instagram": settings.tiene_instagram,
         "llm": settings.llm_provider if settings.tiene_llm else "reglas",
         "comision_pct": settings.comision_pct,
         "ciudades": list(settings.ciudades_cobertura),

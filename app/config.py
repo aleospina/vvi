@@ -61,6 +61,47 @@ class Settings(BaseSettings):
     #: mensaje entraría al motor. Vacía = responde a todo el mundo (producción).
     evolution_numeros_prueba: str = ""
 
+    # Canal Instagram vía la Messaging API de Meta (ADR-02c). Con el token
+    # vacío el canal no se monta y la app arranca igual, como ya ocurre con
+    # Telegram y con WhatsApp.
+    instagram_token: str = ""
+    #: Id de la app **de Instagram** (panel → API con inicio de sesión de
+    #: Instagram → Configuración de la app de Instagram). No es el id de la app
+    #: de Meta que se ve arriba en el panel: son dos números distintos, y con el
+    #: de Meta el inicio de sesión responde `Invalid platform app`. Solo hace
+    #: falta para el flujo de conexión de `instagram_login`; el canal funciona
+    #: sin él si el token se pega a mano.
+    instagram_app_id: str = ""
+    #: Secreto de la app **de Instagram**, que aparece junto a `instagram_app_id`
+    #: en esa misma pantalla y **no es** el de la app de Meta de abajo. El canje
+    #: del código exige la pareja completa: id de Instagram con secreto de
+    #: Instagram. Vacío = se reutiliza `instagram_app_secret`, que es lo
+    #: correcto en las apps donde Meta muestra el mismo valor en las dos partes.
+    instagram_login_app_secret: str = ""
+    #: Secreto de la app de Meta. Es con lo que se verifica la firma de cada
+    #: webhook, y por eso no es opcional: una ruta pública que acepta eventos
+    #: sin verificar es una puerta para que cualquiera inyecte conversaciones.
+    instagram_app_secret: str = ""
+    #: Token del handshake `hub.verify_token`. Lo elige uno y se escribe igual
+    #: aquí y en el panel de la app de Meta al declarar la URL del webhook; si
+    #: no coinciden, Meta ni siquiera deja guardar la suscripción.
+    instagram_verify_token: str = ""
+    #: Id de la cuenta profesional. Vacío = `me`, que Meta resuelve con el
+    #: propio token; ponerlo explícito solo hace falta si el token cubre varias.
+    instagram_cuenta_id: str = ""
+    #: Host de la API. `graph.instagram.com` es el de Instagram Login (cuenta
+    #: profesional que no cuelga de una página de Facebook), que es el caso de
+    #: una inmobiliaria con su propio perfil. Con Facebook Login sería
+    #: `https://graph.facebook.com`.
+    instagram_api_base: str = "https://graph.instagram.com"
+    instagram_version: str = "v23.0"
+    #: Lista blanca para pruebas: IGSID numérico o `@usuario`, separados por
+    #: coma. Es el mismo freno que `evolution_numeros_prueba` y existe por lo
+    #: mismo: mientras la app de Meta está en desarrollo solo escriben las
+    #: cuentas con rol en ella, pero aprobada la revisión el perfil atiende a
+    #: todo el mundo de golpe. Vacía = responde a todo el mundo (producción).
+    instagram_usuarios_prueba: str = ""
+
     # LLM
     llm_provider: str = "kimi"  # kimi | claude | reglas
     moonshot_api_key: str = ""
@@ -155,6 +196,33 @@ class Settings(BaseSettings):
     @property
     def tiene_whatsapp(self) -> bool:
         return bool(self.evolution_url and self.evolution_api_key and self.evolution_webhook_token)
+
+    @property
+    def tiene_instagram(self) -> bool:
+        """Los tres a la vez, no solo el token.
+
+        Con token pero sin app secret el canal podría escribir y no recibir: el
+        webhook rechaza todo lo que no pueda verificar. Un canal que solo habla
+        no es un canal, así que se considera no configurado y se dice al
+        arrancar, en vez de quedar mudo sin que nada lo explique.
+        """
+        return bool(
+            self.instagram_token and self.instagram_app_secret and self.instagram_verify_token
+        )
+
+    @property
+    def secreto_login_instagram(self) -> str:
+        """El secreto que hace pareja con `instagram_app_id`, con su respaldo."""
+        return self.instagram_login_app_secret or self.instagram_app_secret
+
+    @property
+    def tiene_login_instagram(self) -> bool:
+        """¿Se puede conectar la cuenta por OAuth, sin pegar el token a mano?
+
+        Es independiente de `tiene_instagram`: al conectar por primera vez
+        todavía no hay token, y justo por eso se entra aquí.
+        """
+        return bool(self.instagram_app_id and self.secreto_login_instagram)
 
     @property
     def tiene_llm(self) -> bool:

@@ -65,6 +65,24 @@ class TestSlots:
     def test_lote(self):
         assert extraer_slots("busco un lote en Cerritos")["tipo"] == "lote"
 
+    def test_el_departamento_fija_la_plaza_y_deja_abierto_el_municipio(self):
+        """Quien llega por Instagram pregunta por el departamento, no por el municipio."""
+        slots = extraer_slots("¿tienen lotes en Risaralda?")
+        assert slots["ciudad"] == "Pereira"
+        assert slots["tipo"] == "lote"
+        # Ni municipio ni zona: acotar aquí escondería Dosquebradas.
+        assert "municipio" not in slots
+        assert "zona" not in slots
+
+    def test_antioquia_es_la_plaza_de_medellin(self):
+        assert extraer_slots("apartamentos en Antioquia")["ciudad"] == "Medellín"
+
+    def test_el_municipio_manda_sobre_el_departamento(self):
+        """"Pereira, Risaralda" es una búsqueda en Pereira, no en toda la plaza."""
+        slots = extraer_slots("casas en Pereira, Risaralda")
+        assert slots["ciudad"] == "Pereira"
+        assert slots["municipio"] == "Pereira"
+
     def test_detecta_intencion_de_visita(self):
         assert pide_visita("quiero agendar una visita") is True
         assert pide_visita("¿me pueden llamar?") is False  # no está en el diccionario

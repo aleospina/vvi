@@ -52,6 +52,14 @@ os.environ["EVOLUTION_API_KEY"] = ""
 os.environ["EVOLUTION_WEBHOOK_TOKEN"] = ""
 os.environ["EVOLUTION_WEBHOOK_BASE"] = ""
 os.environ["EVOLUTION_NUMEROS_PRUEBA"] = ""
+# Lo mismo para Instagram: si el desarrollador tiene su cuenta real en
+# INSTAGRAM_USUARIOS_PRUEBA, la lista blanca filtra las cuentas ficticias de los
+# tests y el webhook deja de responder por una causa que no está en el código.
+os.environ["INSTAGRAM_TOKEN"] = ""
+os.environ["INSTAGRAM_APP_SECRET"] = ""
+os.environ["INSTAGRAM_VERIFY_TOKEN"] = ""
+os.environ["INSTAGRAM_CUENTA_ID"] = ""
+os.environ["INSTAGRAM_USUARIOS_PRUEBA"] = ""
 os.environ["MOONSHOT_API_KEY"] = ""
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["LLM_PROVIDER"] = "reglas"

@@ -58,6 +58,17 @@ MUNICIPIOS = {
     "dosquebradas": "Dosquebradas",
 }
 
+#: Departamentos donde opera el negocio, y la plaza que les corresponde. Fijan
+#: el área y **nada más**: quien escribe "lotes en Risaralda" no está acotando a
+#: un municipio, así que la búsqueda tiene que abarcar la plaza entera. Es la
+#: forma natural de preguntar de quien no sabe en qué municipio está cada
+#: inmueble —el caso normal de quien llega por la cuenta de Instagram—, y sin
+#: esto el bot le repreguntaba la ciudad aunque ya hubiera dicho dónde busca.
+DEPARTAMENTOS = {
+    "risaralda": "Pereira",
+    "antioquia": "Medellín",
+}
+
 #: Ciudades que el comprador puede nombrar y que hoy NO cubrimos. Reconocerlas es
 #: lo que permite responderle con transparencia en vez de seguir preguntando (CU-4).
 CIUDADES_FUERA = (
@@ -243,12 +254,22 @@ def extraer_slots(texto: str, *, negocio_previo: str | None = None) -> dict:
                 slots["zona"] = clave.capitalize()
             break
     else:
-        # Ciudad reconocible pero fuera de cobertura: la registramos tal cual para
-        # que la regla dura la detecte y el bot lo diga de frente.
-        for fuera in CIUDADES_FUERA:
-            if re.search(rf"\b{re.escape(fuera)}\b", plano):
-                slots["ciudad"] = fuera.title()
+        # El departamento va después del municipio, no antes: "apartamentos en
+        # Pereira, Risaralda" es una búsqueda en Pereira, y leerlo al revés
+        # abriría la consulta a Dosquebradas sin que nadie lo hubiera pedido.
+        for clave, plaza in DEPARTAMENTOS.items():
+            if re.search(rf"\b{clave}\b", plano):
+                # Ni `municipio` ni `zona`: un departamento no es ninguna de las
+                # dos cosas, y ponerlo ahí acotaría lo que debe quedar abierto.
+                slots["ciudad"] = plaza
                 break
+        else:
+            # Ciudad reconocible pero fuera de cobertura: la registramos tal cual
+            # para que la regla dura la detecte y el bot lo diga de frente.
+            for fuera in CIUDADES_FUERA:
+                if re.search(rf"\b{re.escape(fuera)}\b", plano):
+                    slots["ciudad"] = fuera.title()
+                    break
 
     for tipo, alias in TIPOS.items():
         if any(re.search(rf"\b{re.escape(a)}\b", plano) for a in alias):

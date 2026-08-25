@@ -21,7 +21,7 @@ import logging
 
 import httpx
 
-from app.channels import whatsapp_evo
+from app.channels import instagram_bot, whatsapp_evo
 from app.config import settings
 from app.models import Prospecto
 from app.services.compliance import tiene_consentimiento_vigente
@@ -78,6 +78,16 @@ def enviar(prospecto: Prospecto, texto: str) -> bool:
             return whatsapp_evo.enviar_texto(a_donde, texto)
         if prospecto.canal == "telegram":
             return _telegram(a_donde, texto)
+        if prospecto.canal == "instagram":
+            # La etiqueta HUMAN_AGENT es lo que permite escribir fuera de las
+            # 24 h desde el último mensaje del titular, y hasta 7 días. Aplica
+            # exactamente a esto: una pregunta de la inmobiliaria sobre un
+            # negocio en curso, no una promoción. Pasados los 7 días Meta
+            # rechaza el envío y el hito de seguimiento se pierde: es el límite
+            # del canal, no un fallo nuestro.
+            return instagram_bot.enviar_texto(
+                a_donde, texto, etiqueta=instagram_bot.ETIQUETA_HUMANO
+            )
     except Exception:  # noqa: BLE001 - un canal caído no puede parar la cola
         log.warning("No se pudo escribir a %s por %s.", prospecto.codigo, prospecto.canal,
                     exc_info=True)

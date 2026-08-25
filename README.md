@@ -20,6 +20,7 @@ de *captación*, es traer prospectos **desde** esas redes con su autorización:
 | Vía | Cómo llega el prospecto | Dónde está |
 |---|---|---|
 | **Telegram** | El comprador escribe primero al bot | `app/channels/telegram_bot.py` |
+| **Instagram** | El comprador manda un DM o responde una historia de la cuenta | `POST /webhooks/instagram` |
 | **Landing opt-in** | Enlace de campaña en link-in-bio de IG, descripción de listados de Marketplace/OLX → formulario con casilla de autorización | `GET/POST /c/{slug}` |
 | **Meta Lead Ads** | Formulario de Instagram/Facebook que el usuario diligencia | `POST /webhooks/meta/leadads` |
 | **Mercado Libre** | El comprador pregunta en la publicación | `POST /webhooks/mercadolibre/preguntas` |
@@ -119,6 +120,127 @@ Evolution no firma sus envíos con HMAC.
 Los tests del canal (`tests/test_whatsapp.py`) corren **sin WhatsApp conectado**: el
 webhook es un POST con JSON, así que el flujo completo se verifica con payloads reales.
 
+### Activar Instagram (Messaging API de Meta)
+Canal de Fase 3 (**ADR-02c**). A diferencia de WhatsApp, esto **sí es API oficial**: la
+cuenta no se restringe por usarla. Atiende los DM y las respuestas a historias de la
+cuenta profesional de la inmobiliaria.
+
+Necesitas una **cuenta profesional** de Instagram (empresa o creador) y una app en
+[developers.facebook.com](https://developers.facebook.com) con el producto *Instagram* y
+los permisos `instagram_business_basic` e `instagram_business_manage_messages`.
+
+```bash
+# 1. Secretos en .env  (el token y el app secret salen del panel de Meta)
+INSTAGRAM_TOKEN="..."            # token de acceso de la cuenta
+INSTAGRAM_APP_SECRET="..."       # Configuración → Básica → Clave secreta de la app
+python -c "import secrets; print('INSTAGRAM_VERIFY_TOKEN=' + secrets.token_urlsafe(32))"
+
+# 2. Declarar el webhook en el panel de Meta (Instagram → Configuración → Webhooks)
+#    URL:    https://tu-dominio/webhooks/instagram        ← tiene que ser HTTPS público
+#    Token:  el mismo INSTAGRAM_VERIFY_TOKEN
+#    Campos: messages
+curl http://127.0.0.1:8000/health                 # → "canal_instagram": true
+```
+
+Meta hace un GET con `hub.challenge` al guardar la suscripción: si el `verify token` no
+coincide exacto, ni siquiera deja guardarla. Ese webhook **sí va firmado** —
+`X-Hub-Signature-256` sobre el cuerpo crudo—, y esa firma es la barrera: por eso la ruta
+no lleva el segmento secreto que sí lleva la de WhatsApp.
+
+**Conectar la cuenta e ir a revisión.** El token del panel caduca a los 60 días y hay
+que renovarlo a mano; el *inicio de sesión de empresa* lo emite por OAuth y, de paso,
+registra la app como herramienta conectada con acceso a los mensajes. Este script
+imprime las cuatro URLs que pide el panel —ya armadas con tu host público— y el enlace
+con el que se conecta la cuenta:
+
+```bash
+python deploy/instagram/conectar.py            # ver las URLs y lo que falta
+python deploy/instagram/conectar.py --abrir    # y abrir el navegador
+```
+
+Necesita `INSTAGRAM_APP_ID`, que es el id de la app **de Instagram** (panel → *API con
+inicio de sesión de Instagram* → *Configuración de la app de Instagram*) y no el de la
+app de Meta: son dos números distintos y con el equivocado Instagram responde
+`Invalid platform app`. El secreto va emparejado con ese id — si el que muestra esa
+pantalla no es el mismo de *Configuración → Básica*, ponlo en
+`INSTAGRAM_LOGIN_APP_SECRET`. Al terminar el flujo, la página muestra el token de 60
+días para pegar en `INSTAGRAM_TOKEN`.
+
+Las rutas de **cancelación de autorización** y **eliminación de datos** que exige la
+revisión también están montadas: llegan firmadas con el app secret y ejecutan la misma
+supresión que el `/borrar` del titular (RF-17).
+
+**Modo pruebas.** Igual que en WhatsApp, con al menos una cuenta en
+`INSTAGRAM_USUARIOS_PRUEBA` el bot **solo responde a esas** y calla ante cualquier otra.
+Mientras la app esté en desarrollo Meta ya limita quién puede escribir, pero el día que
+aprueben la revisión el perfil atiende a todo el mundo de golpe: esta lista es el freno
+para ese día. Se admite el `@usuario` o el IGSID numérico.
+
+```bash
+INSTAGRAM_USUARIOS_PRUEBA="@inmodemo,@socio.pruebas"
+```
+
+Tres límites del canal que el código absorbe para que el resto del sistema no se entere:
+**1000 bytes por mensaje** (bytes, no caracteres: un emoji gasta 4, así que los listados
+se trocean entre fichas y nunca por la mitad de una), **sin Markdown** (las plantillas
+escriben `*negrita*` y aquí se limpia) y la **ventana de 24 h** para escribir primero,
+que el seguimiento al comprador estira a 7 días con la etiqueta `HUMAN_AGENT`.
+
+Con `INSTAGRAM_TOKEN` vacío el canal no se monta y la app arranca igual, como pasa con
+Telegram y WhatsApp. Los tests (`tests/test_instagram.py`) corren **sin cuenta de Meta**:
+el webhook es un POST firmado, así que el flujo completo se verifica con payloads reales.
+
+#### Probar en local, sin cuenta de Meta ni túnel
+
+Meta exige una URL pública con HTTPS, así que probar contra la cuenta real cuesta un
+túnel y una revisión de app. Para trabajar hay un simulador que cierra el circuito en la
+máquina: firma los mensajes igual que Meta y hace de `graph.instagram.com` para recoger
+lo que el bot responde.
+
+```bash
+# .env — valores de mentira, solo tienen que ser consistentes
+INSTAGRAM_TOKEN="local"
+INSTAGRAM_APP_SECRET="local-secreto"
+INSTAGRAM_VERIFY_TOKEN="local-verificacion"
+INSTAGRAM_API_BASE="http://127.0.0.1:8099"   # ← la salida va al simulador, no a Meta
+
+python run.py                                    # en una consola
+python deploy/instagram/probar_local.py          # en otra
+python deploy/instagram/probar_local.py --revisar   # solo comprobar la configuración
+```
+
+Se escribe como escribiría el comprador y se ve la respuesta tal como le llegaría a él:
+troceada en mensajes de 1000 bytes, con el tamaño real en bytes de cada uno y sin
+Markdown. `/si` y `/no` responden la autorización con el botón; `/quien 7` cambia de
+comprador para volver a empezar desde el consentimiento; `/cartera` recuerda qué hay
+para ofrecer. El recorrido es el de verdad —firma HMAC, deduplicación por `mid`, lista
+blanca, puerta de consentimiento y turno conversacional—: lo único simulado son las dos
+puntas que están del lado de Meta.
+
+**Ojo con `INSTAGRAM_API_BASE`:** si se queda apuntando al simulador, en producción el
+bot le hablaría a un servidor que no existe y el comprador no recibiría nada. Vuelve a
+`https://graph.instagram.com` antes de desplegar.
+
+#### Probar con tu cuenta real
+
+Cuando el flujo ya convence, el paso siguiente necesita que Instagram alcance tu máquina:
+
+1. **Convierte la cuenta a profesional** (Configuración → Tipo de cuenta → Empresa o
+   creador). Con una cuenta personal la Messaging API no entrega nada.
+2. **Abre un túnel** a tu VVI local — Meta solo acepta HTTPS público:
+   `cloudflared tunnel --url http://127.0.0.1:8000` (o `ngrok http 8000`). Pon esa URL en
+   `DASHBOARD_URL`, que es de donde cuelga la del webhook.
+3. En el panel de la app de Meta, declara `https://tu-tunel/webhooks/instagram` con tu
+   `INSTAGRAM_VERIFY_TOKEN` y suscríbete al campo **`messages`**.
+4. **Añádete como tester** (Roles → Probadores) y acepta la invitación desde tu cuenta.
+   Mientras la app esté en desarrollo, solo las cuentas con rol pueden escribirle.
+5. Pon tu usuario en `INSTAGRAM_USUARIOS_PRUEBA` y escríbele un DM a la cuenta desde otro
+   perfil tuyo.
+
+La URL del túnel cambia cada vez que se reinicia, y con ella hay que volver a declarar el
+webhook en Meta. Es lo esperable en desarrollo; en producción es la URL fija del
+despliegue.
+
 ### Activar el LLM
 Pon `MOONSHOT_API_KEY` (Kimi K2.6, primario) y/o `ANTHROPIC_API_KEY` (Claude, fallback).
 El orden lo controla `LLM_PROVIDER`. Si el primario falla, se usa el otro; si fallan ambos,
@@ -129,7 +251,7 @@ se degrada a reglas sin romper la conversación.
 ## Arquitectura
 
 ```
-Entrada (Telegram · WhatsApp · landing · Lead Ads · ML · manual)
+Entrada (Telegram · WhatsApp · Instagram · landing · Lead Ads · ML · manual)
         ↓
   channel_gateway ──► ¿consentimiento vigente? ──no──► aviso IA + solicitud de autorización
         │ sí

@@ -187,6 +187,7 @@ class Canal(str, enum.Enum):
 
     TELEGRAM = "telegram"
     WHATSAPP = "whatsapp"        # Evolution API (ADR-02b)
+    INSTAGRAM = "instagram"       # DM de la cuenta profesional (ADR-02c)
     LANDING = "landing"           # formulario web con casilla de consentimiento
     META_LEAD_ADS = "meta_lead_ads"   # Instagram / Facebook (formulario opt-in)
     MERCADO_LIBRE = "mercado_libre"   # el comprador pregunta en la publicación
