@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.llm.prompts import PLANTILLAS
 from app.models import Canal, Direccion, EstadoProspecto, Prospecto
-from app.services import leads, matching_engine, notificaciones, seguimiento
+from app.services import fotos, leads, matching_engine, notificaciones, seguimiento
 from app.services.compliance import (
     aviso_ia,
     registrar_consentimiento,
@@ -65,6 +66,14 @@ class MensajeEntrante:
 class Respuesta:
     textos: list[str] = field(default_factory=list)
     matches: list[Match] = field(default_factory=list)
+    #: Imágenes del inmueble que acompañan a la respuesta (RF-10). Cuál merece
+    #: galería lo decide la conversación y no el canal: solo la ficha única las
+    #: trae, porque preguntar por un inmueble concreto y recibir su descripción
+    #: sin verlo es contestar a medias. Un listado de ocho serían cuarenta
+    #: imágenes, así que ahí no van. El canal recibe rutas de archivo y decide
+    #: cómo se transporta una imagen en su protocolo — Telegram las agrupa en un
+    #: álbum, WhatsApp manda una por mensaje.
+    fotos: list[Path] = field(default_factory=list)
     pide_consentimiento: bool = False
     handoff: bool = False
     #: El comprador declaró que el negocio ya se cerró (PRD §10).
@@ -617,6 +626,12 @@ def procesar(db: Session, prospecto: Prospecto, texto: str) -> Respuesta:
         if matches:
             leads.marcar_emparejado(db, prospecto)
             respuesta.matches = matches
+            if len(matches) == 1:
+                # Se resuelven aquí, con la sesión abierta: `propiedad.fotos` es
+                # una relación perezosa y el canal la lee cuando la sesión ya se
+                # cerró. Lo que viaja son rutas de archivo, que no dependen de
+                # la base.
+                respuesta.fotos = fotos.rutas_para_enviar(matches[0].propiedad)
             en_rango, total = matching_engine.conteo(db, perfil)
             respuesta.textos.append(
                 "\n\n".join(

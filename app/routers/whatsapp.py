@@ -91,14 +91,26 @@ def atender(numero: str, texto: str, nombre: str | None) -> None:
     """Procesa un mensaje y responde. Corre fuera del ciclo de la petición."""
     whatsapp_evo.escribiendo(numero)
     try:
-        textos = conversacion.turno(
+        resultado = conversacion.turno(
             CANAL, numero, texto, nombre=nombre, telefono=numero
         )
     except Exception:
         log.exception("Error procesando mensaje de WhatsApp")
-        textos = ["Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"]
+        resultado = conversacion.Turno(
+            ["Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"]
+        )
 
-    for salida in textos:
+    # Las fotos van ANTES que la ficha, que es el orden en que se mira un
+    # anuncio: primero se ve el inmueble y después se lee de qué se trata. Al
+    # revés, la pregunta con la que cierra la ficha —«¿agendamos una visita?»—
+    # queda enterrada bajo cinco imágenes y nadie la contesta.
+    for ruta in resultado.fotos:
+        try:
+            whatsapp_evo.enviar_imagen(numero, ruta)
+        except Exception:  # noqa: BLE001 - sin fotos la ficha sigue sirviendo
+            log.exception("No se pudo enviar una foto por WhatsApp")
+
+    for salida in resultado.textos:
         try:
             whatsapp_evo.enviar_texto(numero, salida)
         except Exception:  # noqa: BLE001 - un envío fallido no debe cortar el resto

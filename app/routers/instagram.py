@@ -128,13 +128,17 @@ def atender(igsid: str, texto: str) -> None:
     instagram_bot.escribiendo(igsid)
     perfil = instagram_bot.perfil_usuario(igsid)
     try:
+        # Solo los textos: Instagram admite imágenes, pero mandarlas es otro
+        # endpoint y otra cuota, y el canal todavía no ha podido probarse contra
+        # una cuenta real (ADR-02c). Cuando se desbloquee, `resultado.fotos` ya
+        # viene resuelto y solo falta el transporte.
         textos = conversacion.turno(
             CANAL,
             igsid,
             texto,
             nombre=perfil.get("name"),
             usuario=perfil.get("username"),
-        )
+        ).textos
     except Exception:
         log.exception("Error procesando mensaje de Instagram")
         textos = ["Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"]

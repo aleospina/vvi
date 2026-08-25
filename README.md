@@ -246,6 +246,22 @@ Pon `MOONSHOT_API_KEY` (Kimi K2.6, primario) y/o `ANTHROPIC_API_KEY` (Claude, fa
 El orden lo controla `LLM_PROVIDER`. Si el primario falla, se usa el otro; si fallan ambos,
 se degrada a reglas sin romper la conversación.
 
+### Fotos del inmueble en el chat
+Cuando la búsqueda deja **un solo inmueble**, el bot manda su galería antes de la ficha:
+primero se ve la casa y después se lee de qué se trata. En un listado de varios no van
+—ocho inmuebles serían cuarenta imágenes, y ahí la foto tapa la lista que sirve para
+elegir—.
+
+Van hasta `fotos.TOPE_EN_CHAT` (5) y solo las que existen en disco: si el directorio de
+fotos queda fuera del volumen, un redespliegue se lleva los archivos y deja las filas, y
+es mejor mandar tres que reventar el turno. `GET /health` y el panel reportan ese
+desajuste (`fotos.diagnostico`).
+
+Cada canal las transporta a su manera: Telegram las agrupa en un **álbum** de un solo
+envío, y WhatsApp manda **una imagen por mensaje** (Evolution no tiene álbum), en base64
+y no por URL — un enlace obligaría a que Evolution alcanzara a VVI por HTTP, que en
+desarrollo no puede y en producción falla en silencio. Instagram, de momento, solo texto.
+
 ---
 
 ## Arquitectura
@@ -273,6 +289,7 @@ Entrada (Telegram · WhatsApp · Instagram · landing · Lead Ads · ML · manua
 | Cliente LLM | `app/llm/client.py` | Kimi K2.6 → Claude → reglas, con salida JSON estricta |
 | Emparejamiento | `app/services/matching_engine.py` | Filtro SQL + ranking + frases de venta sin inventar |
 | Cartera | `app/services/portfolio.py` | CRUD de propiedades |
+| Fotos | `app/services/fotos.py` | Carga validada, redimensionado y la galería que acompaña la ficha en el chat |
 | Prospectos | `app/services/leads.py` | Máquina de estados, handoff, alertas de seguimiento |
 | Captación | `app/services/prospecting.py` | Ingesta opt-in desde redes + radar de canales |
 | Comisión | `app/services/commission.py` | Confirmación humana, 3%, atribución |

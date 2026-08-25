@@ -12,7 +12,12 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Update,
+)
 from telegram.constants import ParseMode
 from telegram.ext import (
     Application,
@@ -55,6 +60,30 @@ async def _responder(update: Update, textos: list[str], teclado=None) -> None:
             reply_markup=teclado if i == len(textos) - 1 else None,
             disable_web_page_preview=True,
         )
+
+
+async def _enviar_fotos(update: Update, rutas: list) -> None:
+    """Manda la galería del inmueble como un álbum.
+
+    Telegram agrupa hasta diez imágenes en un solo envío y el cliente las pinta
+    como galería: una sola notificación y un solo bloque en el hilo, en vez de
+    cinco mensajes seguidos. Con una sola foto el álbum no aplica y `send_photo`
+    la deja mejor presentada.
+
+    Los fallos se tragan a propósito: quedarse sin fotos empeora la respuesta,
+    pero perder también la ficha por un archivo ilegible la borra entera.
+    """
+    if not rutas:
+        return
+    try:
+        if len(rutas) == 1:
+            await update.effective_chat.send_photo(rutas[0].read_bytes())
+            return
+        await update.effective_chat.send_media_group(
+            [InputMediaPhoto(r.read_bytes()) for r in rutas]
+        )
+    except Exception:  # noqa: BLE001 - la ficha en texto sigue siendo la respuesta
+        log.warning("No se pudieron enviar las fotos por Telegram", exc_info=True)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -145,7 +174,7 @@ async def on_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
     await context.bot.send_chat_action(chat_id=cid, action="typing")
     try:
-        textos = await asyncio.to_thread(
+        resultado = await asyncio.to_thread(
             conversacion.turno,
             CANAL,
             cid,
@@ -155,12 +184,19 @@ async def on_mensaje(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
     except Exception:
         log.exception("Error procesando mensaje de Telegram")
-        textos = [
-            "Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"
-        ]
+        resultado = conversacion.Turno(
+            ["Uy, tuve un problema técnico procesando tu mensaje. ¿Lo intentas de nuevo?"]
+        )
+
+    # Primero las fotos y después la ficha: se ve el inmueble y luego se lee de
+    # qué se trata. Al revés, la pregunta con la que cierra la ficha queda
+    # enterrada bajo el álbum.
+    if resultado.fotos:
+        await context.bot.send_chat_action(chat_id=cid, action="upload_photo")
+        await _enviar_fotos(update, resultado.fotos)
 
     teclado = TECLADO_CONSENTIMIENTO if conversacion.esta_pendiente(CANAL, cid) else None
-    await _responder(update, textos, teclado)
+    await _responder(update, resultado.textos, teclado)
 
 
 async def on_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

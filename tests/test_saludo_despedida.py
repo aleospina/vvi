@@ -228,7 +228,7 @@ def _autorizar(cid: str) -> None:
 class TestCicloDeConversacion:
     def test_al_despedirse_el_bot_se_despide(self, cid):
         _autorizar(cid)
-        textos = conversacion.turno(CANAL, cid, "Muchas gracias, hasta luego")
+        textos = conversacion.turno(CANAL, cid, "Muchas gracias, hasta luego").textos
         assert textos == [PLANTILLAS["despedida"]]
 
     def test_volver_a_escribir_retoma_el_mismo_hilo(self, cid):
@@ -244,7 +244,7 @@ class TestCicloDeConversacion:
         conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
         conversacion.turno(CANAL, cid, "gracias")
 
-        textos = conversacion.turno(CANAL, cid, "Hola de nuevo")
+        textos = conversacion.turno(CANAL, cid, "Hola de nuevo").textos
         assert "¿Autorizas?" not in textos[0]
         assert not conversacion.esta_pendiente(CANAL, cid)
 
@@ -257,19 +257,19 @@ class TestCicloDeConversacion:
         _autorizar(cid)
         conversacion.turno(CANAL, cid, "chao")
 
-        textos = conversacion.turno(CANAL, cid, "Busco apartamento en Medellín")
+        textos = conversacion.turno(CANAL, cid, "Busco apartamento en Medellín").textos
         assert "¿Autorizas?" not in textos[0]
 
     def test_a_quien_llega_por_primera_vez_si_le_pregunta_todo(self, cid):
-        textos = conversacion.turno(CANAL, cid, "Hola")
+        textos = conversacion.turno(CANAL, cid, "Hola").textos
         assert "¿Autorizas?" in textos[0]
-        textos = conversacion.turno(CANAL, cid, "Sí")
+        textos = conversacion.turno(CANAL, cid, "Sí").textos
         assert textos[-1] == PLANTILLAS["calificacion"]
 
     def test_despedirse_en_la_puerta_del_consentimiento_tambien_cierra(self, cid):
         """A quien dice 'gracias, chao' no se le insiste con la autorización."""
         conversacion.turno(CANAL, cid, "Hola")
-        textos = conversacion.turno(CANAL, cid, "no gracias")
+        textos = conversacion.turno(CANAL, cid, "no gracias").textos
         assert textos == [PLANTILLAS["despedida"]]
         assert not conversacion.esta_pendiente(CANAL, cid)
 

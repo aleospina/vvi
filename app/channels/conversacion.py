@@ -22,6 +22,8 @@ de canal es el número de teléfono, que es dato personal — en Telegram era un
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
+from pathlib import Path
 
 from app.channels import gateway
 from app.channels.gateway import MensajeEntrante
@@ -112,6 +114,23 @@ def rechazar_consentimiento(canal: str, cid: str) -> list[str]:
 # ─────────────────────────── Turno completo ───────────────────────────
 
 
+@dataclass(frozen=True)
+class Turno:
+    """Lo que hay que entregarle al titular en este turno: qué decirle y qué enseñarle.
+
+    Era una `list[str]` mientras la respuesta fue solo texto. Las fotos no caben
+    ahí, y tampoco son una decisión del canal: cuál inmueble merece galería lo
+    resuelve la conversación —hoy, el que queda solo tras la búsqueda— y el
+    canal únicamente sabe cómo se transporta una imagen en su protocolo.
+
+    `fotos` son rutas de archivo ya resueltas, no registros de la base: para
+    cuando el canal las lee, la sesión que las cargó está cerrada.
+    """
+
+    textos: list[str]
+    fotos: list[Path] = field(default_factory=list)
+
+
 def turno(
     canal: str,
     cid: str,
@@ -120,7 +139,7 @@ def turno(
     nombre: str | None = None,
     usuario: str | None = None,
     telefono: str | None = None,
-) -> list[str]:
+) -> Turno:
     """Un turno de conversación, incluida la puerta de consentimiento.
 
     Bloqueante: abre sesión de base de datos y puede llamar al LLM. Los canales
@@ -137,7 +156,8 @@ def turno(
             and tiene_consentimiento_vigente(prospecto)
             and not gateway.conversacion_cerrada(prospecto)
         ):
-            return gateway.procesar(db, prospecto, texto).textos
+            respuesta = gateway.procesar(db, prospecto, texto)
+            return Turno(respuesta.textos, respuesta.fotos)
 
     # A partir de aquí no hay conversación abierta: o nunca autorizó, o su ficha
     # se cerró con una venta. En el primer caso, además, nada se persiste.
@@ -145,22 +165,26 @@ def turno(
 
     if esta_pendiente(canal, cid):
         if es_afirmativo(texto):
-            return aceptar_consentimiento(
-                canal, cid, nombre=nombre, usuario=usuario, telefono=telefono
+            return Turno(
+                aceptar_consentimiento(
+                    canal, cid, nombre=nombre, usuario=usuario, telefono=telefono
+                )
             )
         if es_negativo(texto):
-            return rechazar_consentimiento(canal, cid)
+            return Turno(rechazar_consentimiento(canal, cid))
         # Despedirse en la puerta también es una respuesta: insistir con la
         # autorización a quien ya dijo "gracias, chao" es no escucharlo.
         if es_despedida(texto):
             olvidar_pendiente(canal, cid)
-            return [PLANTILLAS["despedida"]]
-        return [
-            "Necesito tu autorización explícita para continuar. ¿Autorizas el "
-            "tratamiento de tus datos? Responde *Sí* o *No*."
-        ]
+            return Turno([PLANTILLAS["despedida"]])
+        return Turno(
+            [
+                "Necesito tu autorización explícita para continuar. ¿Autorizas el "
+                "tratamiento de tus datos? Responde *Sí* o *No*."
+            ]
+        )
 
-    return iniciar(canal, cid)
+    return Turno(iniciar(canal, cid))
 
 
 # ─────────────────────────── Derechos del titular ───────────────────────────

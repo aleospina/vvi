@@ -178,6 +178,43 @@ def guardar(
     return guardadas
 
 
+#: Cuántas imágenes acompañan a la ficha de un inmueble en el chat. Cinco
+#: alcanzan para hacerse una idea —fachada, sala, cocina, alcoba, baño— y no
+#: tapan la conversación: Telegram las agrupa en un álbum, pero WhatsApp manda
+#: una por mensaje, así que la galería completa de doce sería un minuto de
+#: teléfono vibrando por una sola pregunta.
+TOPE_EN_CHAT = 5
+
+
+def rutas_para_enviar(propiedad: Propiedad, tope: int = TOPE_EN_CHAT) -> list[Path]:
+    """Los archivos de las primeras fotos del inmueble, en el orden de la portada.
+
+    Se devuelve la versión grande y no la miniatura: los dos canales recomprimen
+    igual lo que se les manda, y una imagen de 640 px de ancho se ve lavada
+    cuando el comprador la abre a pantalla completa —que es justo lo que va a
+    hacer con la foto de una casa—.
+
+    Solo entran las que **existen en disco**. El registro y el archivo se
+    separan con facilidad: si el directorio de fotos queda fuera del volumen, un
+    redespliegue se lleva los archivos y deja las filas (ver `diagnostico`). En
+    ese caso es preferible mandar las tres que sí están que reventar el turno
+    entero por una que no.
+    """
+    rutas: list[Path] = []
+    for foto in propiedad.fotos:
+        if len(rutas) >= tope:
+            break
+        ruta = DIRECTORIO / foto.archivo
+        if ruta.exists():
+            rutas.append(ruta)
+        else:
+            log.warning(
+                "Falta en disco el archivo %s de %s: esa foto no se envía.",
+                foto.archivo, propiedad.id,
+            )
+    return rutas
+
+
 def diagnostico(db: Session) -> dict:
     """Estado del almacenamiento de imágenes.
 

@@ -14,8 +14,10 @@ documentada del riesgo que ADR-02 rechazó en su momento.
 
 from __future__ import annotations
 
+import base64
 import logging
 import time
+from pathlib import Path
 
 import httpx
 
@@ -25,6 +27,11 @@ log = logging.getLogger(__name__)
 
 #: Un envío no puede colgar el turno conversacional indefinidamente.
 TIMEOUT = 15.0
+
+#: Subir una imagen no se parece a mandar una línea de texto: van cientos de
+#: kilobytes en base64 y el enlace de salida del servidor puede ser lento. Con
+#: el timeout de texto, envíos que iban bien se abortarían a medias.
+TIMEOUT_MEDIA = 60.0
 
 #: Sufijos de JID que WhatsApp usa para cosas que NO son un chat 1 a 1.
 JID_GRUPO = "@g.us"
@@ -65,11 +72,11 @@ def texto_de_mensaje(mensaje: dict) -> str | None:
     return texto.strip() if isinstance(texto, str) and texto.strip() else None
 
 
-def _cliente() -> httpx.Client:
+def _cliente(timeout: float = TIMEOUT) -> httpx.Client:
     return httpx.Client(
         base_url=settings.evolution_url.rstrip("/"),
         headers={"apikey": settings.evolution_api_key},
-        timeout=TIMEOUT,
+        timeout=timeout,
     )
 
 
@@ -84,6 +91,40 @@ def enviar_texto(numero: str, texto: str) -> bool:
             json={
                 "number": numero,
                 "text": texto,
+                "delay": settings.evolution_delay_ms,
+            },
+        )
+        r.raise_for_status()
+    return True
+
+
+def enviar_imagen(numero: str, ruta: Path, *, caption: str = "") -> bool:
+    """Envía una imagen del disco. Devuelve False si el canal no está configurado.
+
+    Va en **base64 y no como URL** a propósito. La alternativa —pasarle a
+    Evolution un enlace a `/static/fotos/…`— obliga a que VVI sea alcanzable
+    desde el contenedor con una URL pública y correcta. En desarrollo no lo es,
+    porque Evolution corre en Docker y `localhost` allí es el propio contenedor;
+    en producción el fallo sería mudo: Evolution no logra bajar el archivo, VVI
+    no se entera, y el comprador recibe la ficha sin ninguna foto.
+
+    Todo lo que guarda `services.fotos` está normalizado a JPEG, así que el
+    `mimetype` no depende de lo que subiera el operador.
+    """
+    if not settings.tiene_whatsapp:
+        log.warning("WhatsApp no configurado: imagen descartada.")
+        return False
+    datos = base64.b64encode(ruta.read_bytes()).decode("ascii")
+    with _cliente(TIMEOUT_MEDIA) as c:
+        r = c.post(
+            f"/message/sendMedia/{settings.evolution_instancia}",
+            json={
+                "number": numero,
+                "mediatype": "image",
+                "mimetype": "image/jpeg",
+                "media": datos,
+                "fileName": ruta.name,
+                "caption": caption,
                 "delay": settings.evolution_delay_ms,
             },
         )
