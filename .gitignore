@@ -25,3 +25,10 @@ deploy/evolution/qr.png
 # administración se ve el App Secret y los tokens. En el historial de git no se
 # borran: se reescribe la historia o no se borran.
 Configuracion Meta/
+
+# Capturas y referencias de trabajo que se dejan sueltas en la raíz mientras se
+# diseña algo (Captura*.PNG, imagen*.PNG). No son código y muchas vienen de
+# sitios ajenos con su marca de agua encima: en el historial de git no se
+# borran.
+Captura*.PNG
+imagen*.PNG

@@ -1,4 +1,4 @@
-{% from "_marca.html" import isotipo %}
+{% from "_marca.html" import isotipo, lema_marca %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -23,7 +23,11 @@
   <meta property="og:site_name" content="{{ empresa }}">
   <meta property="og:title" content="{{ self.titulo() }} · {{ empresa }}">
   <meta property="og:description" content="{{ self.descripcion() }}">
-  <meta property="og:image" content="{{ base_publica }}/static/img/portada-ciudad.svg">
+  {# La imagen que se ve al compartir el enlace por WhatsApp, que es como
+     circula de verdad una recomendación de vivienda. La portada la sustituye
+     por la fotografía de su titular: un inmueble real convence más que un
+     dibujo de la ciudad. #}
+  <meta property="og:image" content="{% block og_imagen %}{{ base_publica }}/static/img/portada-ciudad.svg{% endblock %}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
@@ -43,7 +47,7 @@
     {{ isotipo(34, '-barra') }}
     <span class="marca-texto">
       <span class="marca-inmoclick">Inmo<b>click</b></span>
-      <span class="marca-lema">{{ ciudades | join(' · ') }}</span>
+      <span class="marca-lema">{{ lema_marca }}</span>
     </span>
   </a>
   {# El menú solo ofrece rutas que existen de verdad. Se probó a poner «En
@@ -76,6 +80,13 @@
        `127.0.0.1`, que para las cookies son sitios distintos— para dejar al
        operador encerrado. Sin sesión cae en el formulario de ingreso, que no
        revela nada que no revele ya la propia URL. #}
+    {# Vuelta al inicio. El isotipo ya lleva ahí, pero un logotipo que además es
+       enlace es una convención que hay que conocer: quien no la conoce se queda
+       sin salida desde una ficha. En la propia portada no se pinta —un botón
+       que no va a ningún sitio enseña a desconfiar de los demás—. #}
+    {% if request.url.path != '/' %}
+      <a class="boton suave" href="/">Inicio</a>
+    {% endif %}
     {% if puede_editar %}
       <a class="boton suave" href="/dashboard/propiedades">← Volver al panel</a>
     {% elif sesion %}

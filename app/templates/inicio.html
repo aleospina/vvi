@@ -14,6 +14,7 @@
 {% block titulo %}Inmobiliaria en {{ ciudades | join(' y ') }}{% endblock %}
 {% block descripcion %}Inmoclick es una inmobiliaria boutique en {{ ciudades | join(' y ') }}: cartera con mandato verificado, atención inmediata y un asesor humano en cada visita.{% endblock %}
 {% block canonica %}<link rel="canonical" href="{{ base_publica }}/">{% endblock %}
+{% block og_imagen %}{{ base_publica }}{{ lamina_cima.url }}{% endblock %}
 {% block cuerpo_clase %} inicio{% endblock %}
 
 {% block contenido %}
@@ -21,9 +22,13 @@
 <section class="cima">
   {# La lámina va como `<img>` y no como `background-image` para que el
      navegador pueda priorizarla: es lo primero que se ve y lo que decide si la
-     página parece cargada o rota. #}
-  <img class="cima-lamina" src="/static/img/portada-ciudad.svg" alt="" aria-hidden="true"
-       fetchpriority="high">
+     página parece cargada o rota.
+
+     Es la portada del inmueble más caro de la cartera: una fotografía de una
+     casa que existe y se puede visitar, no una imagen de archivo. El dibujo
+     solo aparece mientras no haya ninguna foto cargada. #}
+  <img class="cima-lamina{{ ' foto' if lamina_cima.es_foto }}" src="{{ lamina_cima.url }}"
+       alt="" aria-hidden="true" fetchpriority="high">
   <div class="cima-velo" aria-hidden="true"></div>
 
   <div class="contenedor cima-cuerpo">
@@ -57,8 +62,8 @@
         <label for="cmun">Dónde</label>
         <select name="municipio" id="cmun">
           <option value="">Todos</option>
-          {% for ciudad, muni, n in zonas %}
-            <option value="{{ muni }}">{{ muni }} ({{ n }})</option>
+          {% for z in zonas %}
+            <option value="{{ z.municipio }}">{{ z.municipio }} ({{ z.total }})</option>
           {% endfor %}
         </select>
       </div>
@@ -127,12 +132,14 @@
       </span>
     </header>
     <div class="rejilla-zonas">
-      {% for ciudad, muni, n in zonas %}
-      <a class="zona" href="/inmuebles?municipio={{ muni | urlencode }}">
-        <img src="/static/img/{{ laminas[loop.index0 % laminas | length] }}" alt="" loading="lazy">
+      {# La imagen de cada zona es la de un inmueble que está de verdad ahí,
+         así que el mosaico enseña el municipio en vez de decorarlo. #}
+      {% for z in zonas %}
+      <a class="zona" href="/inmuebles?municipio={{ z.municipio | urlencode }}">
+        <img src="{{ z.lamina }}" alt="" loading="lazy">
         <span class="zona-pie">
-          <span class="zona-nombre">{{ muni }}</span>
-          <span class="zona-dato">{{ n }} inmueble{{ '' if n == 1 else 's' }}{% if muni != ciudad %} · {{ ciudad }}{% endif %}</span>
+          <span class="zona-nombre">{{ z.municipio }}</span>
+          <span class="zona-dato">{{ z.total }} inmueble{{ '' if z.total == 1 else 's' }}{% if z.municipio != z.ciudad %} · {{ z.ciudad }}{% endif %}</span>
         </span>
       </a>
       {% endfor %}
@@ -143,7 +150,8 @@
 
 <section class="contenedor seccion porque">
   <div class="porque-lamina">
-    <img src="/static/img/fachada-alta.svg" alt="" loading="lazy">
+    <img class="{{ 'foto' if lamina_porque.es_foto }}" src="{{ lamina_porque.url }}"
+         alt="" loading="lazy">
   </div>
   <div class="porque-texto">
     <p class="antetitulo">Por qué Inmoclick</p>

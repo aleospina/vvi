@@ -1829,3 +1829,24 @@ body.inicio .barra{border-bottom-color:transparent}
 /* La llamada final y el pie son los dos de tinta y se tocan: sin este filete
    la página termina en un bloque oscuro de 500px sin ninguna articulación. */
 .llamada + .pie-publico{border-top:1px solid rgba(255,255,255,.1)}
+
+/* Con tres botones en la fila —Escríbenos, Inicio, Acceso operador— el rótulo
+   más largo se partía en dos renglones y dejaba ese botón más alto que sus
+   vecinos. Se aprietan y se les prohíbe partirse; si aun así no caben, la fila
+   envuelve en vez de desbordar, que es lo que hace un teléfono estrecho. */
+@media (max-width:820px){
+  body.vitrina .quien{flex-wrap:wrap; justify-content:flex-end; gap:8px}
+  body.vitrina .quien .boton, body.vitrina .quien button{
+    white-space:nowrap; padding:11px 12px; font-size:10px; letter-spacing:.08em;
+  }
+}
+
+/* ─── Encuadre según la lámina sea foto o dibujo ───
+   El dibujo de la ciudad lleva el asunto en la mitad de abajo y se encuadra
+   bajo; una fotografía de una casa lo lleva en el centro, y con el mismo
+   encuadre se le corta el tejado. */
+.cima-lamina.foto{object-position:center 50%}
+/* Y en la sección del «por qué»: el dibujo es vertical de nacimiento (900×1200)
+   y aguanta un 3/4; una fotografía apaisada metida en esa caja se convierte en
+   una rendija. El 4/5 sigue siendo retrato y recorta lo justo. */
+.porque-lamina img.foto{aspect-ratio:4/5}

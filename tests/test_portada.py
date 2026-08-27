@@ -21,7 +21,7 @@ from fastapi.testclient import TestClient
 
 from app.config import settings
 from app.db import SessionLocal, inicializar
-from app.models import EstadoPropiedad, FuentePropiedad, Propiedad
+from app.models import EstadoPropiedad, FotoPropiedad, FuentePropiedad, Propiedad
 
 #: (id, ciudad, zona, tipo, precio, estado, fuente)
 CARTERA = [
@@ -46,6 +46,9 @@ TELEFONO = "+573001112233"
 
 
 def _limpiar(db) -> None:
+    db.query(FotoPropiedad).filter(
+        FotoPropiedad.propiedad_id.like("POR-%")
+    ).delete(synchronize_session=False)
     db.query(Propiedad).filter(Propiedad.id.like("POR-%")).delete(synchronize_session=False)
     db.commit()
 
@@ -150,3 +153,66 @@ class TestSinDatosPersonales:
         assert PROPIETARIO not in texto
         assert TELEFONO not in texto
         assert "3001112233" not in texto
+
+
+# ══════════════════ Las láminas salen de la cartera ══════════════════
+
+
+@pytest.fixture()
+def con_fotos(cartera):
+    """La casa es más barata que el apartamento, y los dos tienen foto.
+
+    Es el caso que importa: si la elección se hiciera solo por importe, la
+    portada la presidiría el apartamento. Reproduce la cartera real, donde el
+    inmueble más caro es un lote.
+    """
+    cartera.add_all([
+        FotoPropiedad(propiedad_id="POR-01", archivo="por-01-casa.jpg", orden=0),
+        FotoPropiedad(propiedad_id="POR-01", archivo="por-01-segunda.jpg", orden=1),
+        FotoPropiedad(propiedad_id="POR-02", archivo="por-02-apto.jpg", orden=0),
+    ])
+    cartera.commit()
+    return cartera
+
+
+class TestLaminas:
+    def test_el_titular_es_una_foto_de_la_cartera(self, web, con_fotos):
+        texto = web.get("/").text
+        assert "/static/fotos/por-01-casa.jpg" in texto
+        # Y ya no el dibujo: es lo que se pidió quitar del sitio.
+        assert "portada-ciudad.svg" not in texto
+
+    def test_la_casa_gana_al_inmueble_mas_caro(self, web, con_fotos):
+        """POR-02 vale 690 y POR-01 vale 430, pero la casa es la que preside.
+
+        Ordenar la lista entera por precio parece equivalente y no lo es: en la
+        cartera real el inmueble más caro es un lote, y el titular del sitio
+        habría acabado siendo la fotografía de un terreno.
+        """
+        texto = web.get("/").text
+        cima = texto.index('class="cima-lamina')
+        recorte = texto[cima:cima + 260]
+        assert "por-01-casa.jpg" in recorte
+        assert "por-02-apto.jpg" not in recorte
+
+    def test_las_dos_laminas_grandes_son_de_inmuebles_distintos(self, web, con_fotos):
+        """Repetir la misma foto arriba y abajo se lee como que solo hay una."""
+        texto = web.get("/").text
+        assert "/static/fotos/por-02-apto.jpg" in texto
+
+    def test_el_titular_usa_la_version_grande_y_no_la_miniatura(self, web, con_fotos):
+        """La miniatura son 640px: estirada a pantalla completa se ve el grano."""
+        texto = web.get("/").text
+        cima = texto.index('class="cima-lamina')
+        assert "por-01-casa-min.jpg" not in texto[cima:cima + 260]
+
+    def test_sin_fotos_la_portada_cae_al_dibujo(self, web, cartera):
+        """Una instalación recién montada no puede quedarse con un hueco gris."""
+        texto = web.get("/").text
+        assert "portada-ciudad.svg" in texto
+
+    def test_la_zona_se_ilustra_con_un_inmueble_suyo(self, web, con_fotos):
+        """El mosaico deja de ser decorativo: enseña el municipio que rotula."""
+        texto = web.get("/").text
+        zona = texto.index('class="zona"')
+        assert "/static/fotos/" in texto[zona:zona + 400]

@@ -1,4 +1,4 @@
-{% from "_marca.html" import isotipo %}
+{% from "_marca.html" import isotipo, lema_marca %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -17,7 +17,7 @@
     {{ isotipo(32, '-caja') }}
     <span class="marca-texto">
     <span class="marca-inmoclick">Inmo<b>click</b></span>
-    <span class="marca-lema">{{ ciudades | join(' · ') }}</span>
+    <span class="marca-lema">{{ lema_marca }}</span>
     </span>
   </div>
   {% if enviado %}

@@ -304,17 +304,43 @@ par:
 
 ### Las láminas
 
-Las imágenes de la portada (`app/static/img/portada-ciudad.svg`, `vista-*.svg`,
-`fachada-alta.svg`) son **ilustraciones vectoriales generadas**, no fotografías. La razón no
-es el peso —aunque las seis juntas ocupan menos que una sola foto de banco— sino que una
-foto de archivo de una torre de Miami en la portada de una inmobiliaria de Medellín y
-Pereira es una promesa que no se puede cumplir. Estas dibujan lo que sí hay: el valle
-mirado desde la ladera, las lomas cerrando el fondo, el caserío escalonado.
+Las tres imágenes grandes de la portada —el fondo del titular, el mosaico de zonas y la
+columna del «por qué»— **salen de la cartera**: son fotografías de inmuebles que existen,
+tienen mandato y se pueden visitar. Las elige `app/routers/inicio.py` en cada petición, no
+un nombre de archivo escrito en la plantilla. Las fotos viven en un volumen con nombres
+aleatorios, y una portada que apunta a uno concreto se rompe el día que el operador borra
+esa foto — en la primera pantalla del sitio, que es el peor sitio donde puede romperse
+algo.
 
-Cuando haya fotografía propia de la cartera, sustituirlas es cambiar el `src`: ninguna
-lámina afirma nada sobre un inmueble concreto. Las de las zonas (`vista-*.svg`) se turnan
-por orden y no retratan al municipio; lo que informa es el nombre y el conteo, y eso sale
-de la cartera.
+La regla, en orden:
+
+1. **Casa antes que lote.** Es lo que se reconoce como vivienda; la foto de un terreno
+   preside bien un listado de lotes, no la portada de una inmobiliaria.
+2. **Dentro de cada grupo, el más caro.** No sabemos qué foto es la mejor, pero el inmueble
+   más caro suele ser el mejor fotografiado.
+3. **De cada inmueble, su portada**, que es la foto que un humano ya marcó como la que
+   mejor lo representa.
+
+El desempate va *dentro* de cada grupo y no sobre la lista entera: ordenarla entera por
+precio parece equivalente y no lo es —el inmueble más caro de la cartera de hoy es un lote
+de 1.800 millones—, así que el titular del sitio habría sido la fotografía de un terreno.
+`tests/test_portada.py::TestLaminas` lo fija.
+
+**Consecuencia práctica:** cambiar la imagen que preside el sitio es marcar otra foto como
+portada del inmueble desde el panel. Un clic, no un despliegue.
+
+#### El respaldo dibujado
+
+`portada-ciudad.svg`, `vista-*.svg` y `fachada-alta.svg` siguen en el repositorio, pero
+solo se pintan **mientras la cartera no tenga ninguna fotografía**: una instalación recién
+montada, o el catálogo apagado. Una portada sin imagen se lee como una página rota, y un
+dibujo de la ciudad es mejor respuesta que un hueco gris.
+
+Son ilustraciones vectoriales generadas y no fotos de banco a propósito: una foto de
+archivo de una torre de Miami en la portada de una inmobiliaria de Medellín y Pereira es
+una promesa que no se puede cumplir. Estas dibujan lo que sí hay —el valle mirado desde la
+ladera, las lomas cerrando el fondo, el caserío escalonado— y las seis juntas pesan menos
+que una sola fotografía.
 
 Las genera `app/laminas.py`, con la semilla fija —el mismo archivo byte a byte mientras no
 se toque el código—. Para retocar una y volver a sacarlas todas:
@@ -327,6 +353,13 @@ Es el mismo patrón de `app/demo_imagenes.py`, que dibuja las fichas de la carte
 demostración por la misma razón: no poner la casa de una persona real ilustrando algo que
 no existe.
 
+#### Una advertencia sobre imágenes de terceros
+
+No se publican fotografías de archivo de otros portales. Además del problema de promesa
+—son casas de Miami—, las que circulan sueltas suelen venir de un MLS y traen su marca de
+agua de copyright encima (`SEFMLS©`, y equivalentes). Publicarlas expone al negocio y,
+peor, la marca de otro queda visible en la portada propia. Si hace falta fotografía que no
+sea de la cartera, tiene que venir con licencia comercial y sin marca de agua.
 ---
 
 ## Arquitectura

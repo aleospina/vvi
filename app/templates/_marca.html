@@ -16,6 +16,16 @@
 
    `sufijo` distingue el degradado cuando hay varios isotipos en la página: dos
    `id` iguales en un documento son inválidos y el segundo se ignora. #}
+{# Bajada del logotipo. Vive aquí y no escrita en cada cabecera porque la
+   pintan tres plantillas —portada, vitrina y las páginas de una sola caja— y
+   una bajada que dice algo distinto en cada pantalla no es una bajada.
+
+   Antes eran las ciudades de cobertura. Se cambió porque el logotipo tiene que
+   decir a qué se dedica la casa, no dónde: la cobertura ya la dicen el
+   antetítulo del titular, el pie y el propio inventario, y repetirla tres veces
+   gastaba el único renglón que hay para posicionar la marca. #}
+{%- set lema_marca = "Bienes raíces de lujo" -%}
+
 {%- macro isotipo(tam=36, sufijo='') -%}
 <svg class="isotipo" width="{{ tam }}" height="{{ tam }}" viewBox="0 0 64 64"
      aria-hidden="true" focusable="false">
