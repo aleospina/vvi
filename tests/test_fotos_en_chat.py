@@ -165,7 +165,7 @@ class TestTransporteWhatsApp:
             whatsapp_evo, "enviar_texto", lambda *a, **k: orden.append("texto")
         )
 
-        whatsapp.atender("573001234567", "casa en Envigado", "Ana")
+        whatsapp.atender("573001234567", "casa en Envigado", "Ana", "573001234567")
 
         assert orden == ["foto", "texto"]
 
@@ -188,7 +188,7 @@ class TestTransporteWhatsApp:
             whatsapp_evo, "enviar_texto", lambda n, t: enviados.append(t)
         )
 
-        whatsapp.atender("573001234567", "casa en Envigado", "Ana")
+        whatsapp.atender("573001234567", "casa en Envigado", "Ana", "573001234567")
 
         assert enviados == ["La ficha"]
 

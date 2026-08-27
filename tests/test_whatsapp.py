@@ -232,6 +232,49 @@ class TestListaBlanca:
         assert len(enviados) == 1
 
 
+class TestLid:
+    """WhatsApp puede identificar al remitente con un LID y no con su teléfono.
+
+    Pasó en producción: el bot recibía el mensaje, redactaba la respuesta y
+    Evolution rechazaba el envío con `400 Bad Request` porque el destinatario
+    era el número pelado del LID, que no es de nadie. Desde afuera se veía un
+    bot mudo, y el log solo decía que el turno se había procesado bien.
+    """
+
+    LID = "218421234567890@lid"
+
+    def test_al_lid_se_le_responde_al_jid_completo(self, cliente, enviados, monkeypatch):
+        monkeypatch.setattr(settings, "evolution_numeros_prueba", "")
+        cliente.post(f"/webhooks/whatsapp/{TOKEN}", json=evento(jid=self.LID))
+
+        assert len(enviados) == 1
+        destino, _ = enviados[0]
+        assert destino == self.LID, "pelarle el sufijo al LID es lo que produce el 400"
+
+    def test_el_telefono_sale_del_campo_alterno(self):
+        clave = {"remoteJid": self.LID, "senderPn": "573001234567@s.whatsapp.net"}
+        assert whatsapp_evo.telefono_de_clave(clave) == "573001234567"
+
+    def test_un_chat_normal_sigue_dando_su_propio_numero(self):
+        assert whatsapp_evo.telefono_de_clave({"remoteJid": JID}) == NUMERO
+
+    def test_sin_teléfono_resoluble_no_se_inventa_uno(self):
+        """Antes que guardar un LID como teléfono, mejor no guardar nada.
+
+        Ese campo es con el que el asesor devuelve la llamada: un número
+        inventado se descubre recién cuando alguien intenta marcarlo.
+        """
+        assert whatsapp_evo.telefono_de_clave({"remoteJid": self.LID}) is None
+
+    def test_la_lista_blanca_calla_ante_un_lid_que_no_puede_verificar(
+        self, cliente, enviados, monkeypatch
+    ):
+        """Dejar pasar lo que no se puede comprobar volvería adorno la lista."""
+        monkeypatch.setattr(settings, "evolution_numeros_prueba", "573001234567")
+        cliente.post(f"/webhooks/whatsapp/{TOKEN}", json=evento(jid=self.LID))
+        assert enviados == []
+
+
 class TestIdempotencia:
     def test_el_reintento_no_duplica_la_respuesta(self, cliente, enviados):
         """Evolution reenvía si el webhook tarda; el comprador no debe verlo dos veces."""

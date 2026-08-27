@@ -37,6 +37,23 @@ TIMEOUT_MEDIA = 60.0
 JID_GRUPO = "@g.us"
 JID_ESTADOS = "status@broadcast"
 
+#: Identificador opaco del esquema nuevo de WhatsApp (*LID*). No es un teléfono:
+#: un `remoteJid` así se ve igual que uno normal pero el número que lleva dentro
+#: no sirve ni para llamar ni para enviar.
+JID_LID = "@lid"
+
+#: Dónde buscar el teléfono real, en orden. El primero es el caso normal —el
+#: `remoteJid` ya es el número—; los demás son donde Baileys lo deja cuando el
+#: chat llega como LID, y cambian de nombre entre versiones: por eso se prueban
+#: todos en vez de fijar uno solo.
+CAMPOS_TELEFONO = (
+    "remoteJid",
+    "senderPn",
+    "remoteJidAlt",
+    "participantPn",
+    "participantAlt",
+)
+
 
 def numero_de_jid(jid: str) -> str:
     """`573001234567@s.whatsapp.net` → `573001234567`.
@@ -45,6 +62,45 @@ def numero_de_jid(jid: str) -> str:
     canal queda estable aunque el sufijo del JID cambie entre versiones.
     """
     return jid.split("@", 1)[0].split(":", 1)[0]
+
+
+def es_lid(jid: str) -> bool:
+    """¿El remitente llegó con el identificador opaco en vez del teléfono?"""
+    return jid.split(":", 1)[0].endswith(JID_LID)
+
+
+def destino_de_jid(jid: str) -> str:
+    """A quién dirigir la respuesta, en la forma que Evolution sabe rutear.
+
+    Con un JID normal se manda el número pelado, como siempre. Con un LID hay
+    que mandar el **JID completo**: pelarlo deja un número que no es de nadie y
+    Evolution rechaza el envío con `400 Bad Request` — es decir, el bot procesa
+    el turno, redacta la respuesta y la entrega falla sin que el comprador vea
+    nada. Evolution reenvía tal cual cualquier destinatario que ya traiga `@`.
+    """
+    if es_lid(jid):
+        return jid.split(":", 1)[0]
+    return numero_de_jid(jid)
+
+
+def telefono_de_clave(clave: dict) -> str | None:
+    """El teléfono real del remitente, o None si el evento no lo trae.
+
+    Devolver None es una respuesta legítima y no un fallo: el teléfono termina
+    guardado como PII del prospecto y es con el que el asesor devuelve la
+    llamada. Meter ahí un LID sería peor que dejarlo vacío — un lead con un
+    número inventado se descubre recién cuando alguien intenta marcarlo.
+    """
+    for campo in CAMPOS_TELEFONO:
+        crudo = str(clave.get(campo) or "")
+        if not crudo or es_lid(crudo):
+            continue
+        candidato = numero_de_jid(crudo)
+        # Un celular colombiano con indicativo son 12 dígitos; el rango ancho
+        # deja pasar otros países sin dar por bueno un identificador largo.
+        if candidato.isdigit() and 10 <= len(candidato) <= 15:
+            return candidato
+    return None
 
 
 def es_chat_individual(jid: str) -> bool:

@@ -87,12 +87,17 @@ def _autenticado(token: str, cuerpo: dict) -> bool:
     return _apikey_valida(cuerpo.get("apikey") or "")
 
 
-def atender(numero: str, texto: str, nombre: str | None) -> None:
-    """Procesa un mensaje y responde. Corre fuera del ciclo de la petición."""
-    whatsapp_evo.escribiendo(numero)
+def atender(destino: str, texto: str, nombre: str | None, telefono: str | None) -> None:
+    """Procesa un mensaje y responde. Corre fuera del ciclo de la petición.
+
+    `destino` es a quién se le contesta y también el identificador de la
+    conversación; `telefono` es el número real para que el asesor devuelva la
+    llamada, y puede no venir. En un chat normal los dos son el mismo valor.
+    """
+    whatsapp_evo.escribiendo(destino)
     try:
         resultado = conversacion.turno(
-            CANAL, numero, texto, nombre=nombre, telefono=numero
+            CANAL, destino, texto, nombre=nombre, telefono=telefono
         )
     except Exception:
         log.exception("Error procesando mensaje de WhatsApp")
@@ -106,13 +111,13 @@ def atender(numero: str, texto: str, nombre: str | None) -> None:
     # queda enterrada bajo cinco imágenes y nadie la contesta.
     for ruta in resultado.fotos:
         try:
-            whatsapp_evo.enviar_imagen(numero, ruta)
+            whatsapp_evo.enviar_imagen(destino, ruta)
         except Exception:  # noqa: BLE001 - sin fotos la ficha sigue sirviendo
             log.exception("No se pudo enviar una foto por WhatsApp")
 
     for salida in resultado.textos:
         try:
-            whatsapp_evo.enviar_texto(numero, salida)
+            whatsapp_evo.enviar_texto(destino, salida)
         except Exception:  # noqa: BLE001 - un envío fallido no debe cortar el resto
             log.exception("No se pudo enviar una respuesta por WhatsApp")
 
@@ -129,7 +134,13 @@ def _huella(numero: str) -> str:
 def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
     clave = datos.get("key") or {}
     jid = str(clave.get("remoteJid") or "")
-    numero = whatsapp_evo.numero_de_jid(jid)
+
+    # `destino` identifica la conversación y es a quién se responde; `telefono`
+    # es el número real y puede no venir. Con un JID normal son lo mismo; con un
+    # LID no, y confundirlos fue lo que dejó al canal contestando al vacío.
+    destino = whatsapp_evo.destino_de_jid(jid)
+    telefono = whatsapp_evo.telefono_de_clave(clave)
+    numero = telefono or destino
 
     # Cada descarte se registra con su motivo. Sin esto, un canal que no
     # responde es indistinguible de un canal que no recibe nada: fue justo lo
@@ -147,6 +158,18 @@ def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
         log.info("WhatsApp: descartado duplicado de %s (reintento de Evolution).", _huella(numero))
         return
 
+    # WhatsApp está migrando a identificadores opacos (LID) que no son teléfonos.
+    # Se registran los NOMBRES de los campos del evento, nunca sus valores: si el
+    # teléfono viene en un campo que esta versión de Baileys nombra distinto, esta
+    # línea es la que lo delata sin tener que volver a instrumentar y desplegar.
+    if whatsapp_evo.es_lid(jid):
+        log.info(
+            "WhatsApp: remitente %s llegó como LID; teléfono %s. Campos del evento: %s.",
+            _huella(destino),
+            "resuelto" if telefono else "NO resuelto",
+            ", ".join(sorted(clave)) or "ninguno",
+        )
+
     # Modo pruebas: con lista blanca configurada, el bot calla ante cualquier
     # otro número. La lista se lee en cada mensaje porque se puede cambiar desde
     # el dashboard sin reiniciar: leerla una vez al arrancar haría que el cambio
@@ -156,11 +179,15 @@ def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
     # motor. El silencio es deliberado: responder "no estás autorizado" sería
     # contestarle igual a quien no debía recibir nada.
     permitidos = ajustes.numeros_prueba()
-    if permitidos and numero not in permitidos:
+    if permitidos and (telefono or destino) not in permitidos:
+        # Sin teléfono resuelto no hay forma de saber si el remitente está
+        # autorizado, y ante la duda el modo pruebas calla: dejar pasar lo que no
+        # se puede verificar convertiría la lista blanca en un adorno.
         log.info(
-            "WhatsApp: %s no está en la lista de pruebas (%d autorizados): ignorado.",
+            "WhatsApp: %s no está en la lista de pruebas (%d autorizados): ignorado.%s",
             _huella(numero),
             len(permitidos),
+            "" if telefono else " Llegó como LID y no se pudo resolver su teléfono.",
         )
         return
 
@@ -176,13 +203,13 @@ def _mensaje_entrante(datos: dict, tareas: BackgroundTasks) -> None:
         )
         tareas.add_task(
             whatsapp_evo.enviar_texto,
-            numero,
+            destino,
             "Por ahora solo puedo leer mensajes de texto 🙏 ¿Me lo escribes?",
         )
         return
 
     log.info("WhatsApp: mensaje de %s aceptado, procesando turno.", _huella(numero))
-    tareas.add_task(atender, numero, texto, datos.get("pushName"))
+    tareas.add_task(atender, destino, texto, datos.get("pushName"), telefono)
 
 
 def _conexion(datos: dict) -> None:
