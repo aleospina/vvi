@@ -3,19 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block titulo %}VVI{% endblock %} · {{ empresa }}</title>
+  <title>{% block titulo %}Inmoclick{% endblock %} · {{ empresa }}</title>
   {# Fuentes con respaldo local: si no hay internet, cae a Georgia y Segoe UI
      sin romper la maqueta. #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
   <link rel="stylesheet" href="/static/estilos.css?v={{ v_estilos }}">
 </head>
 <body>
 <header class="barra">
   <div class="marca">
-    <span class="logo">VVI</span>
-    <span class="sub">VENDEDOR VIRTUAL INMOBILIARIO</span>
+    <span class="marca-inmoclick">Inmo<b>click</b></span>
+    <span class="marca-lema">Panel de gestión</span>
   </div>
   {% set ruta = request.url.path %}
   {# El invitado solo ve Cartera: las demás pantallas exponen conversaciones y

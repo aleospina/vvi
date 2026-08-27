@@ -1,12 +1,14 @@
 {% extends "publico.html" %}
+{% from "_tarjeta_inmueble.html" import tarjeta with context %}
 
 {# El negocio va en el título: es lo primero que necesita saber quien recibe
    el enlace por WhatsApp, y sin él el precio no se entiende. #}
 {% set titulo_inmueble = p.tipo | capitalize ~ ' en ' ~ p.negocio ~ ' en ' ~ (p.zona or municipio) %}
+{% set url_publica = base_publica ~ canonica %}
 
 {% block titulo %}{{ titulo_inmueble }}{% endblock %}
 {% block descripcion %}{{ titulo_inmueble }}, {{ municipio }}. {{ p.precio | pesos }}.{% if p.habitaciones %} {{ p.habitaciones }} alcobas.{% endif %}{% if p.area_m2 %} {{ '%.0f' % p.area_m2 }} m².{% endif %} Código {{ p.id }}.{% endblock %}
-{% block canonica %}<link rel="canonical" href="{{ base_publica }}{{ canonica }}">{% endblock %}
+{% block canonica %}<link rel="canonical" href="{{ url_publica }}">{% endblock %}
 
 {% block cabeza %}
 {# Datos estructurados: es lo que hace que el enlace se vea como una ficha y no
@@ -19,7 +21,7 @@
   "@context": "https://schema.org",
   "@type": "RealEstateListing",
   "name": {{ titulo_inmueble | tojson }},
-  "url": {{ (base_publica ~ canonica) | tojson }},
+  "url": {{ url_publica | tojson }},
   "description": {{ (p.descripcion or titulo_inmueble) | tojson }},
   "identifier": {{ p.id | tojson }},
   "datePosted": {{ p.creada_en.isoformat() | tojson }},
@@ -62,25 +64,17 @@
 
 {% block contenido %}
 
-<p class="miga">
-  <a href="/inmuebles">Inmuebles</a> ·
-  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}">{{ etiquetas_negocio[p.negocio] }}</a> ·
-  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}&amp;municipio={{ municipio | urlencode }}">{{ municipio }}</a> ·
+<nav class="miga" aria-label="Dónde estás">
+  <a href="/inmuebles">Inmuebles</a> <span class="sep">/</span>
+  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}">{{ etiquetas_negocio[p.negocio] }}</a> <span class="sep">/</span>
+  <a href="/inmuebles?negocio={{ p.negocio | urlencode }}&amp;municipio={{ municipio | urlencode }}">{{ municipio }}</a> <span class="sep">/</span>
   <a href="/inmuebles?negocio={{ p.negocio | urlencode }}&amp;tipo={{ p.tipo | urlencode }}">{{ p.tipo | capitalize }}</a>
-</p>
-
-<h1 class="titulo-ficha">{{ titulo_inmueble }}</h1>
-{# `ciudad` guarda la plaza de cobertura y el municipio se deduce de la zona:
-   cuando coinciden, repetirlo da "Pereira, Pereira". #}
-<p class="leyenda">
-  {{ p.zona or 'Zona sin definir' }} · {{ municipio }}{% if municipio != p.ciudad %}, {{ p.ciudad }}{% endif %}
-  · Código {{ p.id }}
-</p>
+</nav>
 
 {% if sesion %}
 {# Barra de operador. No aporta ningún dato que la ficha pública no muestre:
    es solo el puente hacia donde sí se puede editar y comentar. #}
-<div class="barra-interna">
+<div class="barra-interna" style="margin:0 0 22px">
   <span><strong>Solo tú ves esta franja.</strong> Estás en la ficha pública de {{ p.id }}.</span>
   <a class="boton suave" href="/dashboard/propiedades/{{ p.id }}">
     {{ 'Editar ficha interna' if puede_editar else 'Ver ficha interna y comentarios' }}
@@ -100,7 +94,7 @@
 {% endif %}
 
 {% if p.es_referencia %}
-<div class="aviso-caja error">
+<div class="aviso-caja error" style="margin-bottom:22px">
   <h3>Inmueble de demostración</h3>
   <p>
     Este registro es <strong>inventado</strong> y no corresponde a ninguna propiedad real.
@@ -109,47 +103,93 @@
 </div>
 {% endif %}
 
+{# ═══════════════════ Galería de apertura ═══════════════════
+   Con cinco fotos o más el mosaico se llena entero; con menos se recompone
+   para no dejar celdas vacías. Cada pieza es un enlace a su propia imagen:
+   sin JavaScript la galería sigue navegándose, solo que a pantalla completa
+   del navegador en lugar del visor. #}
+{% set n_fotos = p.fotos | length %}
+{% if n_fotos %}
+  {% set piezas = 1 if n_fotos == 1 else (2 if n_fotos == 2 else (3 if n_fotos < 5 else 5)) %}
+  <div class="mosaico{{ ' fotos-%d' % piezas if piezas < 5 else '' }}" id="mosaico">
+    {% for f in p.fotos[:piezas] %}
+      <a class="pieza" href="{{ f.url }}" data-indice="{{ loop.index0 }}"
+         aria-label="Ver foto {{ loop.index }} de {{ n_fotos }}">
+        {# La primera se pide a tamaño completo porque es la imagen grande de
+           la página; las demás son sellos y con la miniatura basta. #}
+        <img src="{{ f.url if loop.first else f.miniatura }}"
+             alt="{{ titulo_inmueble if loop.first else '' }}"
+             loading="{{ 'eager' if loop.first else 'lazy' }}">
+      </a>
+    {% endfor %}
+    {% if n_fotos > 1 %}
+    {# Nace oculto y lo revela el JavaScript: sin visor, un botón que no hace
+       nada es peor que no tenerlo. #}
+    <button type="button" class="ver-fotos" id="abrir-galeria" hidden>
+      Ver las {{ n_fotos }} fotos
+    </button>
+    {% endif %}
+  </div>
+{% else %}
+  <div class="mosaico sin-foto">
+    <img src="{{ p.portada }}" alt="">
+  </div>
+{% endif %}
+
+{# ═══════════════════ Identidad y precio ═══════════════════ #}
+<header class="ficha-encabezado">
+  <div class="identidad">
+    <span class="ficha-negocio {{ 'demo' if p.es_referencia }}">
+      {{ etiquetas_negocio[p.negocio] }}
+    </span>
+    <h1 class="titulo-ficha">{{ titulo_inmueble }}</h1>
+    {# `ciudad` guarda la plaza de cobertura y el municipio se deduce de la
+       zona: cuando coinciden, repetirlo da «Pereira, Pereira». #}
+    <p class="ficha-lugar">
+      {{ p.zona or 'Zona sin definir' }} · {{ municipio }}{% if municipio != p.ciudad %}, {{ p.ciudad }}{% endif %}
+      · Código {{ p.id }}
+    </p>
+  </div>
+  <div class="valor">
+    <span class="rotulo">{{ rotulo_precio }}</span>
+    <div class="precio-grande">
+      {{ p.precio | pesos }}{% if p.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
+    </div>
+    <p class="por-m2">
+      {# El precio por m² solo significa algo comprando: en arriendo daría una
+         cifra de tres dígitos que nadie usa para decidir. #}
+      {% if p.area_m2 and p.negocio != 'arriendo' %}
+        {{ (p.precio / p.area_m2) | round | int | pesos }} por m² · Pesos colombianos
+      {% else %}
+        Pesos colombianos{% if p.negocio == 'arriendo' %} · la administración puede ir aparte{% endif %}
+      {% endif %}
+    </p>
+  </div>
+</header>
+
+<div class="cifras-clave">
+  <div><span class="rotulo">Alcobas</span><span class="dato">{{ p.habitaciones or '—' }}</span></div>
+  <div><span class="rotulo">Baños</span><span class="dato">{{ p.banos or '—' }}</span></div>
+  <div><span class="rotulo">Área</span><span class="dato">{{ ('%.0f m²' % p.area_m2) if p.area_m2 else '—' }}</span></div>
+  <div><span class="rotulo">Tipo</span><span class="dato">{{ p.tipo | capitalize }}</span></div>
+</div>
+
+<div class="compartir">
+  <span class="rotulo">Compartir</span>
+  <a href="https://wa.me/?text={{ (titulo_inmueble ~ ' — ' ~ url_publica) | urlencode }}"
+     target="_blank" rel="noopener">WhatsApp</a>
+  <a href="mailto:?subject={{ titulo_inmueble | urlencode }}&amp;body={{ url_publica | urlencode }}">Correo</a>
+  {# Igual que el botón de la galería: sin JavaScript no hay portapapeles, así
+     que el botón no existe en vez de existir y fallar. #}
+  <button type="button" id="copiar-enlace" data-url="{{ url_publica }}" hidden>Copiar enlace</button>
+</div>
+
 <div class="ficha-publica">
   <div class="ficha-principal">
 
-    {# ── Galería ── #}
-    {% if p.fotos %}
-    {% set n_fotos = p.fotos | length %}
-    <figure class="visor{{ ' con-navegacion' if n_fotos > 1 }}">
-      <img id="visor-foto" src="{{ p.fotos[0].url }}" alt="{{ titulo_inmueble }}">
-      {% if n_fotos > 1 %}
-      {# Las flechas y el contador son lo único que delata que hay más fotos:
-         la tira de miniaturas se desplaza en horizontal y en la mayoría de
-         navegadores no dibuja barra, así que doce fotos parecían tres. #}
-      <button type="button" class="visor-nav anterior" data-paso="-1"
-              aria-label="Foto anterior" aria-controls="visor-foto">‹</button>
-      <button type="button" class="visor-nav siguiente" data-paso="1"
-              aria-label="Foto siguiente" aria-controls="visor-foto">›</button>
-      <figcaption class="visor-contador" aria-live="polite">
-        <span id="visor-indice">1</span> / {{ n_fotos }}
-      </figcaption>
-      {% endif %}
-    </figure>
-    {% if n_fotos > 1 %}
-    <div class="tira">
-      {% for f in p.fotos %}
-        <button type="button" class="mini {{ 'activa' if loop.first }}" data-grande="{{ f.url }}"
-                aria-label="Ver foto {{ loop.index }} de {{ n_fotos }}">
-          <img src="{{ f.miniatura }}" alt="" loading="lazy">
-        </button>
-      {% endfor %}
-    </div>
-    {% endif %}
-    {% else %}
-    <figure class="visor sin-foto">
-      <img src="{{ p.portada }}" alt="">
-    </figure>
-    {% endif %}
-
-    {# ── Detalles ── #}
-    <section class="panel">
-      <h2 style="margin-top:0">Detalles del inmueble</h2>
-      <dl class="detalles">
+    <section class="bloque">
+      <h2>Información clave</h2>
+      <dl class="info-clave">
         <div><dt>Código</dt><dd>{{ p.id }}</dd></div>
         <div><dt>Tipo de inmueble</dt><dd>{{ p.tipo | capitalize }}</dd></div>
         <div><dt>Tipo de negocio</dt><dd>{{ p.negocio | capitalize }}</dd></div>
@@ -164,40 +204,27 @@
         <div><dt>Alcobas</dt><dd>{{ p.habitaciones or '—' }}</dd></div>
         <div><dt>Baños</dt><dd>{{ p.banos or '—' }}</dd></div>
         <div><dt>Área</dt><dd>{{ ('%.0f m²' % p.area_m2) if p.area_m2 else '—' }}</dd></div>
+        {% if p.area_m2 and p.negocio != 'arriendo' %}
+        <div><dt>Precio por m²</dt><dd>{{ (p.precio / p.area_m2) | round | int | pesos }}</dd></div>
+        {% endif %}
         <div><dt>Publicado</dt><dd>{{ p.creada_en | fecha('%d/%m/%Y') }}</dd></div>
       </dl>
     </section>
 
     {% if p.descripcion %}
-    <section class="panel">
-      <h2 style="margin-top:0">Descripción</h2>
-      <p style="white-space:pre-wrap; margin:0">{{ p.descripcion }}</p>
+    <section class="bloque">
+      <h2>Descripción</h2>
+      <p class="cuerpo-texto">{{ p.descripcion }}</p>
     </section>
     {% endif %}
   </div>
 
   {# ── Columna de conversión ── #}
   <aside class="ficha-lateral">
-    <div class="panel precio-panel">
-      <span class="rotulo">{{ rotulo_precio }}</span>
-      <div class="precio-grande">
-        {{ p.precio | pesos }}{% if p.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
-      </div>
-      <p class="leyenda" style="margin:0">
-        {# El precio por m² solo significa algo comprando: en arriendo daría una
-           cifra de tres dígitos que nadie usa para decidir. #}
-        {% if p.area_m2 and p.negocio != 'arriendo' %}
-          {{ (p.precio / p.area_m2) | round | int | pesos }} por m² ·
-        {% endif %}
-        Pesos colombianos
-        {%- if p.negocio == 'arriendo' %} · la administración puede ir aparte{% endif %}
-      </p>
-    </div>
-
-    <div class="panel" id="contacto">
+    <div class="tarjeta-asesor" id="contacto">
       {% if enviado %}
-        <h2 style="margin-top:0">¡Listo! 🎉</h2>
-        <p>
+        <h2>¡Listo! 🎉</h2>
+        <p style="font-size:14.5px">
           Recibimos tus datos con tu autorización (referencia
           <strong>{{ codigo_prospecto }}</strong>). Te contactamos muy pronto por el
           inmueble <strong>{{ p.id }}</strong>.
@@ -207,14 +234,22 @@
           <a href="{{ politica }}" target="_blank" rel="noopener">Política de tratamiento</a>.
         </p>
       {% else %}
-        <h2 style="margin-top:0">Me interesa</h2>
+        <div class="asesor-cabeza">
+          <span class="asesor-avatar" aria-hidden="true">{{ empresa[:2] | upper }}</span>
+          <span>
+            <span class="asesor-nombre">{{ empresa }}</span>
+            <span class="asesor-rol">Asesoría inmobiliaria · {{ ciudades | join(' y ') }}</span>
+          </span>
+        </div>
+
+        <h2>Me interesa este inmueble</h2>
         <p class="leyenda">
-          Déjanos tus datos y te contamos todo sobre este inmueble. Te atiende un
-          asistente con inteligencia artificial; la visita la confirma un asesor.
+          Déjanos tus datos y te contamos todo. Te atiende un asistente con
+          inteligencia artificial; la visita la confirma un asesor.
         </p>
 
         {% if error %}
-          <div class="aviso-caja error"><p style="margin:0">{{ error }}</p></div>
+          <div class="aviso-caja error" style="margin-bottom:16px"><p style="margin:0">{{ error }}</p></div>
         {% endif %}
 
         <form method="post" action="{{ canonica }}">
@@ -243,15 +278,18 @@
             </label>
           </div>
 
-          <button type="submit" style="width:100%">Quiero más información</button>
+          <button class="principal" type="submit">Quiero más información</button>
         </form>
 
         {% if whatsapp %}
-        <p class="leyenda" style="margin:14px 0 0; text-align:center">
-          O escríbenos por
-          <a href="https://wa.me/{{ whatsapp }}?text={{ ('Hola, me interesa el inmueble ' ~ p.id) | urlencode }}"
-             target="_blank" rel="noopener">WhatsApp</a>.
-        </p>
+        <a class="boton-wasap"
+           href="https://wa.me/{{ whatsapp }}?text={{ ('Hola, me interesa el inmueble ' ~ p.id) | urlencode }}"
+           target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" fill="currentColor">
+            <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm4.52 12c-.25-.13-1.47-.73-1.69-.82-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.15.16-.29.18-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.44.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.65 4.2 3.71.59.25 1.04.4 1.4.52.59.18 1.12.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z"/>
+          </svg>
+          Escribir por WhatsApp
+        </a>
         {% endif %}
       {% endif %}
     </div>
@@ -263,8 +301,8 @@
    no debe leer lo que el equipo anota sobre la propiedad que está mirando.
    Vive aquí además de en la ficha interna porque el invitado ya no entra al
    panel, y comentar es justamente para lo que existe su cuenta. #}
-<section class="panel hilo-interno" id="comentarios">
-  <h2 style="margin-top:0">Notas del equipo <span class="chip frio">no visible al público</span></h2>
+<section class="hilo-interno" id="comentarios">
+  <h2>Notas del equipo <span class="chip frio">no visible al público</span></h2>
 
   {% if p.comentarios %}
   <div class="hilo">
@@ -303,83 +341,135 @@
 {% if similares %}
 <section class="tambien">
   <h2>También te pueden servir</h2>
-  <div class="inmuebles">
+  <div class="rejilla-inmuebles">
     {% for s in similares %}
-      <article class="inmueble">
-        <a href="{{ s | ruta }}" class="foto" aria-label="Ver {{ s.tipo }} en {{ s.zona or s.ciudad }}">
-          <img src="{{ s.portada }}" alt="" loading="lazy">
-          <span class="insignias">
-            <span class="insignia {{ 'viva' if s.negocio == 'venta' else 'alterna' }}">
-              {{ s.tipo }} · {{ s.negocio }}
-            </span>
-            {% if s.es_referencia %}<span class="insignia aviso">demo · no existe</span>{% endif %}
-          </span>
-        </a>
-        <div class="cuerpo">
-          <div class="precio">
-            {{ s.precio | pesos }}{% if s.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
-          </div>
-          <div class="ubicacion">{{ s.zona or 'Zona sin definir' }}</div>
-          <div class="ciudad">{{ s | municipio }}{% if (s | municipio) != s.ciudad %}, {{ s.ciudad }}{% endif %}</div>
-          <div class="specs">
-            {% if s.habitaciones %}<span><b>{{ s.habitaciones }}</b> alcobas</span>{% endif %}
-            {% if s.banos %}<span><b>{{ s.banos }}</b> baños</span>{% endif %}
-            {% if s.area_m2 %}<span><b>{{ '%.0f' % s.area_m2 }}</b> m²</span>{% endif %}
-          </div>
-        </div>
-        <div class="pie">
-          <a class="boton suave" href="{{ s | ruta }}">Ver inmueble</a>
-          <span class="codigo">{{ s.id }}</span>
-        </div>
-      </article>
+      {{ tarjeta(s, sesion, etiquetas_negocio) }}
     {% endfor %}
   </div>
 </section>
 {% endif %}
 
-<script>
-// Galería sin dependencias. Si el JS no carga, el visor ya trae la portada y
-// las miniaturas siguen siendo imágenes visibles: la ficha nunca queda
-// inservible, solo deja de navegarse.
-(function () {
-  var visor = document.getElementById('visor-foto');
-  var minis = Array.prototype.slice.call(document.querySelectorAll('.tira .mini'));
-  if (!visor || minis.length < 2) return;
+{% if n_fotos > 1 %}
+{# Las fotos completas viajan como JSON y no como markup: el visor las pinta
+   una a una y no tiene sentido meter treinta <img> en el documento que el
+   navegador tendría que descargar antes de que nadie abra la galería. #}
+{%- set lista_fotos = [] -%}
+{%- for f in p.fotos -%}
+  {%- set _ = lista_fotos.append({'g': f.url, 'm': f.miniatura}) -%}
+{%- endfor -%}
+<script type="application/json" id="galeria-datos">{{ lista_fotos | tojson }}</script>
 
-  var indice = document.getElementById('visor-indice');
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true"
+     aria-label="Galería de fotos del inmueble">
+  <div class="lightbox-cabeza">
+    <span class="contador"><span id="lb-indice">1</span> / {{ n_fotos }}</span>
+    <button type="button" class="lightbox-cerrar" id="lb-cerrar" aria-label="Cerrar galería">✕</button>
+  </div>
+  <div class="lightbox-lienzo">
+    <button type="button" class="lightbox-nav anterior" data-paso="-1" aria-label="Foto anterior">‹</button>
+    <img id="lb-foto" src="" alt="{{ titulo_inmueble }}">
+    <button type="button" class="lightbox-nav siguiente" data-paso="1" aria-label="Foto siguiente">›</button>
+  </div>
+  <div class="lightbox-tira" id="lb-tira"></div>
+</div>
+
+<script>
+// Visor a pantalla completa. Todo lo que hace es progresivo: si este script no
+// corre, el mosaico sigue siendo un puñado de enlaces a las imágenes y el
+// botón «Ver las N fotos» ni siquiera aparece —nace con `hidden` y es este
+// código el que lo revela—.
+(function () {
+  var datos = document.getElementById('galeria-datos');
+  var caja = document.getElementById('lightbox');
+  var foto = document.getElementById('lb-foto');
+  var tira = document.getElementById('lb-tira');
+  if (!datos || !caja || !foto || !tira) return;
+
+  var fotos;
+  try { fotos = JSON.parse(datos.textContent); } catch (e) { return; }
+  if (!fotos || fotos.length < 2) return;
+
+  var indice = document.getElementById('lb-indice');
   var actual = 0;
+  var devolverFoco = null;
+  var minis = [];
+
+  fotos.forEach(function (f, i) {
+    var boton = document.createElement('button');
+    boton.type = 'button';
+    boton.setAttribute('aria-label', 'Ver foto ' + (i + 1) + ' de ' + fotos.length);
+    var img = document.createElement('img');
+    img.src = f.m;
+    img.alt = '';
+    img.loading = 'lazy';
+    boton.appendChild(img);
+    boton.addEventListener('click', function () { mostrar(i); });
+    tira.appendChild(boton);
+    minis.push(boton);
+  });
 
   function mostrar(i) {
     // Da la vuelta en los dos sentidos: llegar a la última y seguir pulsando
     // debe volver a la primera, no dejar el botón muerto.
-    actual = (i + minis.length) % minis.length;
-    var boton = minis[actual];
-    visor.src = boton.dataset.grande;
-    minis.forEach(function (b) { b.classList.toggle('activa', b === boton); });
+    actual = (i + fotos.length) % fotos.length;
+    foto.src = fotos[actual].g;
     if (indice) indice.textContent = actual + 1;
+    minis.forEach(function (b, j) { b.classList.toggle('activa', j === actual); });
     // La miniatura activa tiene que verse, o al pasar de la quinta la tira se
-    // queda atrás y el usuario pierde de vista dónde está.
-    if (boton.scrollIntoView) {
-      boton.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    // queda atrás y se pierde de vista dónde está.
+    var viva = minis[actual];
+    if (viva && viva.scrollIntoView) {
+      viva.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
     }
   }
 
-  minis.forEach(function (boton, i) {
-    boton.addEventListener('click', function () { mostrar(i); });
+  function abrir(i) {
+    devolverFoco = document.activeElement;
+    mostrar(i || 0);
+    caja.hidden = false;
+    document.body.classList.add('sin-scroll');
+    document.getElementById('lb-cerrar').focus();
+  }
+
+  function cerrar() {
+    caja.hidden = true;
+    document.body.classList.remove('sin-scroll');
+    // Sin esto el foco se queda en un elemento oculto y el siguiente Tab
+    // empieza desde el principio del documento.
+    if (devolverFoco && devolverFoco.focus) devolverFoco.focus();
+  }
+
+  document.querySelectorAll('#mosaico .pieza').forEach(function (pieza) {
+    pieza.addEventListener('click', function (e) {
+      // Con Ctrl/Cmd o botón central, dejar que el navegador abra la imagen en
+      // otra pestaña: es lo que la persona pidió.
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+      e.preventDefault();
+      abrir(parseInt(pieza.dataset.indice, 10) || 0);
+    });
   });
 
-  document.querySelectorAll('.visor-nav').forEach(function (flecha) {
+  var abridor = document.getElementById('abrir-galeria');
+  if (abridor) {
+    abridor.hidden = false;
+    abridor.addEventListener('click', function () { abrir(0); });
+  }
+
+  document.getElementById('lb-cerrar').addEventListener('click', cerrar);
+  caja.querySelectorAll('.lightbox-nav').forEach(function (flecha) {
     flecha.addEventListener('click', function () {
       mostrar(actual + parseInt(flecha.dataset.paso, 10));
     });
   });
+  // Pulsar el fondo cierra; pulsar la foto, no.
+  caja.querySelector('.lightbox-lienzo').addEventListener('click', function (e) {
+    if (e.target === e.currentTarget) cerrar();
+  });
 
-  // Teclado: solo cuando el foco no está escribiendo en el formulario de
-  // contacto, o las flechas dentro de un campo cambiarían de foto.
   document.addEventListener('keydown', function (e) {
-    var donde = document.activeElement;
-    if (donde && /^(INPUT|TEXTAREA|SELECT)$/.test(donde.tagName)) return;
-    if (e.key === 'ArrowLeft') mostrar(actual - 1);
+    if (caja.hidden) return;
+    if (e.key === 'Escape') cerrar();
+    else if (e.key === 'ArrowLeft') mostrar(actual - 1);
     else if (e.key === 'ArrowRight') mostrar(actual + 1);
   });
 
@@ -387,16 +477,33 @@
   // camino: el mismo gesto sirve en el celular y en el portátil.
   var inicioX = null;
   var UMBRAL = 45;   // para no confundir un toque con un arrastre
-
-  visor.addEventListener('pointerdown', function (e) { inicioX = e.clientX; });
-  visor.addEventListener('pointerup', function (e) {
+  foto.addEventListener('pointerdown', function (e) { inicioX = e.clientX; });
+  foto.addEventListener('pointerup', function (e) {
     if (inicioX === null) return;
     var recorrido = e.clientX - inicioX;
     inicioX = null;
     if (Math.abs(recorrido) < UMBRAL) return;
     mostrar(recorrido < 0 ? actual + 1 : actual - 1);
   });
-  visor.addEventListener('pointercancel', function () { inicioX = null; });
+  foto.addEventListener('pointercancel', function () { inicioX = null; });
+})();
+</script>
+{% endif %}
+
+<script>
+// Copiar el enlace. El botón nace oculto porque `navigator.clipboard` no
+// existe fuera de HTTPS: en http:// plano el botón aparecería y no haría nada.
+(function () {
+  var boton = document.getElementById('copiar-enlace');
+  if (!boton || !navigator.clipboard) return;
+  boton.hidden = false;
+  boton.addEventListener('click', function () {
+    navigator.clipboard.writeText(boton.dataset.url).then(function () {
+      var antes = boton.textContent;
+      boton.textContent = 'Enlace copiado';
+      setTimeout(function () { boton.textContent = antes; }, 1800);
+    });
+  });
 })();
 </script>
 

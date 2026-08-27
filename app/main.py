@@ -199,7 +199,7 @@ async def _detener_bot(tarea, bot) -> None:
 
 
 app = FastAPI(
-    title="VVI — Vendedor Virtual Inmobiliario",
+    title="Inmoclick — Vendedor Virtual Inmobiliario",
     version=__version__,
     summary="Agente de IA que atiende, califica y empareja compradores de vivienda.",
     description=(

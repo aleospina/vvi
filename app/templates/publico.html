@@ -15,7 +15,7 @@
   {% endif %}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
   <link rel="stylesheet" href="/static/estilos.css?v={{ v_estilos }}">
   {% block cabeza %}{% endblock %}
 </head>
@@ -23,16 +23,21 @@
 
 <header class="barra">
   <a class="marca" href="/inmuebles">
-    <span class="logo">VVI</span>
-    <span class="sub">{{ empresa }}</span>
+    <span class="marca-inmoclick">Inmo<b>click</b></span>
+    <span class="marca-lema">{{ ciudades | join(' · ') }}</span>
   </a>
+  {# El menú solo ofrece rutas que existen de verdad. Se probó a poner «En
+     venta» y «En arriendo» como secciones y se quitó: la vitrina no sabe aquí
+     qué negocios tienen inventario, y un menú que lleva a cero resultados se
+     lee como que el sitio está roto. Ese filtro vive donde sí se cuenta, que
+     es el conmutador de la propia vitrina. #}
   <nav>
     <a href="/inmuebles" class="{{ 'activo' if request.url.path == '/inmuebles' }}">Inmuebles</a>
-    <a href="/publicar">Publica tu inmueble</a>
+    <a href="/publicar" class="{{ 'activo' if request.url.path == '/publicar' }}">Publica tu inmueble</a>
   </nav>
   <div class="quien">
     {% if whatsapp %}
-      <a class="boton suave" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
+      <a class="boton destacado" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
         Escríbenos
       </a>
     {% endif %}
@@ -80,15 +85,16 @@
 <footer class="pie-publico">
   <div class="pie-columnas">
     <div>
-      <h3>{{ empresa }}</h3>
+      <span class="pie-marca">Inmo<b>click</b></span>
       <p class="leyenda" style="margin:0">
         Inmuebles en {{ ciudades | join(' y ') }}. Te atiende un asistente con
         inteligencia artificial y un asesor humano confirma cada visita.
+        {% if whatsapp %}<br>WhatsApp <a href="https://wa.me/{{ whatsapp }}">+{{ whatsapp }}</a>{% endif %}
       </p>
     </div>
     <div>
       <h3>¿Tienes un inmueble?</h3>
-      <p class="leyenda" style="margin:0 0 12px">
+      <p class="leyenda" style="margin:0 0 18px">
         Publícalo con nosotros y lo mostramos a compradores ya calificados.
       </p>
       <a class="boton" href="/publicar">Ofrecer mi inmueble</a>
@@ -103,8 +109,7 @@
     </div>
   </div>
   <p class="aviso">
-    Sistema inbound / opt-in conforme a la Ley 1581 de 2012.
-    {% if whatsapp %}WhatsApp <a href="https://wa.me/{{ whatsapp }}">+{{ whatsapp }}</a>.{% endif %}
+    {{ empresa }} · Sistema inbound / opt-in conforme a la Ley 1581 de 2012.
     {% if not sesion or puede_editar %}
     <a href="/dashboard/propiedades" style="float:right">
       {{ 'Volver al panel' if sesion else 'Acceso operador' }}
@@ -121,6 +126,28 @@
   </svg>
 </a>
 {% endif %}
+
+<script>
+  // Compactar la cabecera al bajar. Es lo único que hace la barra de la
+  // vitrina: no hay indicador viajero porque las secciones son dos y el
+  // subrayado ya las marca. Si este script no corre, la barra se queda a su
+  // altura normal y no se pierde ninguna función.
+  (function () {
+    var barra = document.querySelector('.barra');
+    if (!barra) return;
+    var compacta = false;
+    function alScroll() {
+      // El umbral son 12px y no 0 para que el temblor de scroll de los móviles
+      // no haga parpadear la barra al llegar arriba del todo.
+      var debe = window.scrollY > 12;
+      if (debe === compacta) return;
+      compacta = debe;
+      barra.classList.toggle('compacta', debe);
+    }
+    window.addEventListener('scroll', alScroll, { passive: true });
+    alScroll();
+  })();
+</script>
 
 </body>
 </html>

@@ -1,51 +1,68 @@
-/* ═══════════════════════════════════════════════════════════════════════
-   VVI · Sistema visual
-   Dirección: editorial arquitectónico. Tinta profunda en el cromo, papel
-   cálido en el contenido, esmeralda como voz principal y terracota —el
-   ladrillo antioqueño— como acento. Serif de display para las cifras: en
-   una herramienta inmobiliaria el precio es el protagonista y merece
-   tipografía con carácter, no un número más de tabla.
-   ═══════════════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════
+   Inmoclick · Sistema visual
+   Dirección: portal inmobiliario americano. Papel blanco, mucho aire y la
+   foto mandando; el cromo se retira para que el inventario ocupe la pantalla,
+   con la escala tipográfica apretada de las grotéscas modernas.
+
+   Toda la interfaz es azul, del mismo cian del tejado del isotipo (#59e0ff),
+   en tres escalones: `--tinta` (#0a3348) para el texto y las superficies
+   oscuras —donde otro portal pondría negro—, `--acento` (#0e6a94) para todo
+   lo que se pulsa, y el cian puro (`--acento-vivo`) reservado a los fondos
+   oscuros, que es el único sitio donde aguanta el contraste. Los grises no
+   son neutros: llevan el mismo sesgo azul, o al lado de la interfaz se leen
+   como suciedad.
+
+   El precio sigue siendo el protagonista, pero ahora en sans con cifras
+   tabulares: en una rejilla de doce tarjetas lo que se compara es la
+   magnitud, y para eso los dígitos tienen que alinearse en columna.
+   ══════════════════════════════════════════════════════════════════════ */
 
 :root{
   /* Tinta y papel */
-  --tinta:#0e1a17;
-  --tinta-2:#5d6f69;
-  --tinta-3:#8b9b95;
-  --papel:#f7f5f1;
+  --tinta:#0a3348;
+  --tinta-2:#4c6b7b;
+  --tinta-3:#7d9dad;
+  --papel:#ffffff;
   --panel:#ffffff;
-  --linea:#e5e1d9;
-  --linea-fuerte:#d3cec3;
+  /* Banda de reposo: separa secciones sin dibujar una caja. */
+  --velo:#f1f7fa;
+  --linea:#dde8ee;
+  --linea-fuerte:#c3d5df;
 
   /* Voz principal */
-  --acento:#0b5d50;
-  --acento-vivo:#12a086;
-  --acento-suave:#e3f0ec;
-  --acento-borde:#b6d8ce;
+  --acento:#0e6a94;
+  --acento-vivo:#1fd5ff;
+  --acento-suave:#e6f6fd;
+  --acento-borde:#a9e2f7;
 
-  /* Acento cálido: ladrillo */
-  --ladrillo:#b8502c;
-  --ladrillo-suave:#fbeee8;
+  /* Acento cálido: se reserva para avisos, no para adorno. */
+  --ladrillo:#a8442a;
+  --ladrillo-suave:#fbeee9;
 
   /* Semánticos */
-  --frio:#5b7d92;   --frio-bg:#eaf1f6;
-  --tibio:#a8720c;  --tibio-bg:#fbf1dd;
-  --caliente:#b0362a; --caliente-bg:#fbe9e6;
+  --frio:#3f6a84;   --frio-bg:#eaf2f8;
+  --tibio:#8f6209;  --tibio-bg:#fbf3e0;
+  --caliente:#a33327; --caliente-bg:#fbeae7;
   --alerta:#fdf6ec;
 
-  /* Elevación: sombras cortas y de bajo alfa. Una tarjeta debe sentirse
-     apoyada en el papel, no flotando sobre él. */
-  --sombra-1:0 1px 2px rgba(14,26,23,.05), 0 1px 1px rgba(14,26,23,.03);
-  --sombra-2:0 4px 12px rgba(14,26,23,.07), 0 2px 4px rgba(14,26,23,.04);
-  --sombra-3:0 12px 28px rgba(14,26,23,.11), 0 4px 10px rgba(14,26,23,.06);
+  /* Elevación: sombras largas y de alfa muy bajo. Sobre blanco puro, una
+     sombra corta y densa se lee como suciedad; una larga y tenue se lee como
+     profundidad. */
+  --sombra-1:0 1px 2px rgba(10,51,72,.05);
+  --sombra-2:0 6px 18px rgba(10,51,72,.07), 0 2px 5px rgba(10,51,72,.05);
+  --sombra-3:0 18px 44px rgba(10,51,72,.11), 0 6px 14px rgba(10,51,72,.06);
 
-  --radio:12px;
-  --radio-s:8px;
-  --radio-xs:6px;
+  --radio:10px;
+  --radio-s:7px;
+  --radio-xs:5px;
 
-  --display:"Fraunces","Georgia",serif;
-  --texto:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --display:"Inter Tight","Inter","Segoe UI",system-ui,sans-serif;
+  --texto:"Inter","Segoe UI",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+
+  /* Ancho de la caja de contenido. Vive como variable porque la vitrina lo
+     estira y el panel no. */
+  --ancho:1240px;
 }
 
 *{box-sizing:border-box}
@@ -56,10 +73,7 @@ body{
   color:var(--tinta);
   font:400 15px/1.6 var(--texto);
   -webkit-font-smoothing:antialiased;
-  /* Textura mínima: un tramado casi imperceptible que le quita el plano
-     muerto al fondo sin competir con el contenido. */
-  background-image:radial-gradient(circle at 1px 1px, rgba(14,26,23,.025) 1px, transparent 0);
-  background-size:22px 22px;
+  text-rendering:optimizeLegibility;
 }
 
 a{color:var(--acento); text-decoration:none}
@@ -99,70 +113,13 @@ a:hover{text-decoration:underline}
 }
 @supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
   .barra.compacta{
-    background:rgba(14,26,23,.86);
+    background:rgba(10,51,72,.88);
     -webkit-backdrop-filter:blur(12px) saturate(150%);
     backdrop-filter:blur(12px) saturate(150%);
   }
 }
 
 .marca{display:flex; align-items:baseline; gap:11px}
-.logo{
-  font:700 21px/1 var(--display);
-  letter-spacing:.06em;
-  background:linear-gradient(103deg, #fff 30%, var(--acento-vivo));
-  -webkit-background-clip:text; background-clip:text;
-  -webkit-text-fill-color:transparent;
-}
-.sub{font-size:11.5px; color:#7f948d; letter-spacing:.02em}
-
-/* Respiración de la marca ─────────────────────────────────────────────────
-   El reflejo del logotipo va y viene solo, muy despacio: es la única cosa de
-   la página que se mueve sin que nadie la toque, y es lo que le quita a la
-   herramienta el aire de captura de pantalla.
-
-   Tres decisiones para que sea presencia y no distracción:
-   · 9 s de ida y otros 9 de vuelta. El brillo recorre unos 8 px por segundo
-     sobre tres letras: se nota si uno mira, no si uno está leyendo una tabla.
-   · `alternate` en lugar de reiniciar el ciclo. Un `infinite` normal saltaría
-     del final al principio en cada vuelta, y ese salto sí se ve.
-   · Va en la marca y en ningún otro sitio. Es el rincón de la pantalla donde
-     nadie está trabajando: no compite con ningún dato ni con ningún control.
-
-   La regla de `prefers-reduced-motion` del final del archivo la detiene; por
-   eso el reposo es 50%, con el verde en el centro de las letras, que es el
-   fotograma que mejor se sostiene quieto. */
-@keyframes respirar-marca{
-  from{background-position:0 0}
-  to{background-position:100% 0}
-}
-.barra .logo{
-  background:linear-gradient(103deg, #fff 22%, var(--acento-vivo) 52%, #fff 86%);
-  background-size:260% 100%; background-position:50% 0;
-  -webkit-background-clip:text; background-clip:text;
-  animation:respirar-marca 9s ease-in-out infinite alternate;
-}
-/* El subtítulo se pliega con la barra compacta: a esa altura la sigla basta
-   para identificar el producto y las secciones ganan el aire. */
-.barra .sub{
-  max-width:240px; white-space:nowrap; overflow:hidden;
-  transition:max-width .3s cubic-bezier(.2,.7,.3,1), opacity .22s ease;
-}
-.barra.compacta .sub{max-width:0; opacity:0}
-
-/* El degradado del logo se calibró para la barra oscura; sobre papel se apaga.
-   Esta variante lo recalibra para el fondo claro en lugar de quitarlo: el
-   blanco del reflejo se cambia por el verde profundo de la marca y el punto
-   más claro baja a #0e8a74, que sobre panel blanco sigue en 4,3:1 —legible
-   como texto grande— donde `--acento-vivo` se quedaba en 3,0:1 raspando.
-   La misma respiración que en la barra: es el mismo logotipo. */
-.logo.sobre-papel{
-  background:linear-gradient(103deg, var(--acento) 16%, #0e8a74 50%, var(--acento) 84%);
-  background-size:260% 100%; background-position:50% 0;
-  -webkit-background-clip:text; background-clip:text;
-  -webkit-text-fill-color:transparent;
-  animation:respirar-marca 9s ease-in-out infinite alternate;
-}
-
 /* ─── Páginas públicas: login, landing del comprador y del propietario ─── */
 .caja{
   max-width:520px; margin:60px auto; background:var(--panel);
@@ -174,11 +131,10 @@ a:hover{text-decoration:underline}
 .caja h1{font-size:26px; margin-bottom:8px; display:block}
 .caja .campo input, .caja .campo textarea, .caja .campo select{width:100%}
 .marca-publica{display:flex; align-items:baseline; gap:11px; margin-bottom:22px}
-.marca-publica .sub{color:var(--tinta-3)}
 .fila{display:flex; gap:14px; flex-wrap:wrap}
 .fila .campo{flex:1 1 150px}
 .consentimiento{
-  background:#faf8f4; border:1px solid var(--linea); border-radius:var(--radio-s);
+  background:#f4f9fc; border:1px solid var(--linea); border-radius:var(--radio-s);
   padding:16px; font-size:13px; color:var(--tinta-2); margin-bottom:18px;
 }
 .consentimiento label{
@@ -186,15 +142,10 @@ a:hover{text-decoration:underline}
   font-weight:400; color:var(--tinta); margin:14px 0 0; text-transform:none; letter-spacing:0;
 }
 .consentimiento input[type=checkbox]{margin-top:3px; width:auto; flex:0 0 auto}
-body.publica{
-  background:
-    radial-gradient(1100px 520px at 50% -8%, var(--acento-suave), transparent 62%),
-    var(--papel);
-}
 
 .barra nav{display:flex; gap:4px; margin-left:auto; position:relative}
 .barra nav a{
-  color:#b9c9c3; font-size:14px; font-weight:500;
+  color:#a5c9da; font-size:14px; font-weight:500;
   padding:8px 13px; border-radius:var(--radio-xs);
   position:relative;
   transition:background .16s ease, color .16s ease,
@@ -209,7 +160,7 @@ body.publica{
   }
 }
 .barra nav a:active{transform:translateY(0)}
-.barra nav a.activo{color:#fff; background:rgba(18,160,134,.18)}
+.barra nav a.activo{color:#fff; background:rgba(255,255,255,.14)}
 /* Navegar con teclado tiene que verse tan claro como con el ratón: el panel
    maneja datos personales y se audita quién entró a qué. */
 .barra nav a:focus-visible{
@@ -229,8 +180,8 @@ body.publica{
 .barra nav .indicador{
   position:absolute; left:0; bottom:0; height:2px; width:0;
   border-radius:2px;
-  background:linear-gradient(90deg, var(--acento-vivo), #7fe3cd);
-  box-shadow:0 0 10px rgba(18,160,134,.55);
+  background:linear-gradient(90deg, #1fd5ff, #ccf5ff);
+  box-shadow:0 0 10px rgba(31,213,255,.5);
   opacity:0; pointer-events:none;
   transition:transform .34s cubic-bezier(.34,1.25,.4,1),
              width .34s cubic-bezier(.34,1.25,.4,1),
@@ -238,7 +189,7 @@ body.publica{
 }
 
 .quien{
-  font-size:13px; color:#93a8a1;
+  font-size:13px; color:#8fb6c9;
   border-left:1px solid rgba(255,255,255,.13); padding-left:20px;
   display:flex; align-items:center; gap:12px;
 }
@@ -328,7 +279,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
       3,3:1 y el rótulo en 3,5:1 — por debajo del mínimo legible. El degradado
       se oscurece y el rótulo sube de opacidad. */
 .tarjeta.destacada{
-  background:linear-gradient(150deg, #09463c, #0b5d50 55%, #0e7a68);
+  background:linear-gradient(150deg, #072839, #0e6a94 55%, #1fa8d8);
   border-color:transparent;
 }
 .tarjeta.destacada::before{display:none}
@@ -344,35 +295,6 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   .tarjeta.destacada .cifra{font-size:clamp(19px, 16cqi, 31px)}
 }
 
-/* ─────────────────────────── Rejilla de inmuebles ───────────────────────────
-   El patrón de marketplace: foto, precio dominante, specs escaneables.
-   Una tabla obliga a leer; una tarjeta se reconoce de un vistazo. */
-
-.inmuebles{
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(268px,1fr));
-  gap:18px; margin-bottom:26px;
-}
-.inmueble{
-  background:var(--panel); border:1px solid var(--linea);
-  border-radius:var(--radio); overflow:hidden;
-  display:flex; flex-direction:column;
-  box-shadow:var(--sombra-1);
-  transition:transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s ease, border-color .2s ease;
-}
-.inmueble:hover{transform:translateY(-4px); box-shadow:var(--sombra-3); border-color:var(--linea-fuerte)}
-
-.inmueble .foto{
-  position:relative; aspect-ratio:4/3; background:#e9e5dd;
-  display:flex; align-items:center; justify-content:center; overflow:hidden;
-}
-.inmueble .foto img{width:100%; height:100%; object-fit:cover; display:block}
-.inmueble:hover .foto img{transform:scale(1.035)}
-.inmueble .foto img{transition:transform .35s cubic-bezier(.2,.7,.3,1)}
-
-.inmueble .insignias{
-  position:absolute; top:10px; left:10px; right:10px;
-  display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start;
-}
 .insignia{
   font-size:11px; font-weight:600; letter-spacing:.02em;
   padding:4px 9px; border-radius:999px;
@@ -383,42 +305,6 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 .insignia.aviso{background:var(--ladrillo); color:#fff}
 .insignia.apagada{background:rgba(255,255,255,.9); color:var(--tinta-3)}
 
-.inmueble .cuerpo{padding:15px 16px 0; flex:1}
-.inmueble .precio{
-  font:600 25px/1.1 var(--display);
-  letter-spacing:-.02em; font-variant-numeric:tabular-nums;
-  color:var(--tinta);
-}
-.inmueble .ubicacion{
-  font-size:14px; font-weight:600; margin-top:5px;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.inmueble .ciudad{font-size:12.5px; color:var(--tinta-2); font-weight:400}
-/* La descripción es lo que distingue "Lote 1" de "Lote 2" cuando el resto de
-   la tarjeta es idéntico. Se recorta a dos líneas: la ficha tiene el texto
-   completo, y dejarla crecer descuadraría la altura de la rejilla. */
-.inmueble .descripcion{
-  margin-top:6px; font-size:12.5px; line-height:1.45; color:var(--tinta-2);
-  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-  overflow:hidden;
-}
-.inmueble .specs{
-  display:flex; gap:13px; flex-wrap:wrap;
-  margin-top:11px; padding-top:11px; border-top:1px solid var(--linea);
-  font-size:12.5px; color:var(--tinta-2);
-}
-.inmueble .specs b{font-weight:600; color:var(--tinta); font-variant-numeric:tabular-nums}
-.inmueble .pie{
-  display:flex; gap:7px; flex-wrap:wrap; align-items:center;
-  padding:13px 16px; margin-top:13px;
-  border-top:1px solid var(--linea); background:#fcfbf9;
-}
-.inmueble .pie form{display:inline}
-.inmueble .origen{
-  font:11px/1.4 var(--mono); color:var(--tinta-3);
-  padding:0 16px 12px; word-break:break-word;
-}
-
 /* ─────────────────────────── Galería de la ficha ─────────────────────────── */
 
 .galeria{
@@ -428,7 +314,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 .miniatura{
   position:relative; margin:0; aspect-ratio:4/3;
   border-radius:var(--radio-s); overflow:hidden;
-  border:1px solid var(--linea); background:#f0ede7;
+  border:1px solid var(--linea); background:#eef5f9;
 }
 .miniatura img{width:100%; height:100%; object-fit:cover; display:block}
 .miniatura .insignia{position:absolute; top:7px; left:7px; font-size:10px; padding:3px 8px}
@@ -454,7 +340,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 
 .hilo{display:flex; flex-direction:column; gap:11px}
 .comentario{
-  background:#faf8f4; border:1px solid var(--linea);
+  background:#f4f9fc; border:1px solid var(--linea);
   border-left:3px solid var(--linea-fuerte);
   border-radius:0 var(--radio-s) var(--radio-s) 0; padding:12px 14px;
 }
@@ -481,7 +367,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
   height:100vh;
   height:100dvh;
   display:flex; align-items:center; justify-content:center;
-  background:rgba(10,18,16,.92);
+  background:rgba(5,26,37,.95);
   /* El pie va absoluto abajo: se le reserva espacio en el relleno para que la
      imagen, que ahora puede ocupar todo el alto, no lo tape. */
   padding:clamp(12px, 4vw, 48px);
@@ -517,7 +403,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 
 .visor button{
   position:absolute; z-index:2;            /* siempre por encima de la imagen */
-  background:rgba(22,34,30,.72); color:#fff;
+  background:rgba(10,51,72,.78); color:#fff;
   border:1px solid rgba(255,255,255,.28);
   border-radius:50%; display:grid; place-items:center; padding:0;
   backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(0,0,0,.4);
@@ -530,7 +416,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 }
 .visor button:focus-visible{outline:3px solid var(--acento-vivo); outline-offset:2px}
 /* Reacción al toque, en lugar del recuadro gris del navegador. */
-.visor button:active{background:rgba(22,34,30,.99); transform:scale(.94)}
+.visor button:active{background:rgba(8,38,54,.99); transform:scale(.94)}
 .visor-cerrar{top:16px; right:16px; width:44px; height:44px; font-size:18px}
 .visor-pie{
   position:absolute; bottom:18px; left:0; right:0; margin:0; text-align:center;
@@ -541,7 +427,7 @@ h2{font:600 19px/1.25 var(--display); letter-spacing:-.01em; margin:34px 0 14px}
 }
 
 input[type=file]{
-  padding:9px 12px; background:#fbfaf7; border-style:dashed; cursor:pointer;
+  padding:9px 12px; background:#f7fbfd; border-style:dashed; cursor:pointer;
   font-size:13px;
 }
 input[type=file]:hover{border-color:var(--acento); background:var(--acento-suave)}
@@ -555,13 +441,13 @@ table{
 }
 th,td{padding:12px 14px; text-align:left; border-bottom:1px solid var(--linea); font-size:14px; vertical-align:middle}
 th{
-  background:#f2efe9; font-size:11px; font-weight:600;
+  background:#edf4f8; font-size:11px; font-weight:600;
   text-transform:uppercase; letter-spacing:.08em; color:var(--tinta-2);
   white-space:nowrap;
 }
 tbody tr:last-child td{border-bottom:none}
 tbody tr{transition:background .12s ease}
-tbody tr:hover{background:#fbfaf7}
+tbody tr:hover{background:#f7fbfd}
 .num{text-align:right; font-variant-numeric:tabular-nums}
 
 /* ─────────────────────────── Señales ─────────────────────────── */
@@ -617,16 +503,16 @@ tbody tr:hover{background:#fbfaf7}
 
 .estado{
   display:inline-block; padding:3px 10px; border-radius:var(--radio-xs);
-  background:#eef1ee; font-size:11.5px; font-weight:600; color:var(--tinta-2);
+  background:#e9f1f6; font-size:11.5px; font-weight:600; color:var(--tinta-2);
   letter-spacing:.01em;
 }
 .estado.disponible{background:var(--acento-suave); color:var(--acento)}
 .estado.vendido,.estado.vendida{background:var(--acento); color:#fff}
-.estado.perdido,.estado.inactiva,.estado.rechazada{background:#eceae5; color:var(--tinta-3)}
+.estado.perdido,.estado.inactiva,.estado.rechazada{background:#e7eef3; color:var(--tinta-3)}
 .estado.visita,.estado.oferta,.estado.pendiente_validacion{background:var(--tibio-bg); color:var(--tibio)}
 
 .barra-score{
-  background:#e9ece9; border-radius:999px; height:6px; width:80px;
+  background:#e4edf2; border-radius:999px; height:6px; width:80px;
   display:inline-block; vertical-align:middle; overflow:hidden;
 }
 .barra-score span{display:block; height:100%; background:linear-gradient(90deg,var(--acento),var(--acento-vivo)); border-radius:999px}
@@ -684,12 +570,12 @@ button, .boton{
 /* Los estados de hover solo donde hay puntero: en táctil se quedan pegados
    después del toque y el botón parece seleccionado. */
 @media (hover:hover){
-  button:hover, .boton:hover{background:#094c42; color:#fff; text-decoration:none; box-shadow:var(--sombra-2)}
-  button.suave:hover, .boton.suave:hover{background:#e2ddd4; color:var(--tinta)}
-  button.peligro:hover{background:#9d4325}
+  button:hover, .boton:hover{background:#0a4f70; color:#fff; text-decoration:none; box-shadow:var(--sombra-2)}
+  button.suave:hover, .boton.suave:hover{background:#dbe9f0; color:var(--tinta)}
+  button.peligro:hover{background:#8e3823}
 }
 button:active, .boton:active{transform:translateY(1px)}
-button.suave, .boton.suave{background:#eeeae3; color:var(--tinta); box-shadow:none}
+button.suave, .boton.suave{background:#e9f2f7; color:var(--tinta); box-shadow:none}
 button.peligro{background:var(--ladrillo)}
 
 /* ─────────────────────────── Composición ─────────────────────────── */
@@ -715,7 +601,7 @@ form.linea > div{min-width:0}
      globo. Con esto se parte donde haga falta y el globo respeta su ancho. */
   overflow-wrap:anywhere;
 }
-.burbuja.entrante{background:#f0ede7; align-self:flex-start; border-bottom-left-radius:4px}
+.burbuja.entrante{background:#eef5f9; align-self:flex-start; border-bottom-left-radius:4px}
 .burbuja.saliente{background:var(--acento-suave); align-self:flex-end; border-bottom-right-radius:4px}
 .burbuja .ts{display:block; font-size:10.5px; color:var(--tinta-3); margin-top:5px; font-family:var(--mono)}
 
@@ -734,7 +620,7 @@ dl.ficha dd{margin:0; min-width:0}
    terminal— y porque repite la tinta de la barra superior. */
 pre{
   margin:14px 0; padding:14px 16px;
-  background:#12211d; color:#dce9e4;
+  background:#082a3c; color:#cfe6f0;
   border-radius:var(--radio-s);
   font:400 12.5px/1.65 var(--mono);
   overflow-x:auto; -webkit-overflow-scrolling:touch;
@@ -748,7 +634,7 @@ pre code{
 }
 
 code{
-  font-family:var(--mono); font-size:12.5px; background:#f2efe9;
+  font-family:var(--mono); font-size:12.5px; background:#edf4f8;
   padding:1px 6px; border-radius:4px;
   /* Las URL de los webhooks no tienen espacios donde cortar, así que sin esto
      se salen de la tarjeta en móvil en vez de seguir hacia abajo. */
@@ -767,18 +653,18 @@ footer .aviso{color:var(--tinta-3)}
    sistema construido; animar cada micro-elemento sería ruido. */
 
 @keyframes surgir{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
-.rejilla > *, .inmuebles > *{animation:surgir .42s cubic-bezier(.2,.7,.3,1) backwards}
-.rejilla > *:nth-child(1),.inmuebles > *:nth-child(1){animation-delay:.02s}
-.rejilla > *:nth-child(2),.inmuebles > *:nth-child(2){animation-delay:.06s}
-.rejilla > *:nth-child(3),.inmuebles > *:nth-child(3){animation-delay:.10s}
-.rejilla > *:nth-child(4),.inmuebles > *:nth-child(4){animation-delay:.14s}
-.rejilla > *:nth-child(5),.inmuebles > *:nth-child(5){animation-delay:.18s}
-.rejilla > *:nth-child(6),.inmuebles > *:nth-child(6){animation-delay:.22s}
-.rejilla > *:nth-child(n+7),.inmuebles > *:nth-child(n+7){animation-delay:.26s}
+.rejilla > *, .rejilla-inmuebles > *{animation:surgir .42s cubic-bezier(.2,.7,.3,1) backwards}
+.rejilla > *:nth-child(1),.rejilla-inmuebles > *:nth-child(1){animation-delay:.02s}
+.rejilla > *:nth-child(2),.rejilla-inmuebles > *:nth-child(2){animation-delay:.06s}
+.rejilla > *:nth-child(3),.rejilla-inmuebles > *:nth-child(3){animation-delay:.10s}
+.rejilla > *:nth-child(4),.rejilla-inmuebles > *:nth-child(4){animation-delay:.14s}
+.rejilla > *:nth-child(5),.rejilla-inmuebles > *:nth-child(5){animation-delay:.18s}
+.rejilla > *:nth-child(6),.rejilla-inmuebles > *:nth-child(6){animation-delay:.22s}
+.rejilla > *:nth-child(n+7),.rejilla-inmuebles > *:nth-child(n+7){animation-delay:.26s}
 
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important; transition:none !important}
-  .inmueble:hover{transform:none}
+  .tarjeta-inmueble:hover .ti-foto img{transform:none}
 }
 
 /* ─────────────────────────── Adaptable ─────────────────────────── */
@@ -805,7 +691,6 @@ footer .aviso{color:var(--tinta-3)}
   /* Con más ancho disponible, el globo puede tomar más: sigue sin llegar al
      100% para que se note de un vistazo quién escribió cada mensaje. */
   .burbuja{max-width:88%}
-  .inmuebles{grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:14px}
   /* En una columna angosta, la rejilla etiqueta/valor deja al valor sin ancho
      útil. Apilados, la URL dispone de todo el ancho de la tarjeta. */
   dl.ficha{grid-template-columns:1fr; gap:3px}
@@ -813,268 +698,715 @@ footer .aviso{color:var(--tinta-3)}
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Catálogo público (/inmuebles)
-   Misma paleta y mismos componentes que el dashboard —tarjeta `.inmueble`,
-   `.pastilla`, `.panel`—, con más aire: aquí el visitante decide en segundos
-   y el precio es lo primero que tiene que encontrar.
+   Vitrina pública de Inmoclick (/inmuebles, /publicar, landing, login)
+   ───────────────────────────────────────────────────────────────────────
+   Portal, no panel. El dashboard optimiza densidad —caben más filas, se ve
+   más de un vistazo—; aquí ocurre lo contrario: el visitante decide con la
+   foto y el precio, así que la foto es grande, el precio es lo más pesado
+   de la tarjeta y todo lo demás se pone en gris a su alrededor.
+
+   Tres reglas que explican casi todo lo que sigue:
+   · El cromo es blanco y las líneas son de un píxel. Nada de paneles con
+     sombra dentro de otros paneles: el papel es el fondo y las secciones se
+     separan con un filete, como en una revista.
+   · Las etiquetas son versalitas espaciadas y de cuerpo pequeño; los datos
+     son grandes. Es lo que hace que un listado se lea como catálogo y no
+     como formulario.
+   · La tarjeta entera es el enlace. Un portal se recorre a clic largo, no
+     apuntando a un botón de noventa píxeles.
    ═══════════════════════════════════════════════════════════════════════ */
 
-body.vitrina{
-  background:
-    radial-gradient(1200px 460px at 50% -10%, var(--acento-suave), transparent 60%),
-    var(--papel);
-}
-body.vitrina .barra .marca{text-decoration:none}
-body.vitrina .barra .marca:hover{text-decoration:none}
-body.vitrina main{padding-bottom:64px}
+body.vitrina{background:var(--papel)}
+body.vitrina main{max-width:var(--ancho); margin:0 auto; padding:0 32px 96px}
 
-/* Aviso de cartera falsa. Debe ser imposible de confundir con una promoción,
-   de ahí el ladrillo y el ancho completo. */
+/* Texto solo para lectores de pantalla: el enlace que cubre la tarjeta no
+   tiene contenido visible y sin esto se anunciaría como «enlace, en blanco». */
+.oculto{
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px;
+  overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
+}
+
+/* ─────────────────────── Cabecera de la vitrina ───────────────────────
+   La barra del panel es tinta sobre tinta porque es una herramienta. Aquí
+   se invierte: blanca, con un solo filete abajo, para que la primera cosa
+   con peso visual de la página sea una fotografía y no el menú. */
+
+body.vitrina .barra{
+  background:#fff; color:var(--tinta);
+  min-height:76px; padding:0 32px; gap:40px;
+  border-bottom:1px solid var(--linea);
+  box-shadow:none;
+}
+body.vitrina .barra.compacta{
+  min-height:64px;
+  box-shadow:var(--sombra-2);
+}
+/* Gana al `@supports` de la barra oscura, que la teñía de verde translúcido. */
+@supports ((backdrop-filter:blur(10px)) or (-webkit-backdrop-filter:blur(10px))){
+  body.vitrina .barra.compacta{
+    background:rgba(255,255,255,.9);
+    -webkit-backdrop-filter:blur(14px) saturate(160%);
+    backdrop-filter:blur(14px) saturate(160%);
+  }
+}
+
+/* Logotipo de palabra. No hay isotipo a propósito: una sigla dibujada exige
+   un archivo que mantener, y en este sector el nombre compuesto en versalitas
+   espaciadas es el código visual que la gente ya lee como «inmobiliaria». */
+.marca-inmoclick{
+  font:600 19px/1 var(--display);
+  letter-spacing:.17em; text-transform:uppercase;
+  color:currentColor; white-space:nowrap;
+}
+/* El azul de marca (`--acento`) es casi tan oscuro como la tinta y las dos
+   mitades del logotipo se confundirían. Este tono es el del tejado del
+   isotipo aclarado lo justo para aguantar sobre papel: 3,8:1, que es lo que
+   pide un texto de 19px en seminegra. */
+.marca-inmoclick b{font-weight:600; color:var(--marca-acento, #0e8bbf)}
+.marca-lema{
+  font:500 9px/1 var(--texto); letter-spacing:.24em; text-transform:uppercase;
+  color:var(--tinta-3);
+}
+/* Sobre la barra oscura del panel el petróleo desaparece: la mitad acentuada
+   sube a un celeste que sí despega del fondo. */
+.barra .marca-inmoclick{--marca-acento:#59e0ff}
+.barra .marca-lema{color:#7aa9bd}
+body.vitrina .barra .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
+body.vitrina .barra .marca-lema{color:var(--tinta-3)}
+body.vitrina .barra .marca{
+  flex-direction:column; align-items:flex-start; gap:4px; text-decoration:none;
+}
+body.vitrina .barra .marca:hover{text-decoration:none}
+
+body.vitrina .barra nav{gap:2px; margin-left:auto}
+body.vitrina .barra nav a{
+  color:var(--tinta-2); background:none;
+  font:600 11.5px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
+  padding:12px 14px; border-radius:0;
+}
+/* El subrayado crece desde el centro en vez de encenderse: es el mismo gesto
+   del indicador viajero del panel, reducido a una sección. */
+body.vitrina .barra nav a::after{
+  content:""; position:absolute; left:14px; right:14px; bottom:-1px; height:2px;
+  background:var(--acento); transform:scaleX(0);
+  transition:transform .2s cubic-bezier(.2,.7,.3,1);
+}
+@media (hover:hover){
+  body.vitrina .barra nav a:hover{
+    color:var(--tinta); background:none; transform:none; text-decoration:none;
+  }
+}
+body.vitrina .barra nav a:hover::after,
+body.vitrina .barra nav a.activo::after{transform:scaleX(1)}
+body.vitrina .barra nav a.activo{color:var(--tinta); background:none}
+body.vitrina .barra nav .indicador{display:none}
+body.vitrina .barra nav a:focus-visible{outline:2px solid var(--acento); outline-offset:-2px; color:var(--tinta)}
+
+body.vitrina .quien{
+  color:var(--tinta-2);
+  border-left:1px solid var(--linea); padding-left:22px; gap:10px;
+}
+body.vitrina .quien .boton, body.vitrina .quien button{
+  font:600 11px/1 var(--texto); letter-spacing:.11em; text-transform:uppercase;
+  padding:12px 18px; border-radius:var(--radio-xs);
+}
+body.vitrina .quien .boton.suave, body.vitrina .quien button.suave{
+  background:none; border:1px solid var(--linea-fuerte); color:var(--tinta-2);
+}
+@media (hover:hover){
+  body.vitrina .quien .boton.suave:hover, body.vitrina .quien button.suave:hover{
+    background:none; border-color:var(--tinta); color:var(--tinta);
+  }
+}
+body.vitrina .quien .destacado{background:var(--tinta); color:#fff; border:1px solid var(--tinta)}
+@media (hover:hover){
+  body.vitrina .quien .destacado:hover{background:var(--acento); border-color:var(--acento); color:#fff}
+}
+
+/* Aviso de cartera falsa: ancho completo y ladrillo, para que sea imposible
+   confundirlo con una promoción. */
 .franja-demo{
   background:var(--ladrillo); color:#fff;
-  padding:11px 28px; font-size:13.5px; text-align:center;
+  padding:12px 32px; font-size:13.5px; text-align:center;
 }
 .franja-demo code{
-  background:rgba(255,255,255,.18); padding:1px 6px; border-radius:4px;
+  background:rgba(255,255,255,.2); padding:2px 7px; border-radius:4px;
   font:400 12px/1 var(--mono);
 }
 
-/* ─────────────────────────── Portada y buscador ─────────────────────────── */
+/* ─────────────────────────── Portada ─────────────────────────── */
 
-.portada-vitrina{margin:8px 0 30px}
-.portada-vitrina h1{margin-bottom:6px}
-.portada-vitrina .leyenda{margin-bottom:22px}
-
-/* Una sola fila, no una rejilla. Con `grid` el campo de texto se llevaba un
-   renglón entero para él y los otros ocho se repartían en dos más, así que el
-   buscador ocupaba tres líneas y empujaba los resultados fuera de la pantalla.
-   En flex cada campo pide su ancho y cede el resto; solo se parte en varias
-   líneas cuando de verdad no cabe, que es lo que pasa en un móvil. */
-.buscador{
-  display:flex; flex-wrap:wrap; align-items:flex-end; gap:12px;
-  background:var(--panel); border:1px solid var(--linea);
-  border-radius:var(--radio); padding:18px 20px; box-shadow:var(--sombra-2);
+.portada{padding:60px 0 34px}
+.antetitulo{
+  font:600 11px/1 var(--texto); letter-spacing:.2em; text-transform:uppercase;
+  color:var(--tinta-3); margin:0 0 20px;
 }
-/* `min-width:0` es lo que permite encoger: sin él, el ancho intrínseco del
-   contenido impone un mínimo y la fila se rompe antes de tiempo. */
-.buscador .campo{margin:0; flex:1 1 128px; min-width:0}
-.buscador .campo.ancho{flex:2 1 200px}
-.buscador .campo.estrecho{flex:0 1 92px}
-.buscador .campo.rango-precio{flex:1.6 1 176px}
-.buscador .rango{display:flex; gap:6px}
-.buscador .rango input{min-width:0}   /* que los dos puedan encogerse a la par */
-.buscador .boton-buscar{flex:0 0 auto}
-.buscador label{
-  display:block; font-size:11.5px; margin-bottom:5px; white-space:nowrap;
+.portada h1{
+  display:block; margin:0 0 16px;
+  font:600 clamp(34px, 5.2vw, 56px)/1.03 var(--display);
+  letter-spacing:-.035em; max-width:16ch;
+}
+.portada .entradilla{
+  margin:0; max-width:56ch; font-size:16.5px; line-height:1.65; color:var(--tinta-2);
+}
+
+/* Conmutador de negocio. Va suelto sobre la barra de filtros, como el
+   «For Sale / For Rent» de los portales: es la decisión que cambia la escala
+   de todo lo demás —un canon y un precio de venta no se comparan— y por eso
+   no puede ser un desplegable más dentro de la fila. */
+.segmentos{
+  display:inline-flex; gap:2px; margin:34px 0 0; padding:4px;
+  background:var(--velo); border-radius:999px;
+}
+.segmentos a{
+  padding:10px 22px; border-radius:999px; color:var(--tinta-2);
+  font:600 11.5px/1 var(--texto); letter-spacing:.11em; text-transform:uppercase;
+  transition:background .16s ease, color .16s ease;
+}
+.segmentos a:hover{color:var(--tinta); text-decoration:none}
+.segmentos a.activa{background:var(--tinta); color:#fff}
+.segmentos a em{font-style:normal; font-size:11px; opacity:.55; margin-left:7px}
+
+/* ─────────────────────── Barra de filtros ───────────────────────
+   Una sola pieza con filetes internos, no ocho cajas sueltas. Es lo que hace
+   que se lea como un instrumento de búsqueda y no como un formulario de alta:
+   los controles pierden su borde propio y lo que los separa es la línea. */
+
+.filtrador{
+  display:flex; flex-wrap:wrap; align-items:stretch; margin:18px 0 0;
+  background:#fff; border:1px solid var(--linea-fuerte);
+  border-radius:var(--radio); overflow:hidden; box-shadow:var(--sombra-2);
+}
+/* `min-width:0` es lo que permite que las celdas encojan: sin él manda el
+   ancho intrínseco del contenido y la fila se parte antes de tiempo. */
+.filtrador .campo{
+  flex:1 1 152px; min-width:0; margin:0; padding:13px 18px;
+  border-right:1px solid var(--linea);
+  display:flex; flex-direction:column; justify-content:center;
+}
+.filtrador .campo.ancho{flex:2.3 1 230px}
+.filtrador .campo.estrecho{flex:.72 1 112px}
+.filtrador .campo:focus-within{background:var(--acento-suave)}
+.filtrador label{
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-3); margin:0 0 7px; white-space:nowrap;
   overflow:hidden; text-overflow:ellipsis;
 }
-.buscador input, .buscador select{width:100%}
-.buscador .boton-buscar button{width:100%; padding-left:22px; padding-right:22px}
+.filtrador input, .filtrador select{
+  width:100%; border:0; padding:0; background:none; border-radius:0;
+  font:500 14.5px/1.25 var(--texto); color:var(--tinta);
+}
+.filtrador input:focus, .filtrador select:focus{outline:none; box-shadow:none}
+.filtrador select{cursor:pointer}
+.filtrador .rango{display:flex; align-items:center; gap:8px}
+.filtrador .rango input{min-width:0; font-variant-numeric:tabular-nums}
+.filtrador .rango .guion{color:var(--linea-fuerte); flex:0 0 auto}
+.filtrador .accion{flex:0 0 auto; padding:0; border-right:0}
+.filtrador .accion button{
+  height:100%; min-height:66px; border-radius:0; box-shadow:none;
+  padding:0 34px; background:var(--tinta);
+  font:600 11.5px/1 var(--texto); letter-spacing:.14em; text-transform:uppercase;
+}
+@media (hover:hover){
+  .filtrador .accion button:hover{background:var(--acento); box-shadow:none}
+}
+.filtrador .accion button:active{transform:none}
 
 /* ─────────────────────────── Resultados ─────────────────────────── */
 
-.titulo-resultados{
-  display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
-  margin:26px 0 16px;
+.resultados-barra{
+  display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+  margin:46px 0 26px; padding-bottom:18px; border-bottom:1px solid var(--linea);
 }
-.titulo-resultados .limpiar{font:400 13px/1 var(--texto); margin-left:auto}
+.resultados-barra h2{
+  margin:0; font:600 23px/1.2 var(--display); letter-spacing:-.025em;
+}
+.resultados-barra .contexto{color:var(--tinta-2); font-size:14.5px}
+.resultados-barra .limpiar{
+  font:500 13px/1 var(--texto); color:var(--tinta-2);
+  border-bottom:1px solid var(--linea-fuerte); padding-bottom:2px;
+}
+.resultados-barra .limpiar:hover{color:var(--tinta); border-color:var(--tinta); text-decoration:none}
 
-.inmueble .codigo{
+.orden{display:flex; align-items:center; gap:4px; margin-left:auto; flex-wrap:wrap}
+.orden .rotulo{
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-3); margin-right:6px;
+}
+.orden a{
+  padding:8px 13px; border-radius:999px; font-size:13px; color:var(--tinta-2);
+  transition:background .15s ease, color .15s ease;
+}
+.orden a:hover{background:var(--velo); color:var(--tinta); text-decoration:none}
+.orden a.activa{background:var(--tinta); color:#fff}
+
+/* ─────────────────────── Tarjeta de inmueble ─────────────────────── */
+
+.rejilla-inmuebles{
+  display:grid; grid-template-columns:repeat(auto-fill, minmax(312px, 1fr));
+  gap:40px 28px;
+}
+.tarjeta-inmueble{position:relative; display:flex; flex-direction:column}
+/* Todo lo que no sea el enlace de fondo necesita contexto propio para quedar
+   por encima de él; si no, el enlace extendido los taparía. */
+.tarjeta-inmueble > *:not(.ti-enlace){position:relative; z-index:1}
+.ti-enlace{position:absolute; inset:0; z-index:2; border-radius:var(--radio)}
+
+.ti-foto{
+  position:relative; display:block; overflow:hidden;
+  aspect-ratio:4/3; border-radius:var(--radio); background:var(--velo);
+  transition:box-shadow .28s ease;
+}
+.ti-foto img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform .6s cubic-bezier(.2,.7,.3,1);
+}
+.tarjeta-inmueble:hover .ti-foto{box-shadow:var(--sombra-3)}
+.tarjeta-inmueble:hover .ti-foto img{transform:scale(1.045)}
+/* El velo inferior existe para el rótulo de zona: sin él, un texto blanco
+   sobre una fachada clara se vuelve ilegible en una de cada tres fotos. */
+.ti-foto::after{
+  content:""; position:absolute; inset:auto 0 0; height:46%;
+  background:linear-gradient(to top, rgba(6,30,43,.72), rgba(6,30,43,0));
+  pointer-events:none;
+}
+.ti-zona{
+  position:absolute; left:16px; right:16px; bottom:13px; z-index:1;
+  color:#fff; font:600 12px/1.3 var(--texto); letter-spacing:.11em;
+  text-transform:uppercase; text-shadow:0 1px 4px rgba(0,0,0,.35);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.ti-marcas{
+  position:absolute; top:13px; left:13px; right:13px; z-index:1;
+  display:flex; gap:6px; flex-wrap:wrap;
+}
+.ti-marca{
+  background:#fff; color:var(--tinta);
+  font:700 9.5px/1 var(--texto); letter-spacing:.15em; text-transform:uppercase;
+  padding:8px 11px; border-radius:3px; box-shadow:var(--sombra-1);
+}
+.ti-marca.oscura{background:var(--tinta); color:#fff}
+.ti-marca.aviso{background:var(--ladrillo); color:#fff}
+
+.ti-cuerpo{padding:18px 2px 0}
+.ti-precio{
+  font:700 25px/1.05 var(--display); letter-spacing:-.025em;
+  font-variant-numeric:tabular-nums;
+}
+.ti-precio small{
+  font:500 13px/1 var(--texto); color:var(--tinta-2);
+  letter-spacing:0; margin-left:3px;
+}
+.ti-direccion{
+  margin:10px 0 3px; font:500 15.5px/1.35 var(--texto); color:var(--tinta);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.ti-ciudad{font-size:13.5px; color:var(--tinta-2)}
+.ti-datos{
+  display:flex; flex-wrap:wrap; align-items:center; gap:0;
+  margin:13px 0 0; padding:0; list-style:none;
+  font-size:13.5px; color:var(--tinta-2);
+}
+.ti-datos li + li::before{content:"·"; color:var(--tinta-3); margin:0 9px}
+.ti-datos b{color:var(--tinta); font-weight:600; font-variant-numeric:tabular-nums}
+.ti-pie{
+  display:flex; align-items:center; gap:12px;
+  margin-top:15px; padding-top:13px; border-top:1px solid var(--linea);
+  font-size:12.5px; color:var(--tinta-2);
+}
+.ti-tipo{letter-spacing:.1em; text-transform:uppercase; font-weight:600; font-size:10.5px}
+.ti-codigo{
   margin-left:auto; font:400 11px/1 var(--mono);
-  color:var(--tinta-3); letter-spacing:.03em;
+  letter-spacing:.04em; color:var(--tinta-3);
 }
-body.vitrina .inmueble .pie{align-items:center}
+/* El código con sesión es un enlace de verdad a la ficha interna: tiene que
+   quedar por encima del enlace que cubre la tarjeta. */
+.ti-codigo.interno{position:relative; z-index:3; color:var(--acento)}
+.ti-codigo.interno:hover{text-decoration:underline}
+/* El foco vive en el enlace invisible, así que hay que devolverlo a la foto o
+   quien navega con teclado no ve dónde está. */
+.tarjeta-inmueble:focus-within .ti-foto{outline:2px solid var(--acento); outline-offset:3px}
+.ti-enlace:focus-visible{outline:none}
 
-.paginacion{
-  display:flex; gap:6px; flex-wrap:wrap; justify-content:center;
-  margin:34px 0 8px;
+.paginacion{display:flex; gap:7px; flex-wrap:wrap; justify-content:center; margin:64px 0 0}
+.paginacion a{
+  min-width:42px; height:42px; padding:0 14px;
+  display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--linea); border-radius:var(--radio-xs);
+  font:500 13.5px/1 var(--texto); color:var(--tinta-2);
+  font-variant-numeric:tabular-nums;
 }
+.paginacion a:hover{border-color:var(--tinta); color:var(--tinta); text-decoration:none}
+.paginacion a.activa{background:var(--tinta); border-color:var(--tinta); color:#fff}
 
-/* ─────────────────────────── Ficha ─────────────────────────── */
+/* Vacío. Es una página de resultados que no puede desaparecer: si no explica
+   por qué no hay nada, se lee como que la inmobiliaria no tiene inventario. */
+.sin-resultados{
+  border:1px dashed var(--linea-fuerte); border-radius:var(--radio);
+  padding:56px 32px; text-align:center; background:var(--velo);
+}
+.sin-resultados h3{font:600 22px/1.2 var(--display); letter-spacing:-.02em; margin:0 0 10px}
+.sin-resultados p{margin:0 auto 8px; max-width:52ch; color:var(--tinta-2); font-size:15px}
 
-.miga{font-size:13px; color:var(--tinta-2); margin:4px 0 14px}
-.miga a{color:var(--tinta-2)}
-.titulo-ficha{margin-bottom:4px}
+/* ═══════════════════════ Ficha del inmueble ═══════════════════════ */
 
-.ficha-publica{
-  display:grid; gap:24px; align-items:start;
-  grid-template-columns:minmax(0, 1.9fr) minmax(300px, 1fr);
-  margin-top:22px;
+.miga{
+  display:flex; flex-wrap:wrap; align-items:center; gap:9px;
+  margin:26px 0 24px;
+  font:600 11px/1 var(--texto); letter-spacing:.12em; text-transform:uppercase;
+  color:var(--tinta-3);
 }
-.ficha-principal{display:flex; flex-direction:column; gap:20px; min-width:0}
-.ficha-lateral{
-  display:flex; flex-direction:column; gap:18px;
-  position:sticky; top:82px;
-}
+.miga a{color:var(--tinta-3)}
+.miga a:hover{color:var(--tinta); text-decoration:none}
+.miga .sep{color:var(--linea-fuerte)}
 
-.visor{
-  position:relative;
-  margin:0; border-radius:var(--radio); overflow:hidden;
-  border:1px solid var(--linea); background:var(--panel);
-  box-shadow:var(--sombra-2); aspect-ratio:4 / 3;
+/* Mosaico de apertura. La foto principal ocupa la mitad izquierda y las
+   demás se reparten la derecha: es la composición que usan los portales
+   porque dice «hay más» sin necesidad de una tira de miniaturas, y porque
+   una sola foto panorámica desperdicia el resto del carrete. */
+.mosaico{
+  position:relative; display:grid; gap:8px;
+  grid-template-columns:2fr 1fr 1fr; grid-template-rows:repeat(2, 1fr);
+  aspect-ratio:16/9; border-radius:var(--radio); overflow:hidden;
+  background:var(--velo);
 }
-.visor img{width:100%; height:100%; object-fit:cover; display:block}
-/* Arrastrar la foto no debe seleccionarla ni iniciar el arrastre nativo del
-   navegador, que se come el gesto de pasar a la siguiente. */
-.visor.con-navegacion img{cursor:grab; user-select:none; -webkit-user-drag:none}
-.visor.con-navegacion img:active{cursor:grabbing}
-
-/* Flechas y contador. Son lo único que delata que hay más de una foto: la tira
-   de miniaturas se desplaza en horizontal y casi ningún navegador le dibuja
-   barra, así que doce fotos parecían tres. */
-.visor-nav{
-  position:absolute; top:50%; transform:translateY(-50%);
-  width:42px; height:42px; padding:0; border:none; border-radius:50%;
-  display:grid; place-items:center; cursor:pointer;
-  font:400 26px/1 var(--texto); color:var(--tinta);
-  background:rgba(255,255,255,.86); box-shadow:var(--sombra-2);
-  opacity:0; transition:opacity .16s ease, background .16s ease;
+.mosaico .pieza{position:relative; display:block; overflow:hidden; background:var(--velo)}
+.mosaico .pieza:first-child{grid-row:span 2}
+.mosaico .pieza img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform .5s cubic-bezier(.2,.7,.3,1), opacity .2s ease;
 }
-.visor-nav.anterior{left:12px}
-.visor-nav.siguiente{right:12px}
-.visor-nav:hover{background:#fff}
-/* Aparecen al acercarse, y nunca se esconden de quien navega con teclado. */
-.visor:hover .visor-nav, .visor-nav:focus-visible{opacity:1}
-
-/* En móvil no van. Ahí el gesto de arrastrar ya pasa de foto, y dos botones
-   sobre una pantalla pequeña tapan justo lo que se ha venido a ver. Se ocultan
-   con `display` y no con `opacity` para que tampoco intercepten el toque: una
-   flecha invisible que se come el arrastre es peor que una visible.
-   El contador se queda: sin flechas, es lo único que dice cuántas hay. */
-@media (pointer:coarse), (max-width:640px){
-  .visor-nav{display:none}
+@media (hover:hover){
+  .mosaico .pieza:hover img{transform:scale(1.05); opacity:.93}
 }
-
-.visor-contador{
-  position:absolute; right:12px; bottom:12px;
-  padding:4px 10px; border-radius:999px;
-  background:rgba(14,26,23,.72); color:#fff;
-  font:500 12px/1 var(--texto); font-variant-numeric:tabular-nums;
+.mosaico .pieza:focus-visible{outline:3px solid var(--acento); outline-offset:-3px}
+/* Con pocas fotos el mosaico de cinco deja huecos: cada variante recompone la
+   rejilla para que no quede ninguna celda vacía. */
+.mosaico.fotos-1{grid-template-columns:1fr; grid-template-rows:1fr}
+.mosaico.fotos-1 .pieza:first-child{grid-row:auto}
+.mosaico.fotos-2{grid-template-columns:1fr 1fr; grid-template-rows:1fr}
+.mosaico.fotos-2 .pieza:first-child{grid-row:auto}
+.mosaico.fotos-3{grid-template-columns:2fr 1fr}
+.mosaico.sin-foto{aspect-ratio:16/7; background:var(--acento-suave); place-items:center}
+.mosaico.sin-foto img{object-fit:contain; padding:5%; width:auto; max-height:100%}
+.ver-fotos{
+  position:absolute; right:16px; bottom:16px; z-index:2;
+  background:#fff; color:var(--tinta); border:1px solid var(--linea-fuerte);
+  padding:11px 18px; border-radius:var(--radio-xs); box-shadow:var(--sombra-2);
+  font:600 11px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
 }
-.visor.sin-foto{background:var(--acento-suave)}
-.visor.sin-foto img{object-fit:contain; padding:12%}
-
-/* La barra se deja a la vista y fina: es la segunda pista de que la tira sigue
-   más allá del borde. Escondida del todo, doce fotos parecían tres. */
-.tira{
-  display:flex; gap:9px; overflow-x:auto; padding-bottom:6px;
-  scrollbar-width:thin; scroll-behavior:smooth;
-}
-.tira::-webkit-scrollbar{height:6px}
-.tira::-webkit-scrollbar-thumb{background:var(--linea-fuerte); border-radius:999px}
-.tira::-webkit-scrollbar-track{background:transparent}
-.tira .mini{
-  flex:0 0 88px; height:64px; padding:0; border-radius:var(--radio-xs);
-  overflow:hidden; border:2px solid transparent; background:none;
-  cursor:pointer; opacity:.72; transition:opacity .15s ease, border-color .15s ease;
-}
-.tira .mini img{width:100%; height:100%; object-fit:cover; display:block}
-.tira .mini:hover{opacity:1}
-.tira .mini.activa{opacity:1; border-color:var(--acento)}
-
-.detalles{
-  display:grid; gap:0 26px; margin:0;
-  grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));
-}
-.detalles > div{
-  display:flex; justify-content:space-between; gap:14px;
-  padding:9px 0; border-bottom:1px solid var(--linea);
-}
-.detalles dt{color:var(--tinta-2); font-size:13.5px}
-.detalles dd{
-  margin:0; font-weight:600; font-size:14px;
-  text-align:right; font-variant-numeric:tabular-nums;
+@media (hover:hover){
+  .ver-fotos:hover{background:var(--tinta); color:#fff; border-color:var(--tinta)}
 }
 
-.precio-panel{text-align:center}
-.precio-panel .rotulo{
-  font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+.ficha-encabezado{
+  display:flex; flex-wrap:wrap; gap:22px 48px; align-items:flex-end;
+  margin:34px 0 0;
+}
+.ficha-encabezado .identidad{flex:1 1 400px; min-width:0}
+.ficha-negocio{
+  display:inline-block; background:var(--tinta); color:#fff;
+  font:700 9.5px/1 var(--texto); letter-spacing:.17em; text-transform:uppercase;
+  padding:8px 12px; border-radius:3px; margin-bottom:16px;
+}
+.ficha-negocio.demo{background:var(--ladrillo)}
+.titulo-ficha{
+  display:block; margin:0;
+  font:600 clamp(27px, 3.7vw, 41px)/1.08 var(--display); letter-spacing:-.035em;
+}
+.ficha-lugar{margin:12px 0 0; color:var(--tinta-2); font-size:15.5px}
+.ficha-encabezado .valor{flex:0 1 auto; text-align:right; margin-left:auto}
+.ficha-encabezado .rotulo{
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
   color:var(--tinta-3);
 }
 .precio-grande{
-  font:600 32px/1.15 var(--display); color:var(--acento);
-  margin:8px 0 6px; font-variant-numeric:tabular-nums;
+  margin:10px 0 0; font-variant-numeric:tabular-nums;
+  font:700 clamp(30px, 4.2vw, 43px)/1 var(--display); letter-spacing:-.035em;
+}
+.precio-grande small{font:500 16px/1 var(--texto); color:var(--tinta-2); letter-spacing:0}
+.por-m2{margin:9px 0 0; font-size:13.5px; color:var(--tinta-2); font-variant-numeric:tabular-nums}
+
+/* Cifras clave: la fila que el comprador mira antes que la descripción. */
+.cifras-clave{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(132px, 1fr));
+  margin:30px 0 0; background:#fff;
+  border:1px solid var(--linea); border-radius:var(--radio); overflow:hidden;
+}
+.cifras-clave > div{padding:19px 22px; border-right:1px solid var(--linea)}
+.cifras-clave > div:last-child{border-right:0}
+.cifras-clave .rotulo{
+  display:block;
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-3);
+}
+.cifras-clave .dato{
+  display:block; margin-top:9px; font-variant-numeric:tabular-nums;
+  font:600 20px/1.1 var(--display); letter-spacing:-.02em;
 }
 
-.tambien{margin-top:48px}
-.tambien h2{margin-bottom:16px}
+.compartir{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:26px 0 0}
+.compartir .rotulo{
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-3); margin-right:4px;
+}
+.compartir a, .compartir button{
+  display:inline-flex; align-items:center; gap:7px;
+  background:none; border:1px solid var(--linea); color:var(--tinta-2);
+  padding:9px 15px; border-radius:999px; box-shadow:none;
+  font:500 12.5px/1 var(--texto);
+}
+@media (hover:hover){
+  .compartir a:hover, .compartir button:hover{
+    background:none; border-color:var(--tinta); color:var(--tinta); text-decoration:none;
+  }
+}
+.compartir button:active{transform:none}
 
-/* ─────────────────────────── Pie público ─────────────────────────── */
+.ficha-publica{
+  display:grid; gap:56px; align-items:start; margin:52px 0 0;
+  grid-template-columns:minmax(0, 1.85fr) minmax(320px, 1fr);
+}
+.ficha-principal{display:flex; flex-direction:column; gap:46px; min-width:0}
+.ficha-lateral{display:flex; flex-direction:column; gap:18px; position:sticky; top:98px}
+
+/* Secciones del cuerpo. No son tarjetas: un filete y una versalita bastan
+   para separarlas, y así la página no se convierte en cajas dentro de cajas. */
+.bloque > h2{
+  margin:0 0 22px; padding-bottom:15px; border-bottom:1px solid var(--linea);
+  font:600 11.5px/1 var(--texto); letter-spacing:.17em; text-transform:uppercase;
+  color:var(--tinta-3);
+}
+.bloque .cuerpo-texto{
+  margin:0; font-size:15.5px; line-height:1.8; color:var(--tinta-2);
+  white-space:pre-wrap; max-width:72ch;
+}
+
+.info-clave{
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(268px, 1fr));
+  gap:0 52px; margin:0;
+}
+.info-clave > div{
+  display:flex; justify-content:space-between; gap:18px;
+  padding:14px 0; border-bottom:1px solid var(--linea);
+}
+.info-clave dt{color:var(--tinta-2); font-size:14px}
+.info-clave dd{
+  margin:0; font-weight:600; font-size:14px; text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+
+/* Columna de conversión. Es lo único de la ficha que sí es una tarjeta: tiene
+   que despegarse del papel porque es la acción, no el contenido. */
+.tarjeta-asesor{
+  background:#fff; border:1px solid var(--linea); border-radius:var(--radio);
+  padding:26px 24px; box-shadow:var(--sombra-2);
+}
+.tarjeta-asesor h2{margin:0 0 8px; font:600 19px/1.25 var(--display); letter-spacing:-.02em}
+.asesor-cabeza{
+  display:flex; align-items:center; gap:14px;
+  padding-bottom:20px; margin-bottom:22px; border-bottom:1px solid var(--linea);
+}
+.asesor-avatar{
+  flex:0 0 auto; width:52px; height:52px; border-radius:50%;
+  background:var(--tinta); color:#fff; display:grid; place-items:center;
+  font:600 16px/1 var(--display); letter-spacing:.04em;
+}
+.asesor-nombre{font-weight:600; font-size:15px}
+.asesor-rol{font-size:12.5px; color:var(--tinta-2); margin-top:2px}
+.tarjeta-asesor .campo{margin-bottom:14px}
+.tarjeta-asesor input, .tarjeta-asesor textarea{width:100%}
+.tarjeta-asesor .principal{
+  width:100%; padding:14px; background:var(--tinta);
+  font:600 12px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
+}
+@media (hover:hover){
+  .tarjeta-asesor .principal:hover{background:var(--acento)}
+}
+.boton-wasap{
+  display:flex; align-items:center; justify-content:center; gap:9px;
+  width:100%; margin-top:10px; padding:13px;
+  background:none; border:1px solid var(--linea-fuerte); color:var(--tinta);
+  border-radius:var(--radio-s); box-shadow:none;
+  font:600 12px/1 var(--texto); letter-spacing:.11em; text-transform:uppercase;
+}
+@media (hover:hover){
+  .boton-wasap:hover{background:none; border-color:#25d366; color:#128c4b; text-decoration:none}
+}
+.tarjeta-asesor .consentimiento{margin-bottom:16px}
+
+.tambien{margin:84px 0 0; padding-top:46px; border-top:1px solid var(--linea)}
+.tambien h2{margin:0 0 28px; font:600 26px/1.15 var(--display); letter-spacing:-.028em}
+
+/* ─────────────────────── Visor a pantalla completa ───────────────────────
+   Se abre desde el mosaico y sustituye a la tira de miniaturas: en un portal
+   la galería es una pantalla, no un widget dentro del texto. Sin JavaScript
+   nunca aparece y cada pieza del mosaico sigue siendo un enlace a su imagen. */
+
+.lightbox{
+  position:fixed; inset:0; z-index:200;
+  display:grid; grid-template-rows:auto minmax(0, 1fr) auto;
+  background:rgba(5,26,37,.97); animation:aparecer .18s ease;
+}
+.lightbox[hidden]{display:none}
+.lightbox-cabeza{
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding:18px 22px; color:#bcd8e4; font:500 13px/1 var(--texto);
+}
+.lightbox-cabeza .contador{font-variant-numeric:tabular-nums; letter-spacing:.06em}
+.lightbox-cerrar{
+  width:42px; height:42px; padding:0; border-radius:50%; box-shadow:none;
+  background:rgba(255,255,255,.1); color:#fff; font-size:19px; line-height:1;
+}
+.lightbox-lienzo{position:relative; display:grid; place-items:center; padding:0 22px; min-height:0}
+.lightbox-lienzo img{max-width:100%; max-height:100%; object-fit:contain; border-radius:4px}
+.lightbox-nav{
+  position:absolute; top:50%; transform:translateY(-50%);
+  width:48px; height:48px; padding:0; border-radius:50%; box-shadow:none;
+  background:rgba(255,255,255,.1); color:#fff;
+  font:400 26px/1 var(--texto);
+}
+.lightbox-nav.anterior{left:16px}
+.lightbox-nav.siguiente{right:16px}
+@media (hover:hover){
+  .lightbox-nav:hover, .lightbox-cerrar:hover{background:rgba(255,255,255,.22)}
+}
+.lightbox-nav:active{transform:translateY(-50%) scale(.94)}
+.lightbox-cerrar:active{transform:scale(.94)}
+/* En táctil el gesto de arrastrar ya pasa de foto y dos botones grandes tapan
+   justo lo que se ha venido a ver. */
+@media (pointer:coarse), (max-width:640px){
+  .lightbox-nav{display:none}
+}
+.lightbox-tira{display:flex; gap:8px; overflow-x:auto; padding:16px 22px; scrollbar-width:thin}
+.lightbox-tira::-webkit-scrollbar{height:6px}
+.lightbox-tira::-webkit-scrollbar-thumb{background:rgba(255,255,255,.24); border-radius:999px}
+.lightbox-tira button{
+  flex:0 0 88px; height:60px; padding:0; border-radius:4px; overflow:hidden;
+  border:2px solid transparent; background:none; box-shadow:none;
+  opacity:.48; transition:opacity .15s ease, border-color .15s ease;
+}
+.lightbox-tira button img{width:100%; height:100%; object-fit:cover; display:block}
+.lightbox-tira button:hover{opacity:.85; background:none}
+.lightbox-tira button.activa{opacity:1; border-color:#fff}
+body.sin-scroll{overflow:hidden}
+
+/* ─────────────────────────── Pie público ───────────────────────────
+   Tinta a sangre. Cierra la página con el mismo peso con que la abre la
+   primera fotografía, y separa lo comercial de lo legal. */
 
 .pie-publico{
-  margin-top:56px; border-top:1px solid var(--linea);
-  background:var(--panel); padding:36px 28px 26px;
+  max-width:none; margin:0; padding:66px 32px 34px;
+  background:var(--tinta); color:#9fc4d6; border-top:0;
 }
 .pie-columnas{
-  max-width:1240px; margin:0 auto; display:grid; gap:32px;
-  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  max-width:var(--ancho); margin:0 auto;
+  display:grid; gap:44px; grid-template-columns:1.5fr 1fr 1fr;
 }
+.pie-marca{
+  display:block; margin:0 0 16px; color:#fff;
+  font:600 19px/1 var(--display); letter-spacing:.17em; text-transform:uppercase;
+}
+.pie-marca b{font-weight:600; color:#59e0ff}
 .pie-publico h3{
-  font:600 12px/1 var(--texto); text-transform:uppercase;
-  letter-spacing:.08em; color:var(--tinta-3); margin:0 0 10px;
+  margin:0 0 16px;
+  font:600 10px/1 var(--texto); letter-spacing:.19em; text-transform:uppercase;
+  color:#6f9cb0;
+}
+.pie-publico .leyenda{color:#9fc4d6; font-size:13.5px; line-height:1.7; max-width:44ch}
+.pie-publico a{color:#dcf0f8; text-decoration:underline; text-underline-offset:3px}
+.pie-publico a:hover{color:#fff}
+.pie-publico .boton{
+  background:#fff; color:var(--tinta); text-decoration:none; box-shadow:none;
+  font:600 11px/1 var(--texto); letter-spacing:.12em; text-transform:uppercase;
+  padding:13px 20px;
+}
+@media (hover:hover){
+  .pie-publico .boton:hover{background:#59e0ff; color:var(--tinta)}
 }
 .pie-publico .aviso{
-  max-width:1240px; margin:28px auto 0; padding-top:18px;
-  border-top:1px solid var(--linea); font-size:12.5px; color:var(--tinta-3);
+  max-width:var(--ancho); margin:46px auto 0; padding-top:24px;
+  border-top:1px solid rgba(255,255,255,.12);
+  color:#6b93a6; font-size:12.5px; line-height:1.7;
 }
 
 /* Botón flotante de WhatsApp. Es el patrón que el comprador colombiano ya
    reconoce en cualquier sitio inmobiliario; discutirlo sería terquedad. */
 .wasap{
-  position:fixed; right:20px; bottom:20px; z-index:60;
-  width:52px; height:52px; border-radius:50%;
+  position:fixed; right:22px; bottom:22px; z-index:60;
+  width:54px; height:54px; border-radius:50%;
   display:grid; place-items:center;
   background:#25d366; color:#fff; box-shadow:var(--sombra-3);
   transition:transform .18s cubic-bezier(.2,.7,.3,1);
 }
 .wasap:hover{transform:scale(1.07); text-decoration:none}
 
-@media (max-width:900px){
-  .ficha-publica{grid-template-columns:1fr}
-  .ficha-lateral{position:static}
-}
+/* ─────────────────── Andamiaje del operador ───────────────────
+   Solo lo ve quien tiene sesión. Se distingue del contenido público a
+   propósito: el punteado dice «esto no es la oferta» mucho mejor que el
+   contraste bruto, y así los botones siguen viéndose sobre su fondo. */
 
-/* Puente vitrina → dashboard. Solo lo ve quien tiene sesión, y se distingue del
-   contenido público a propósito: es andamiaje del operador, no de la oferta. */
-/* Franja clara con el borde punteado: tiene que leerse como andamiaje del
-   operador y no como parte de la oferta, pero sin plantar un bloque negro en
-   medio de una página de papel cálido. El punteado dice «esto no es contenido»
-   mucho mejor que el contraste bruto, y así los botones vuelven a verse sobre
-   el fondo para el que están diseñados. Es el mismo lenguaje que ya usa el
-   hilo de notas, unos centímetros más abajo. */
 .barra-interna{
   display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-  background:#fbfaf8; color:var(--tinta-2);
-  border:1px dashed var(--linea-fuerte);
-  border-left:3px solid var(--tinta);
-  padding:10px 14px; border-radius:var(--radio-s); margin:14px 0 4px;
+  background:var(--velo); color:var(--tinta-2);
+  border:1px dashed var(--linea-fuerte); border-left:3px solid var(--tinta);
+  padding:11px 16px; border-radius:var(--radio-s); margin:20px 0 0;
   font-size:13px;
 }
 .barra-interna strong{color:var(--tinta); font-weight:600}
-/* El texto empuja: así las acciones quedan juntas a la derecha por muchas que
-   sean, en vez de separarse entre ellas. */
 .barra-interna > span:first-child{margin-right:auto}
 .barra-interna form{display:inline}
-.inmueble .codigo.interno{color:var(--acento); text-decoration:none}
-.inmueble .codigo.interno:hover{text-decoration:underline}
-
-/* Arriendo y permuta se distinguen de la venta a simple vista: en una rejilla
-   mezclada, el precio solo se interpreta bien si el negocio se ve antes. */
-.insignia.alterna{background:var(--frio); color:#fff}
-.inmueble .precio small, .precio-grande small{
-  font:400 13px/1 var(--texto); color:var(--tinta-2); margin-left:2px;
+.hilo-interno{
+  margin-top:56px; border:1px solid var(--linea); border-left:3px solid var(--tinta);
+  background:var(--velo); border-radius:var(--radio-s); padding:24px;
 }
-.precio-grande small{font-size:15px}
-
-/* Notas del equipo en la ficha pública: se separan visualmente del contenido
-   de la oferta para que nadie las confunda con algo que ve el comprador. */
-.hilo-interno{border-left:3px solid var(--tinta); background:#fbfaf8}
-.hilo-interno h2{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+.hilo-interno h2{margin:0 0 16px; display:flex; align-items:center; gap:10px; flex-wrap:wrap}
 .quien-soy{display:inline-flex; align-items:center; gap:8px; font-size:13px}
 
-/* Salidas de la pantalla de confirmación. Van juntas y con aire por encima:
-   son lo único que queda por hacer en esa página. */
+/* Salidas de las pantallas de confirmación: son lo único que queda por hacer
+   en esa página, así que van juntas y con aire por encima. */
 .salidas{
   display:flex; gap:10px; flex-wrap:wrap;
-  margin-top:26px; padding-top:22px; border-top:1px solid var(--linea);
+  margin-top:28px; padding-top:24px; border-top:1px solid var(--linea);
+}
+
+/* ───────────── Páginas de una sola caja (landing, login, publicar) ───────────── */
+
+body.publica{background:var(--velo)}
+.caja{box-shadow:var(--sombra-3); border-radius:var(--radio)}
+.caja h1{display:block; font:600 27px/1.2 var(--display); letter-spacing:-.025em}
+.marca-publica{display:flex; flex-direction:column; align-items:flex-start; gap:4px; margin-bottom:26px}
+.marca-publica .marca-inmoclick{color:var(--tinta)}
+
+/* ─────────────────────────── Adaptable ─────────────────────────── */
+
+@media (max-width:1000px){
+  .ficha-publica{grid-template-columns:1fr; gap:40px}
+  .ficha-lateral{position:static}
+  .pie-columnas{grid-template-columns:1fr 1fr}
+}
+@media (max-width:820px){
+  body.vitrina main{padding:0 18px 72px}
+  body.vitrina .barra{padding:12px 18px; min-height:0}
+  body.vitrina .barra nav{order:3; width:100%; margin-left:0; overflow-x:auto}
+  body.vitrina .quien{border-left:0; padding-left:0}
+  .franja-demo{padding:11px 18px}
+  .portada{padding:36px 0 26px}
+  /* El botón deja de ser una columna de la fila y pasa a ocupar su propio
+     renglón: a 360px de ancho, «Buscar» al lado de «Baños» deja a los dos
+     controles sin espacio para su etiqueta. */
+  .filtrador .campo{flex:1 1 46%; border-right:0; border-bottom:1px solid var(--linea)}
+  .filtrador .accion{flex:1 1 100%}
+  .filtrador .accion button{width:100%; min-height:56px}
+  .rejilla-inmuebles{grid-template-columns:repeat(auto-fill, minmax(268px, 1fr)); gap:30px 20px}
+  /* Cinco fotos en un teléfono son cinco sellos ilegibles: se muestra la
+     principal y el botón se encarga de decir cuántas hay detrás. */
+  .mosaico{grid-template-columns:1fr; grid-template-rows:1fr; aspect-ratio:4/3}
+  .mosaico .pieza{display:none}
+  .mosaico .pieza:first-child{display:block; grid-row:auto}
+  .ficha-encabezado .valor{text-align:left; margin-left:0}
+  .cifras-clave > div{padding:15px 16px}
+  .pie-publico{padding:48px 18px 28px}
+  .pie-columnas{grid-template-columns:1fr; gap:34px}
+  .tambien{margin-top:60px}
 }

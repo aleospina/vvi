@@ -33,45 +33,58 @@
 /inmuebles{% if partes %}?{{ partes | join('&') }}{% endif %}
 {%- endmacro -%}
 
+{# La tarjeta la pintan dos plantillas —esta rejilla y el «también te pueden
+   servir» de la ficha—, así que vive en un archivo propio. #}
+{% from "_tarjeta_inmueble.html" import tarjeta with context %}
+
 {% block contenido %}
 
-<section class="portada-vitrina">
+<section class="portada">
+  <p class="antetitulo">Cartera propia · {{ ciudades | join(' y ') }}</p>
   <h1>Encuentra tu próxima vivienda</h1>
-  <p class="leyenda">
-    Cartera propia en {{ ciudades | join(' y ') }}. Cada inmueble lo revisó un asesor
-    antes de publicarse: lo que ves aquí existe y está disponible.
+  <p class="entradilla">
+    Cada inmueble lo revisó un asesor antes de publicarse: lo que ves aquí
+    existe y está disponible.
   </p>
 
+  {# El negocio va suelto y por delante del resto: sin él, «precio desde/hasta»
+     no tiene una escala definida —un canon mensual y un precio de venta no se
+     comparan—. Cambiarlo borra el rango, porque 400.000.000 arrastrado desde
+     «venta» a «arriendo» deja el listado vacío sin explicar por qué. #}
+  {% if conteo_negocios | length > 1 %}
+  <nav class="segmentos" aria-label="Tipo de negocio">
+    <a class="{{ 'activa' if not filtros.negocio }}"
+       href="{{ url_vitrina({'negocio': '', 'min': '', 'max': '', 'pagina': ''}) }}">
+      Todos <em>{{ conteo_negocios.values() | sum }}</em>
+    </a>
+    {% for clave, etiqueta in etiquetas_negocio.items() %}
+      {% if clave in conteo_negocios %}
+      <a class="{{ 'activa' if filtros.negocio == clave }}"
+         href="{{ url_vitrina({'negocio': clave, 'min': '', 'max': '', 'pagina': ''}) }}">
+        {{ etiqueta }} <em>{{ conteo_negocios[clave] }}</em>
+      </a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+
   {# Búsqueda avanzada. Es un GET a propósito: el resultado tiene URL propia. #}
-  <form class="buscador" method="get" action="/inmuebles">
+  <form class="filtrador" method="get" action="/inmuebles">
+    {# El negocio ya lo fijó el conmutador de arriba, pero el formulario tiene
+       que arrastrarlo o «Buscar» lo perdería y devolvería toda la cartera. #}
+    {% if filtros.negocio %}<input type="hidden" name="negocio" value="{{ filtros.negocio }}">{% endif %}
+
     <div class="campo ancho">
       <label for="q">Qué buscas</label>
       <input type="search" name="q" id="q" value="{{ filtros.q }}"
-             placeholder="Barrio, código del inmueble o palabra suelta">
+             placeholder="Barrio, código o palabra suelta">
     </div>
-    {# El negocio va primero de todo: sin él, «precio desde/hasta» no tiene una
-       escala definida —un canon mensual y un precio de venta no se comparan—. #}
-    {% if conteo_negocios | length > 1 %}
-    <div class="campo">
-      <label for="negocio">Negocio</label>
-      <select name="negocio" id="negocio">
-        <option value="">Todos</option>
-        {# Las opciones en cero se quedan: son la respuesta «de eso no tengo
-           con este filtro», y quitarlas dejaría al visitante sin la opción. #}
-        {% for clave, etiqueta in etiquetas_negocio.items() %}
-          {% if clave in conteo_negocios %}
-          <option value="{{ clave }}" {{ 'selected' if filtros.negocio == clave }}>
-            {{ etiqueta }} ({{ conteo_negocios[clave] }})
-          </option>
-          {% endif %}
-        {% endfor %}
-      </select>
-    </div>
-    {% endif %}
     <div class="campo">
       <label for="tipo">Tipo</label>
       <select name="tipo" id="tipo">
         <option value="">Todos</option>
+        {# Ninguna opción se esconde por estar en cero: que diga «Lotes (0)» es
+           una respuesta; que desaparezca parece que el filtro se rompió. #}
         {% for clave, etiqueta in etiquetas_tipo.items() %}
           <option value="{{ clave }}" {{ 'selected' if filtros.tipo == clave }}>
             {{ etiqueta }} ({{ conteo_tipos.get(clave, 0) }})
@@ -100,6 +113,7 @@
         <input type="text" inputmode="numeric" name="min" id="min"
                value="{{ filtros.min }}" placeholder="Desde"
                aria-label="{{ rotulo_precio }} desde">
+        <span class="guion" aria-hidden="true">—</span>
         <input type="text" inputmode="numeric" name="max" id="max"
                value="{{ filtros.max }}" placeholder="Hasta"
                aria-label="{{ rotulo_precio }} hasta">
@@ -123,126 +137,65 @@
         {% endfor %}
       </select>
     </div>
-    <div class="campo boton-buscar">
+    <div class="campo accion">
       <button type="submit">Buscar</button>
     </div>
   </form>
 </section>
 
-<div class="filtros">
-  {% if conteo_negocios | length > 1 %}
-  <div class="filtro">
-    <span class="filtro-titulo">Negocio</span>
-    <a class="pastilla {{ 'activa' if not filtros.negocio }}"
-       href="{{ url_vitrina({'negocio': '', 'min': '', 'max': '', 'pagina': ''}) }}">
-      Todos <em>{{ conteo_negocios.values() | sum }}</em>
-    </a>
-    {% for clave, etiqueta in etiquetas_negocio.items() %}
-      {% if clave in conteo_negocios %}
-      {# Cambiar de negocio borra el rango de precio: 400.000.000 arrastrado
-         desde «venta» a «arriendo» deja el listado vacío sin explicar por qué. #}
-      <a class="pastilla {{ 'activa' if filtros.negocio == clave }} {{ 'vacia' if not conteo_negocios[clave] }}"
-         href="{{ url_vitrina({'negocio': clave, 'min': '', 'max': '', 'pagina': ''}) }}">
-        {{ etiqueta }} <em>{{ conteo_negocios[clave] }}</em>
-      </a>
-      {% endif %}
-    {% endfor %}
-  </div>
-  {% endif %}
-
-  <div class="filtro">
-    <span class="filtro-titulo">Tipo</span>
-    <a class="pastilla {{ 'activa' if not filtros.tipo }}" href="{{ url_vitrina({'tipo': '', 'pagina': ''}) }}">
-      Todos <em>{{ conteo_tipos.values() | sum }}</em>
-    </a>
-    {# Ninguna pestaña se esconde por estar en cero: que diga «Lotes 0» es una
-       respuesta; que desaparezca parece que el filtro se rompió. #}
-    {% for clave, etiqueta in etiquetas_tipo.items() %}
-      <a class="pastilla {{ 'activa' if filtros.tipo == clave }} {{ 'vacia' if not conteo_tipos.get(clave) }}"
-         href="{{ url_vitrina({'tipo': clave, 'pagina': ''}) }}">
-        {{ etiqueta }} <em>{{ conteo_tipos.get(clave, 0) }}</em>
-      </a>
-    {% endfor %}
-  </div>
-
-  <div class="filtro">
-    <span class="filtro-titulo">Ordenar por</span>
+<div class="resultados-barra">
+  <h2>
+    {{ total }} inmueble{{ '' if total == 1 else 's' }}
+  </h2>
+  <span class="contexto">
+    {%- if filtros.negocio %}{{ etiquetas_negocio[filtros.negocio] }}{% endif %}
+    {%- if filtros.tipo %} · {{ etiquetas_tipo.get(filtros.tipo, filtros.tipo) }}{% endif %}
+    {%- if filtros.municipio %} · {{ filtros.municipio }}{% endif %}
+    {%- if paginas > 1 %} · página {{ pagina }} de {{ paginas }}{% endif %}
+  </span>
+  {% if hay_filtro %}<a class="limpiar" href="/inmuebles">Quitar filtros</a>{% endif %}
+  <div class="orden">
+    <span class="rotulo">Ordenar</span>
     {% for clave, etiqueta in ordenes %}
-      <a class="pastilla {{ 'activa' if filtros.orden == clave }}"
+      <a class="{{ 'activa' if filtros.orden == clave }}"
          href="{{ url_vitrina({'orden': clave, 'pagina': ''}) }}">{{ etiqueta }}</a>
     {% endfor %}
   </div>
 </div>
 
-<h2 class="titulo-resultados">
-  {{ total }} inmueble{{ '' if total == 1 else 's' }}
-  {%- if filtros.negocio %} · {{ etiquetas_negocio[filtros.negocio] }}{% endif %}
-  {%- if filtros.tipo %} · {{ etiquetas_tipo.get(filtros.tipo, filtros.tipo) }}{% endif %}
-  {%- if filtros.municipio %} · {{ filtros.municipio }}{% endif %}
-  {%- if paginas > 1 %} <span class="leyenda" style="font:inherit; font-weight:400">· página {{ pagina }} de {{ paginas }}</span>{% endif %}
-  {% if hay_filtro %}<a class="limpiar" href="/inmuebles">Quitar filtros</a>{% endif %}
-</h2>
-
 {% if not inmuebles %}
-<div class="aviso-caja">
+<div class="sin-resultados">
   <h3>No encontramos inmuebles con esos criterios</h3>
   <p>
     Prueba ampliando el rango de precio o quitando el municipio.
     {% if hay_filtro %}También puedes <a href="/inmuebles">ver toda la cartera</a>.{% endif %}
   </p>
-  <p class="leyenda" style="margin-bottom:0">
+  <p>
     ¿Buscas algo puntual que no aparece? <a href="/publicar">Cuéntanos qué necesitas</a>
     y te avisamos cuando entre a la cartera.
   </p>
 </div>
 {% endif %}
 
-<div class="inmuebles">
+<div class="rejilla-inmuebles">
   {% for p in inmuebles %}
-    {% set enlace = p | ruta %}
-    <article class="inmueble">
-      <a href="{{ enlace }}" class="foto" aria-label="Ver {{ p.tipo }} en {{ p.zona or p.ciudad }}">
-        <img src="{{ p.portada }}" alt="" loading="lazy">
-        <span class="insignias">
-          <span class="insignia {{ 'viva' if p.negocio == 'venta' else 'alterna' }}">
-            {{ p.tipo }} · {{ p.negocio }}
-          </span>
-          {% if p.es_referencia %}
-            <span class="insignia aviso">demo · no existe</span>
-          {% endif %}
-        </span>
-      </a>
-      <div class="cuerpo">
-        {# El «/mes» no es decorativo: sin él, $2.500.000 en una tarjeta rodeada
-           de precios de venta se lee como el inmueble más barato del catálogo. #}
-        <div class="precio">
-          {{ p.precio | pesos }}{% if p.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
-        </div>
-        <div class="ubicacion">{{ p.zona or 'Zona sin definir' }}</div>
-        <div class="ciudad">{{ p | municipio }}{% if (p | municipio) != p.ciudad %}, {{ p.ciudad }}{% endif %}</div>
-        <div class="specs">
-          {% if p.habitaciones %}<span><b>{{ p.habitaciones }}</b> alcobas</span>{% endif %}
-          {% if p.banos %}<span><b>{{ p.banos }}</b> baños</span>{% endif %}
-          {% if p.area_m2 %}<span><b>{{ '%.0f' % p.area_m2 }}</b> m²</span>{% endif %}
-          {% if not (p.habitaciones or p.banos or p.area_m2) %}
-            <span class="leyenda" style="margin:0">Consulta las especificaciones</span>
-          {% endif %}
-        </div>
-      </div>
-      <div class="pie">
-        <a class="boton suave" href="{{ enlace }}">Ver inmueble</a>
-        {# Con sesión, el código es además el atajo a la ficha interna: es
-           donde están la edición, las fotos y los comentarios. #}
-        {% if sesion %}
-          <a class="codigo interno" href="/dashboard/propiedades/{{ p.id }}"
-             title="Abrir la ficha interna">{{ p.id }}</a>
-        {% else %}
-          <span class="codigo">{{ p.id }}</span>
-        {% endif %}
-      </div>
-    </article>
+    {{ tarjeta(p, sesion, etiquetas_negocio) }}
   {% endfor %}
 </div>
+
+{% if paginas > 1 %}
+<nav class="paginacion" aria-label="Páginas de resultados">
+  {% if pagina > 1 %}
+    <a href="{{ url_vitrina({'pagina': pagina - 1}) }}" rel="prev">← Anterior</a>
+  {% endif %}
+  {% for n in range(1, paginas + 1) %}
+    <a class="{{ 'activa' if n == pagina }}" href="{{ url_vitrina({'pagina': n}) }}">{{ n }}</a>
+  {% endfor %}
+  {% if pagina < paginas %}
+    <a href="{{ url_vitrina({'pagina': pagina + 1}) }}" rel="next">Siguiente →</a>
+  {% endif %}
+</nav>
+{% endif %}
 
 <script>
 // Puntos de miles mientras se escribe: «600000000» es ilegible y a ojo se
@@ -272,19 +225,5 @@
   });
 })();
 </script>
-
-{% if paginas > 1 %}
-<nav class="paginacion" aria-label="Páginas de resultados">
-  {% if pagina > 1 %}
-    <a class="pastilla" href="{{ url_vitrina({'pagina': pagina - 1}) }}" rel="prev">← Anterior</a>
-  {% endif %}
-  {% for n in range(1, paginas + 1) %}
-    <a class="pastilla {{ 'activa' if n == pagina }}" href="{{ url_vitrina({'pagina': n}) }}">{{ n }}</a>
-  {% endfor %}
-  {% if pagina < paginas %}
-    <a class="pastilla" href="{{ url_vitrina({'pagina': pagina + 1}) }}" rel="next">Siguiente →</a>
-  {% endif %}
-</nav>
-{% endif %}
 
 {% endblock %}

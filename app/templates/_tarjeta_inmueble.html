@@ -1,0 +1,65 @@
+{# Tarjeta de inmueble de la vitrina.
+
+   Vive en su propio archivo porque la pintan dos plantillas —la rejilla de
+   resultados y el «también te pueden servir» de la ficha— y son doscientos
+   caracteres de datos que no pueden divergir entre las dos: si el «/mes» del
+   arriendo se arregla en un sitio y no en el otro, el precio miente en la
+   mitad de la vitrina.
+
+   Un macro y no un `include` para que las etiquetas lleguen como argumentos:
+   así se ve de un vistazo de qué depende, y no de qué haya en el contexto de
+   quien lo llame. #}
+
+{%- macro tarjeta(p, sesion, etiquetas_negocio) -%}
+<article class="tarjeta-inmueble">
+  <div class="ti-foto">
+    <img src="{{ p.portada }}" alt="" loading="lazy">
+    <span class="ti-marcas">
+      {# El negocio va sobre la foto y no debajo: sin él, dos millones y medio
+         en una rejilla de precios de venta se lee como una ganga y no como un
+         canon mensual. #}
+      <span class="ti-marca oscura">{{ etiquetas_negocio.get(p.negocio, p.negocio | capitalize) }}</span>
+      {% if p.es_referencia %}<span class="ti-marca aviso">Demo · no existe</span>{% endif %}
+    </span>
+    <span class="ti-zona">{{ p | municipio }}</span>
+  </div>
+
+  <div class="ti-cuerpo">
+    <div class="ti-precio">
+      {{ p.precio | pesos }}{% if p.negocio == 'arriendo' %}<small>/mes</small>{% endif %}
+    </div>
+    <p class="ti-direccion">{{ p.zona or 'Zona sin definir' }}</p>
+    <p class="ti-ciudad">{{ p | municipio }}{% if (p | municipio) != p.ciudad %}, {{ p.ciudad }}{% endif %}</p>
+    <ul class="ti-datos">
+      {% if p.habitaciones %}<li><b>{{ p.habitaciones }}</b>&nbsp;alcobas</li>{% endif %}
+      {% if p.banos %}<li><b>{{ p.banos }}</b>&nbsp;baños</li>{% endif %}
+      {% if p.area_m2 %}<li><b>{{ '%.0f' % p.area_m2 }}</b>&nbsp;m²</li>{% endif %}
+      {% if not (p.habitaciones or p.banos or p.area_m2) %}
+        <li>Consulta las especificaciones</li>
+      {% endif %}
+    </ul>
+  </div>
+
+  <div class="ti-pie">
+    {# El rótulo de la faceta va en plural —«Casas»— porque cuenta un
+       conjunto. Aquí es un inmueble y solo uno. #}
+    <span class="ti-tipo">{{ p.tipo | capitalize }}</span>
+    {# Con sesión, el código es además el atajo a la ficha interna: es donde
+       están la edición, las fotos y los comentarios. #}
+    {% if sesion %}
+      <a class="ti-codigo interno" href="/dashboard/propiedades/{{ p.id }}"
+         title="Abrir la ficha interna">{{ p.id }}</a>
+    {% else %}
+      <span class="ti-codigo">{{ p.id }}</span>
+    {% endif %}
+  </div>
+
+  {# El enlace cubre la tarjeta entera. Va al final y vacío a propósito: así
+     nada de lo de arriba tiene que ser un enlace anidado —que es HTML
+     inválido— y el código interno del operador sigue siendo pulsable porque
+     se eleva por encima con `z-index`. #}
+  <a class="ti-enlace" href="{{ p | ruta }}">
+    <span class="oculto">Ver {{ p.tipo }} en {{ p.zona or p.ciudad }} · {{ p.id }}</span>
+  </a>
+</article>
+{%- endmacro -%}

@@ -9,7 +9,7 @@ import uvicorn
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="VVI — Vendedor Virtual Inmobiliario")
+    parser = argparse.ArgumentParser(description="Inmoclick — Vendedor Virtual Inmobiliario")
     # En local se escucha solo en la máquina; una plataforma de despliegue
     # necesita 0.0.0.0 y el puerto que ella asigna en $PORT, o el enrutador
     # nunca alcanza el proceso y el servicio queda como caído.
@@ -18,7 +18,7 @@ def main() -> None:
     parser.add_argument("--reload", action="store_true", help="Recarga en caliente (desarrollo)")
     args = parser.parse_args()
 
-    print("\n  VVI — Vendedor Virtual Inmobiliario")
+    print("\n  Inmoclick — Vendedor Virtual Inmobiliario")
     print(f"  Dashboard : http://{args.host}:{args.port}/dashboard")
     print(f"  API docs  : http://{args.host}:{args.port}/docs\n")
 

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     )
 
     # Identidad del negocio
-    empresa_nombre: str = "Inmobiliaria Demo"
+    empresa_nombre: str = "Inmoclick"
     politica_privacidad_url: str = "https://ejemplo.com/politica-de-tratamiento-de-datos"
     comision_pct: float = 0.03
 

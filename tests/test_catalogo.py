@@ -269,7 +269,7 @@ class TestFiltros:
         r = web.get("/inmuebles?tipo=lote&municipio=Dosquebradas")
         assert r.status_code == 200
         assert _ids_visibles(r.text) == set(), "esa combinación no tiene inventario"
-        assert 'class="filtros"' in r.text, "sin filtros no hay forma de volver"
+        assert 'class="filtrador"' in r.text, "sin filtros no hay forma de volver"
         assert "No encontramos inmuebles con esos criterios" in r.text
         assert "Quitar filtros" in r.text
 
@@ -344,8 +344,9 @@ class TestFacetas:
         import re
 
         pagina = web.get("/inmuebles?negocio=venta").text
+        # La cuenta vive en la opción del desplegable de tipo: «Apartamentos (2)».
         prometido = int(
-            re.search(r'href="[^"]*tipo=apartamento[^"]*"[^>]*>\s*Apartamentos\s*<em>(\d+)</em>',
+            re.search(r'<option value="apartamento"[^>]*>\s*Apartamentos \((\d+)\)',
                       pagina).group(1)
         )
         entregado = len(_ids_visibles(web.get("/inmuebles?negocio=venta&tipo=apartamento").text))

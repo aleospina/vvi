@@ -1,4 +1,4 @@
-# VVI — Vendedor Virtual Inmobiliario
+# Inmoclick — Vendedor Virtual Inmobiliario
 
 Agente conversacional de IA que **atiende, califica y empareja** compradores de vivienda en
 Medellín y Pereira contra una cartera de propiedades, y entrega los prospectos calificados a
@@ -66,12 +66,12 @@ Habla con [@BotFather](https://t.me/BotFather), crea el bot, copia el token en
 
 ### Activar WhatsApp (Evolution API)
 Canal de Fase 2 (**ADR-02b**). WhatsApp entra por un gateway aparte —Evolution API—
-que habla el protocolo de WhatsApp Web con Baileys y le pega a un webhook de VVI.
+que habla el protocolo de WhatsApp Web con Baileys y le pega a un webhook de Inmoclick.
 
 > **Advertencia.** La integración Baileys **no es oficial**: puede provocar el baneo del
 > número. Usa un **número dedicado**, nunca el corporativo, y responde solo a quien
 > escribe primero. Es un puente hasta tener el WABA; ese día se cambia `integration` a
-> `WHATSAPP-BUSINESS` en Evolution y el código de VVI **no cambia**.
+> `WHATSAPP-BUSINESS` en Evolution y el código de Inmoclick **no cambia**.
 
 ```bash
 # 1. Secretos en .env
@@ -79,7 +79,7 @@ python -c "import secrets; print('EVOLUTION_API_KEY=' + secrets.token_urlsafe(32
 python -c "import secrets; print('EVOLUTION_WEBHOOK_TOKEN=' + secrets.token_urlsafe(32))"
 
 # En desarrollo, además:  EVOLUTION_WEBHOOK_BASE="http://host.docker.internal:8000"
-# Evolution corre en Docker y VVI en el host: `localhost` desde el contenedor
+# Evolution corre en Docker y Inmoclick en el host: `localhost` desde el contenedor
 # es el propio contenedor. Es el error de configuración más común de todo esto.
 
 # 2. Levantar el gateway (Evolution + Postgres + Redis)
@@ -109,7 +109,7 @@ python deploy/evolution/configurar.py --estado    # → open | connecting | clos
 curl http://127.0.0.1:8000/health                 # → "canal_whatsapp": true
 ```
 
-Cuando la sesión se cae, VVI avisa al asesor **por Telegram y correo** — no por
+Cuando la sesión se cae, Inmoclick avisa al asesor **por Telegram y correo** — no por
 WhatsApp, que es justo el canal que murió.
 
 Con `EVOLUTION_URL` vacío el canal no se monta y la app arranca igual, como pasa con
@@ -227,7 +227,7 @@ Cuando el flujo ya convence, el paso siguiente necesita que Instagram alcance tu
 
 1. **Convierte la cuenta a profesional** (Configuración → Tipo de cuenta → Empresa o
    creador). Con una cuenta personal la Messaging API no entrega nada.
-2. **Abre un túnel** a tu VVI local — Meta solo acepta HTTPS público:
+2. **Abre un túnel** a tu Inmoclick local — Meta solo acepta HTTPS público:
    `cloudflared tunnel --url http://127.0.0.1:8000` (o `ngrok http 8000`). Pon esa URL en
    `DASHBOARD_URL`, que es de donde cuelga la del webhook.
 3. En el panel de la app de Meta, declara `https://tu-tunel/webhooks/instagram` con tu
@@ -260,7 +260,7 @@ detalla el desajuste (`fotos.diagnostico`); además, si la base está en un volu
 
 Cada canal las transporta a su manera: Telegram las agrupa en un **álbum** de un solo
 envío, y WhatsApp manda **una imagen por mensaje** (Evolution no tiene álbum), en base64
-y no por URL — un enlace obligaría a que Evolution alcanzara a VVI por HTTP, que en
+y no por URL — un enlace obligaría a que Evolution alcanzara a Inmoclick por HTTP, que en
 desarrollo no puede y en producción falla en silencio. Instagram, de momento, solo texto.
 
 ---
