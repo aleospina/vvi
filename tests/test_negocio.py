@@ -359,6 +359,76 @@ class TestFocoEnUnInmueble:
         assert prospecto_consentido.solicitudes[-1].propiedad_id == "LOT-DOS-001"
 
 
+class TestLotesNumerados:
+    """Cuando los inmuebles se llaman "Lote 1", "Lote 2", el nombre gana.
+
+    Reportado en producción: el comprador pedía el Lote 2 y le llegaba el Lote 1.
+    "Lote 2" se leía como *la segunda ficha del listado*, y el listado está
+    ordenado por ranking y precio, no por el número del lote: la posición 2 es de
+    otro. El error es de los peores porque la respuesta parece correcta —llega una
+    ficha, con sus fotos y su precio— y nada delata que es la que no se pidió.
+    """
+
+    #: Los precios están al revés del número a propósito: así la posición en el
+    #: listado nunca coincide con el nombre, que es justo lo que confundía.
+    CARTERA = [("Lote 1", 300), ("Lote 2", 100), ("Lote 3", 200)]
+
+    @pytest.fixture()
+    def cartera(self, db):
+        for i, (nombre, millones) in enumerate(self.CARTERA, start=1):
+            db.add(
+                Propiedad(
+                    id=f"NUM-DOS-{i:03d}", ciudad="Pereira",
+                    zona=f"{nombre}, La Badea, Dosquebradas", tipo="lote",
+                    habitaciones=0, banos=0, area_m2=500 + i,
+                    precio=millones * 1_000_000, estado="disponible",
+                    descripcion=f"{nombre} en La Badea, con servicios.",
+                )
+            )
+        db.flush()
+        return db
+
+    @staticmethod
+    def _pedir_lotes(db, prospecto):
+        return gateway.procesar(db, prospecto, "Quiero lotes en Dosquebradas")
+
+    def test_el_orden_del_listado_no_es_el_de_los_nombres(self, cartera, prospecto_consentido):
+        """Sin esto el test de abajo pasaría por casualidad."""
+        r = self._pedir_lotes(cartera, prospecto_consentido)
+        assert [m.propiedad.id for m in r.matches][:2] == ["NUM-DOS-002", "NUM-DOS-003"]
+
+    def test_pedir_el_lote_2_trae_el_lote_2(self, cartera, prospecto_consentido):
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "Lote 2")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["NUM-DOS-002"]
+
+    def test_tambien_con_el_articulo_delante(self, cartera, prospecto_consentido):
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "cuéntame del lote 3")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["NUM-DOS-003"]
+
+    def test_un_numero_sin_ficha_que_se_llame_asi_sigue_siendo_la_posicion(
+        self, cartera, prospecto_consentido
+    ):
+        """La lectura por posición no se pierde: solo cede cuando hay un nombre.
+
+        No existe "Lote 9", así que el 9 no señala a nadie por nombre; y como
+        tampoco hay novena ficha, la cartera se queda como estaba en vez de
+        inventar una respuesta.
+        """
+        self._pedir_lotes(cartera, prospecto_consentido)
+        r = gateway.procesar(cartera, prospecto_consentido, "el 2")
+        cartera.commit()
+
+        assert [m.propiedad.id for m in r.matches] == ["NUM-DOS-003"], (
+            "'el 2' sin nombre detrás sigue siendo la segunda del listado"
+        )
+
+
 class TestMaquinaEstados:
     def test_transicion_valida(self, db, prospecto_consentido):
         leads.cambiar_estado(db, prospecto_consentido, EstadoProspecto.CALIFICADO)

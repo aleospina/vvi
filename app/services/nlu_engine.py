@@ -414,6 +414,15 @@ _RE_INDICE = re.compile(
     r"\b(?:" + "|".join(_SENALADORES) + r")\s*#?\s*(\d{1,2})\b"
 )
 
+#: Señaladores que además pueden ser el NOMBRE de una ficha. El artículo queda
+#: fuera: ningún inmueble se llama "el 2", así que buscarlo en la cartera solo
+#: podría acertar por casualidad.
+_SENALADORES_NOMBRABLES = tuple(s for s in _SENALADORES if s not in ("el", "la"))
+
+_RE_FRASE_NUMERADA = re.compile(
+    r"\b(" + "|".join(_SENALADORES_NOMBRABLES) + r")\s*#?\s*(\d{1,3})\b"
+)
+
 _ORDINALES = {
     "primero": 1, "primera": 1, "segundo": 2, "segunda": 2,
     "tercero": 3, "tercera": 3, "cuarto": 4, "cuarta": 4,
@@ -456,6 +465,27 @@ def indice_mencionado(texto: str) -> int | None:
     if (m := _RE_ORDINAL.search(plano)) is not None:
         return _ORDINALES[m.group(1)]
     return None
+
+
+def frases_numeradas(texto: str) -> tuple[str, ...]:
+    """Nombres con número que el comprador pudo estar citando: "lote 2", "casa 3".
+
+    Es exactamente la misma forma que `indice_mencionado` lee como posición, y la
+    ambigüedad es real: "el lote 2" puede ser la segunda ficha del listado o la
+    ficha que se llama Lote 2. Aquí solo se extraen los candidatos; quien resuelve
+    cuál de las dos cosas es, es la cartera —si existe algo con ese nombre, gana
+    el nombre—, porque es la única que sabe cómo se llaman los inmuebles.
+    """
+    plano = normalizar(texto)
+    frases: list[str] = []
+    for m in _RE_FRASE_NUMERADA.finditer(plano):
+        siguiente = plano[m.end():].lstrip().split(" ")[0].strip(".,;:!?")
+        if siguiente in _UNIDADES:
+            continue
+        frase = f"{m.group(1)} {m.group(2)}"
+        if frase not in frases:
+            frases.append(frase)
+    return tuple(frases)
 
 
 #: Formas en que un comprador cuenta que el negocio ya se hizo. Todas en

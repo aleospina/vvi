@@ -7,6 +7,7 @@ de venta a partir de fichas reales; nunca decide qué inmueble existe.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import func, select
@@ -14,7 +15,12 @@ from sqlalchemy.orm import Session
 
 from app.llm.client import cliente
 from app.models import NEGOCIO_POR_DEFECTO, Emparejamiento, Propiedad, Prospecto
-from app.services.nlu_engine import indice_mencionado, normalizar, terminos_de_mencion
+from app.services.nlu_engine import (
+    frases_numeradas,
+    indice_mencionado,
+    normalizar,
+    terminos_de_mencion,
+)
 from app.services.geografia import municipios_de_plaza
 from app.services.portfolio import como_dict, municipio_de, plano
 
@@ -111,6 +117,18 @@ def _buscable(p: Propiedad) -> str:
     return normalizar(" ".join([p.id, p.zona or "", p.ciudad or "", p.descripcion or ""]))
 
 
+def _nombra(p: Propiedad, frase: str) -> bool:
+    """¿Esta ficha se llama así? ("lote 2" contra Lote 2, Lote #2, Lote 02.)
+
+    Con frontera de palabra y no por subcadena: "lote 2" acertaría dentro de
+    "lote 21" y le devolvería al comprador un inmueble vecino del que pidió, que
+    es la clase de error que nadie revisa porque la respuesta parece correcta.
+    """
+    palabra, numero = frase.split(" ")
+    patron = rf"\b{re.escape(palabra)}\s*(?:#|n[o°]\.?|nro\.?)?\s*0*{re.escape(numero)}\b"
+    return re.search(patron, _buscable(p)) is not None
+
+
 def _por_mencion(candidatas: list[Propiedad], terminos: tuple[str, ...]) -> list[Propiedad]:
     """Deja solo lo que el comprador nombró (RF-09).
 
@@ -204,6 +222,17 @@ def foco_del_turno(
     sin_foco = {**perfil, "foco": None}
 
     universo = _del_perfil(db, sin_foco, con_criterios=False)
+
+    # "Lote 2" es antes que nada el NOMBRE de una ficha, y solo si no existe
+    # ninguna que se llame así pasa a ser "la segunda de la lista". Al revés
+    # —que es como estaba— el comprador pide el Lote 2, recibe el Lote 1 y nada
+    # en la respuesta delata el cambiazo: el orden del listado sale del ranking,
+    # no de la numeración de los lotes, así que la posición 2 es de otro.
+    for frase in frases_numeradas(texto):
+        nombradas = [p for p in universo if _nombra(p, frase)]
+        if len(nombradas) == 1:
+            return normalizar(nombradas[0].id)
+
     terminos = terminos_de_mencion(texto)
     if universo and terminos:
         elegidas = _por_mencion(universo, terminos)
