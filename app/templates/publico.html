@@ -32,6 +32,11 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
   <link rel="stylesheet" href="/static/estilos.css?v={{ v_estilos }}">
+  {# El menú de teléfono se pliega detrás de un botón, y ese botón solo sirve si
+     hay JavaScript. La marca va aquí —antes de pintar— para que quien llegue
+     sin él vea la cabecera desplegada de siempre y no un botón muerto sin
+     ninguna forma de navegar. #}
+  <script>document.documentElement.className += ' con-js';</script>
   {% block cabeza %}{% endblock %}
 </head>
 {# `cuerpo_clase` lo usa la portada para que la cabecera flote sobre la lámina
@@ -55,51 +60,62 @@
      qué negocios tienen inventario, y un menú que lleva a cero resultados se
      lee como que el sitio está roto. Ese filtro vive donde sí se cuenta, que
      es el conmutador de la propia vitrina. #}
-  <nav>
-    {% if hay_vitrina %}
-    <a href="/inmuebles" class="{{ 'activo' if request.url.path == '/inmuebles' }}">Inmuebles</a>
-    {% endif %}
-    <a href="/publicar" class="{{ 'activo' if request.url.path == '/publicar' }}">Publica tu inmueble</a>
-  </nav>
-  <div class="quien">
-    {% if whatsapp %}
-      <a class="boton destacado" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
-        Escríbenos
-      </a>
-    {% endif %}
-    {# Una sola puerta de vuelta, no dos. Llegó a haber «Cartera» y «Panel»: son
-       pantallas distintas, pero desde la vitrina ambas significan lo mismo
-       —salir de aquí—, y el menú del panel ya lleva a cualquier sitio una vez
-       dentro. Lleva a Cartera porque es de donde se entra a la vitrina y es el
-       contexto de inventario; sirve además para el invitado, que en el tablero
-       de prospectos recibiría un 403.
+  {# En teléfono la cabecera no cabe en una fila: el menú y las acciones se
+     pliegan aquí detrás del botón de tres rayas. En escritorio el contenedor
+     es transparente (`display:contents`) y sus hijos siguen siendo hijos
+     directos de la barra, así que la fila de siempre no cambia. #}
+  <button class="hamburguesa" type="button" aria-label="Abrir menú"
+          aria-expanded="false" aria-controls="menu-vitrina">
+    <span></span><span></span><span></span>
+  </button>
 
-       Está SIEMPRE, con sesión o sin ella. Condicionarla a la cookie resultó
-       ser una trampa: basta con que el navegador no la mande —cookie de una
-       ruta anterior, o entrar por `localhost` habiendo iniciado sesión en
-       `127.0.0.1`, que para las cookies son sitios distintos— para dejar al
-       operador encerrado. Sin sesión cae en el formulario de ingreso, que no
-       revela nada que no revele ya la propia URL. #}
-    {# Vuelta al inicio. El isotipo ya lleva ahí, pero un logotipo que además es
-       enlace es una convención que hay que conocer: quien no la conoce se queda
-       sin salida desde una ficha. En la propia portada no se pinta —un botón
-       que no va a ningún sitio enseña a desconfiar de los demás—. #}
-    {% if request.url.path != '/' %}
-      <a class="boton suave" href="/">Inicio</a>
-    {% endif %}
-    {% if puede_editar %}
-      <a class="boton suave" href="/dashboard/propiedades">← Volver al panel</a>
-    {% elif sesion %}
-      {# El invitado no tiene panel al que volver: el suyo es este. Ofrecerle
-         «Volver al panel» lo mandaría a una ruta que lo devuelve aquí — un
-         bucle—. Lo que sí necesita es saber con qué cuenta entró y poder salir. #}
-      <span class="quien-soy">{{ sesion }} <span class="chip frio">solo lectura</span></span>
-      <form method="post" action="/dashboard/logout" style="display:inline">
-        <button class="suave" type="submit">Cerrar sesión</button>
-      </form>
-    {% else %}
-      <a class="boton suave" href="/dashboard/propiedades">Acceso operador</a>
-    {% endif %}
+  <div class="menu-vitrina" id="menu-vitrina">
+    <nav>
+      {% if hay_vitrina %}
+      <a href="/inmuebles" class="{{ 'activo' if request.url.path == '/inmuebles' }}">Inmuebles</a>
+      {% endif %}
+      <a href="/publicar" class="{{ 'activo' if request.url.path == '/publicar' }}">Publica tu inmueble</a>
+    </nav>
+    <div class="quien">
+      {% if whatsapp %}
+        <a class="boton destacado" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
+          Escríbenos
+        </a>
+      {% endif %}
+      {# Una sola puerta de vuelta, no dos. Llegó a haber «Cartera» y «Panel»: son
+         pantallas distintas, pero desde la vitrina ambas significan lo mismo
+         —salir de aquí—, y el menú del panel ya lleva a cualquier sitio una vez
+         dentro. Lleva a Cartera porque es de donde se entra a la vitrina y es el
+         contexto de inventario; sirve además para el invitado, que en el tablero
+         de prospectos recibiría un 403.
+
+         Está SIEMPRE, con sesión o sin ella. Condicionarla a la cookie resultó
+         ser una trampa: basta con que el navegador no la mande —cookie de una
+         ruta anterior, o entrar por `localhost` habiendo iniciado sesión en
+         `127.0.0.1`, que para las cookies son sitios distintos— para dejar al
+         operador encerrado. Sin sesión cae en el formulario de ingreso, que no
+         revela nada que no revele ya la propia URL. #}
+      {# Vuelta al inicio. El isotipo ya lleva ahí, pero un logotipo que además es
+         enlace es una convención que hay que conocer: quien no la conoce se queda
+         sin salida desde una ficha. En la propia portada no se pinta —un botón
+         que no va a ningún sitio enseña a desconfiar de los demás—. #}
+      {% if request.url.path != '/' %}
+        <a class="boton suave" href="/">Inicio</a>
+      {% endif %}
+      {% if puede_editar %}
+        <a class="boton suave" href="/dashboard/propiedades">← Volver al panel</a>
+      {% elif sesion %}
+        {# El invitado no tiene panel al que volver: el suyo es este. Ofrecerle
+           «Volver al panel» lo mandaría a una ruta que lo devuelve aquí — un
+           bucle—. Lo que sí necesita es saber con qué cuenta entró y poder salir. #}
+        <span class="quien-soy">{{ sesion }} <span class="chip frio">solo lectura</span></span>
+        <form method="post" action="/dashboard/logout" style="display:inline">
+          <button class="suave" type="submit">Cerrar sesión</button>
+        </form>
+      {% else %}
+        <a class="boton suave" href="/dashboard/propiedades">Acceso operador</a>
+      {% endif %}
+    </div>
   </div>
 </header>
 
@@ -184,6 +200,39 @@
     }
     window.addEventListener('scroll', alScroll, { passive: true });
     alScroll();
+  })();
+
+  // Menú de teléfono. La cabecera lleva tres secciones y hasta tres botones:
+  // en una pantalla de 360px eso son dos renglones de rótulos apretados que
+  // tapan el titular. Plegados detrás del botón, la barra vuelve a ser lo que
+  // debe: la marca y una puerta.
+  //
+  // El desplegable se cierra solo al tocar fuera, al pulsar Escape y al
+  // ensanchar la ventana —ahí vuelve a ser una fila y dejarlo «abierto»
+  // mentiría en el `aria-expanded` que lee un lector de pantalla—.
+  (function () {
+    var boton = document.querySelector('.hamburguesa');
+    var menu = document.getElementById('menu-vitrina');
+    if (!boton || !menu) return;
+
+    function cerrar() {
+      boton.setAttribute('aria-expanded', 'false');
+      menu.classList.remove('abierto');
+    }
+    boton.addEventListener('click', function () {
+      var abierto = boton.getAttribute('aria-expanded') === 'true';
+      boton.setAttribute('aria-expanded', abierto ? 'false' : 'true');
+      menu.classList.toggle('abierto', !abierto);
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.contains(e.target) && !boton.contains(e.target)) cerrar();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' || e.key === 'Esc') cerrar();
+    });
+    window.addEventListener('resize', function () {
+      if (window.innerWidth > 820) cerrar();
+    });
   })();
 </script>
 

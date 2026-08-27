@@ -1726,8 +1726,9 @@ body.inicio .franja-demo{padding-top:92px}
   .cifras-cima > div{padding-right:20px}
 }
 @media (max-width:820px){
-  /* En móvil la barra deja de flotar: aquí ocupa tres renglones —marca,
-     acciones y menú— y transparente sobre la lámina taparía justo el titular.
+  /* En móvil la barra deja de flotar. Transparente sobre la lámina taparía
+     justo el titular, y además el menú se despliega colgado de ella: un
+     desplegable que sale de una barra invisible parece caerse de la nada.
      Se queda en tinta y no cambia al bajar, que sobre una portada oscura es la
      lectura correcta. */
   body.inicio .barra, body.inicio .barra.compacta{
@@ -1758,7 +1759,10 @@ body.inicio .franja-demo{padding-top:92px}
   /* El botón deja de ser una columna de la fila y pasa a su propio renglón,
      igual que en la fila de filtros de la vitrina. */
   .buscador .campo{flex:1 1 100%; border-right:0; border-bottom:1px solid var(--linea)}
-  .buscador .accion{flex:1 1 100%}
+  /* El botón cierra la pieza: no tiene nada debajo de lo que separarse, y el
+     filete heredado de `.campo` se leía como una línea blanca en el canto
+     inferior de la tarjeta —gris claro sobre la tinta del botón—. */
+  .buscador .accion{flex:1 1 100%; border-bottom:0}
   .buscador .accion button{width:100%; min-height:58px}
   .seccion-cabeza{margin-bottom:28px}
   .rejilla-zonas{grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:16px}
@@ -1850,3 +1854,106 @@ body.inicio .barra{border-bottom-color:transparent}
    y aguanta un 3/4; una fotografía apaisada metida en esa caja se convierte en
    una rendija. El 4/5 sigue siendo retrato y recorta lo justo. */
 .porque-lamina img.foto{aspect-ratio:4/5}
+
+
+/* ─────────────── Menú de teléfono de la vitrina ───────────────
+   Tres secciones y hasta tres botones no caben en la fila de un teléfono: se
+   partían en dos renglones de rótulos apretados que empujaban la barra hasta
+   comerse el titular de la portada. Aquí se pliegan detrás del botón de tres
+   rayas y la barra vuelve a llevar solo la marca y una puerta.
+
+   El contenedor es transparente mientras haya sitio: `display:contents` lo
+   borra de la maqueta y `nav` y `.quien` siguen siendo hijos directos de la
+   barra, así que el escritorio no se entera de que existe. Y todo el bloque
+   cuelga de `.con-js` porque sin JavaScript nadie podría desplegarlo: quien
+   llegue sin él ve la cabecera de siempre, envuelta en dos renglones, que es
+   incómoda pero navegable. */
+
+.menu-vitrina{display:contents}
+.hamburguesa{display:none}
+
+@media (max-width:820px){
+  html.con-js body.vitrina .barra{flex-wrap:nowrap; gap:14px; padding:0 16px}
+
+  html.con-js body.vitrina .hamburguesa{
+    display:flex; flex-direction:column; justify-content:center; gap:5px;
+    margin-left:auto; flex:0 0 auto;
+    width:42px; height:42px; padding:0 8px;
+    background:none; border:0; border-radius:var(--radio-xs);
+    color:inherit; box-shadow:none;
+  }
+  .hamburguesa span{
+    display:block; height:2px; width:100%; border-radius:2px;
+    background:currentColor;
+    transition:transform .22s cubic-bezier(.2,.7,.3,1), opacity .16s ease;
+  }
+  /* Las tres rayas se cruzan en aspa al abrir: el botón dice a la vez qué hay
+     detrás y cómo cerrarlo, que en un desplegable a pantalla completa es la
+     única señal de salida que el visitante encuentra sin buscarla. */
+  .hamburguesa[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+  .hamburguesa[aria-expanded="true"] span:nth-child(2){opacity:0}
+  .hamburguesa[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+  .hamburguesa:active{transform:none}
+  /* El botón hereda el fondo de acento de cualquier `button`; sobre la barra
+     eso sería un rectángulo azul con tres rayas dentro. */
+  .hamburguesa:hover{background:none; box-shadow:none}
+  .hamburguesa:focus-visible{outline:2px solid currentColor; outline-offset:2px}
+
+  /* El desplegable es una lámina de tinta y no papel blanco: en la portada la
+     barra ya es tinta en teléfono y así el menú es su continuación; en la
+     vitrina, donde la barra es blanca, el contraste lo separa de las fichas
+     que quedan debajo en vez de fundirse con ellas. */
+  html.con-js body.vitrina .menu-vitrina{
+    display:none;
+    position:absolute; top:100%; left:0; right:0;
+    background:var(--tinta); color:#fff;
+    padding:6px 16px 18px;
+    box-shadow:var(--sombra-3);
+    animation:desplegar .22s cubic-bezier(.2,.7,.3,1);
+  }
+  html.con-js body.vitrina .menu-vitrina.abierto{display:block}
+  @keyframes desplegar{from{opacity:0; transform:translateY(-8px)} to{opacity:1; transform:none}}
+  /* La entrada escalonada de la barra vuelve a dispararse cada vez que el
+     panel pasa de `none` a `block`, y su último retardo son 360ms: el menú
+     tardaría más en llenarse que en abrirse. Aquí manda `desplegar`, que ya
+     mueve la lámina entera. */
+  html.con-js body.vitrina .menu-vitrina nav a,
+  html.con-js body.vitrina .menu-vitrina .quien{animation:none}
+
+  /* Los enlaces dejan de ser un carrusel horizontal y pasan a ser una lista:
+     cada sección en su renglón, con el área de toque entera. */
+  html.con-js body.vitrina .barra nav{
+    display:flex; flex-direction:column; gap:0;
+    width:100%; margin:0; overflow:visible; padding:0;
+  }
+  html.con-js body.vitrina .barra nav a{
+    width:100%; padding:15px 2px; color:rgba(255,255,255,.86);
+    border-bottom:1px solid rgba(255,255,255,.12);
+    font-size:12px; letter-spacing:.14em;
+  }
+  /* El subrayado que crece desde el centro no tiene sentido en una lista
+     vertical; la sección actual se marca con el cian de la casa. */
+  html.con-js body.vitrina .barra nav a::after{display:none}
+  html.con-js body.vitrina .barra nav a.activo{color:var(--acento-vivo)}
+  html.con-js body.vitrina .barra nav a:focus-visible{outline-color:var(--acento-vivo); color:#fff}
+
+  /* Las acciones se apilan a lo ancho: en un desplegable, tres botones en fila
+     vuelven a ser tres rótulos de 10px, que es justo lo que veníamos a quitar. */
+  html.con-js body.vitrina .quien{
+    display:flex; flex-direction:column; align-items:stretch;
+    gap:9px; margin:16px 0 0; padding:0;
+    border-left:0; color:rgba(255,255,255,.7);
+  }
+  html.con-js body.vitrina .quien form{display:block; width:100%}
+  html.con-js body.vitrina .quien .boton, html.con-js body.vitrina .quien button{
+    display:block; width:100%; text-align:center;
+    padding:15px 14px; font-size:11px; letter-spacing:.13em; white-space:nowrap;
+  }
+  html.con-js body.vitrina .quien .boton.suave, html.con-js body.vitrina .quien button.suave{
+    background:none; border:1px solid rgba(255,255,255,.32); color:#fff;
+  }
+  html.con-js body.vitrina .quien .destacado{
+    background:#fff; color:var(--tinta); border-color:#fff;
+  }
+  html.con-js body.vitrina .quien-soy{color:rgba(255,255,255,.8); text-align:center}
+}
