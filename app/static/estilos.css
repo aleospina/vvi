@@ -1410,3 +1410,422 @@ body.publica{background:var(--velo)}
   .pie-columnas{grid-template-columns:1fr; gap:34px}
   .tambien{margin-top:60px}
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Portada pública (`/`)
+   ══════════════════════════════════════════════════════════════════════
+   La vitrina es un instrumento de búsqueda: papel blanco, cromo retirado,
+   la foto mandando. La portada tiene otro trabajo —contarle a alguien que
+   no sabe quiénes somos qué es esto— y por eso empieza al revés: una lámina
+   a sangre, la cabecera flotando encima sin fondo y el titular sobre la
+   imagen. A partir de la primera pantalla vuelve a ser el sistema de
+   siempre.
+
+   Todo lo de aquí cuelga de `body.inicio`, que solo pone `inicio.html`.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* ─── Lockup de marca ───
+   El isotipo delante y las dos líneas de texto en columna, como el escudo de
+   una firma de servicios. La torre del isotipo se pinta con `currentColor`,
+   así que el dibujo es uno solo y se tiñe según dónde esté. */
+.isotipo{display:block; flex:0 0 auto}
+.marca-texto{display:flex; flex-direction:column; gap:4px; min-width:0}
+.marca{align-items:center}
+body.vitrina .barra .marca{flex-direction:row; align-items:center; gap:12px}
+.pie-marca{display:flex; align-items:center; gap:11px}
+
+/* ─── Cabecera flotante ───
+   Fija y no pegajosa: la lámina arranca en el píxel cero y la barra tiene que
+   pisarla, no empujarla hacia abajo. El cambio de color lo dispara `.compacta`,
+   que es la misma clase que ya compacta la barra al bajar en la vitrina. */
+body.inicio .barra{
+  position:fixed; left:0; right:0; top:0;
+  background:transparent; color:#fff;
+  border-bottom:1px solid rgba(255,255,255,.15);
+  box-shadow:none;
+  transition:min-height .3s cubic-bezier(.2,.7,.3,1), background-color .3s ease,
+             color .3s ease, border-color .3s ease, box-shadow .3s ease;
+}
+body.inicio main{max-width:none; margin:0; padding:0}
+body.inicio .barra .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+body.inicio .barra .marca-lema{color:rgba(255,255,255,.6)}
+body.inicio .barra nav a{color:rgba(255,255,255,.8)}
+body.inicio .barra nav a::after{background:#7fe8ff}
+body.inicio .barra nav a.activo{color:#fff}
+body.inicio .quien{border-left-color:rgba(255,255,255,.2)}
+body.inicio .quien .quien-soy{color:rgba(255,255,255,.8)}
+body.inicio .quien .boton.suave, body.inicio .quien button.suave{
+  background:none; border-color:rgba(255,255,255,.35); color:#fff;
+}
+body.inicio .quien .destacado{background:#fff; color:var(--tinta); border-color:#fff}
+@media (hover:hover){
+  body.inicio .barra nav a:hover{color:#fff}
+  body.inicio .quien .boton.suave:hover, body.inicio .quien button.suave:hover{
+    background:rgba(255,255,255,.14); border-color:#fff; color:#fff;
+  }
+  body.inicio .quien .destacado:hover{background:var(--acento-vivo); color:var(--tinta)}
+}
+/* Fuera de la lámina vuelve a ser papel. El fondo no se declara aquí a
+   propósito: lo pone la regla de la vitrina —blanco, y translúcido donde el
+   desenfoque existe de verdad— y repetirlo aquí la anularía. */
+body.inicio .barra.compacta{color:var(--tinta); border-bottom-color:var(--linea)}
+body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
+body.inicio .barra.compacta .marca-lema{color:var(--tinta-3)}
+body.inicio .barra.compacta nav a{color:var(--tinta-2)}
+body.inicio .barra.compacta nav a::after{background:var(--acento)}
+body.inicio .barra.compacta nav a.activo{color:var(--tinta)}
+body.inicio .barra.compacta .quien{border-left-color:var(--linea)}
+body.inicio .barra.compacta .quien .quien-soy{color:var(--tinta-2)}
+body.inicio .barra.compacta .quien .boton.suave,
+body.inicio .barra.compacta .quien button.suave{
+  border-color:var(--linea-fuerte); color:var(--tinta-2);
+}
+body.inicio .barra.compacta .quien .destacado{
+  background:var(--tinta); color:#fff; border-color:var(--tinta);
+}
+@media (hover:hover){
+  body.inicio .barra.compacta nav a:hover{color:var(--tinta)}
+  body.inicio .barra.compacta .quien .boton.suave:hover,
+  body.inicio .barra.compacta .quien button.suave:hover{
+    background:none; border-color:var(--tinta); color:var(--tinta);
+  }
+  body.inicio .barra.compacta .quien .destacado:hover{
+    background:var(--acento); border-color:var(--acento); color:#fff;
+  }
+}
+/* Con la franja de demostración puesta, la barra fija le taparía el texto: se
+   aparta ella misma en vez de mover la lámina. */
+body.inicio .franja-demo{padding-top:92px}
+
+/* ─── Caja de contenido ───
+   La portada va a sangre, así que el ancho no lo pone `main` sino cada bloque.
+   Es lo que permite que una banda de color ocupe todo el ancho del navegador
+   con su texto alineado con el del resto de la página. */
+.contenedor{max-width:var(--ancho); margin:0 auto; padding:0 32px}
+
+/* ─── Lámina del titular ─── */
+.cima{
+  position:relative; overflow:hidden; background:var(--tinta);
+  display:flex; flex-direction:column; justify-content:flex-end;
+  min-height:min(94vh, 920px);
+}
+.cima-lamina{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center 62%;
+}
+/* Dos degradados y no uno: el vertical asienta el texto sobre el cielo y deja
+   el pie oscuro para las cifras; el horizontal protege la columna izquierda,
+   que es donde cae el titular, sin apagar la torre de la derecha —que es lo
+   único que hace que la lámina se lea como una vista y no como un fondo—. */
+.cima-velo{
+  position:absolute; inset:0;
+  background:
+    linear-gradient(180deg, rgba(3,16,26,.78) 0%, rgba(3,16,26,.34) 32%,
+                    rgba(3,16,26,.58) 72%, rgba(3,16,26,.94) 100%),
+    linear-gradient(96deg, rgba(3,16,26,.72) 0%, rgba(3,16,26,.24) 54%, transparent 88%);
+}
+.cima-cuerpo{position:relative; margin-top:auto; padding:176px 32px 46px; color:#fff}
+.cima .antetitulo{color:#7fe8ff; margin:0 0 18px}
+.cima h1{
+  display:block; margin:0 0 22px; color:#fff; max-width:19ch;
+  font:600 clamp(36px, 5.4vw, 62px)/1.05 var(--display);
+  letter-spacing:-.038em;
+  text-shadow:0 2px 34px rgba(3,16,26,.45);
+}
+.cima .entradilla{
+  margin:0; max-width:58ch; font-size:16.5px; line-height:1.7;
+  color:rgba(255,255,255,.84);
+}
+.cima-acciones{margin:38px 0 0}
+.cima-acciones .destacado{
+  background:#fff; color:var(--tinta); box-shadow:var(--sombra-3);
+  font:600 11.5px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
+  padding:17px 28px;
+}
+@media (hover:hover){
+  .cima-acciones .destacado:hover{background:var(--acento-vivo); color:var(--tinta)}
+}
+
+/* ─── Buscador de la portada ───
+   Papel opaco sobre la lámina, no vidrio esmerilado: el desenfoque no existe
+   en todos los navegadores y, donde no existe, el respaldo deja los rótulos
+   flotando sobre la imagen. Una sola pieza con filetes internos, como la fila
+   de filtros de la vitrina. */
+.buscador{
+  display:flex; flex-wrap:wrap; align-items:stretch; margin:38px 0 0;
+  max-width:940px; background:#fff;
+  border-radius:var(--radio); overflow:hidden;
+  box-shadow:0 26px 60px rgba(3,16,26,.42);
+}
+.buscador .campo{
+  flex:1 1 168px; min-width:0; margin:0; padding:15px 20px;
+  border-right:1px solid var(--linea);
+  display:flex; flex-direction:column; justify-content:center;
+}
+.buscador .campo.ancho{flex:1.9 1 240px}
+.buscador .campo:focus-within{background:var(--acento-suave)}
+.buscador label{
+  font:600 9.5px/1 var(--texto); letter-spacing:.16em; text-transform:uppercase;
+  color:var(--tinta-3); margin:0 0 7px; white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis;
+}
+.buscador input, .buscador select{
+  width:100%; border:0; padding:0; background:none; border-radius:0;
+  font:500 15px/1.25 var(--texto); color:var(--tinta);
+}
+.buscador input:focus, .buscador select:focus{outline:none; box-shadow:none}
+.buscador select{cursor:pointer}
+.buscador .accion{flex:0 0 auto; padding:0; border-right:0}
+.buscador .accion button{
+  height:100%; min-height:72px; border-radius:0; box-shadow:none;
+  padding:0 38px; background:var(--tinta);
+  font:600 11.5px/1 var(--texto); letter-spacing:.14em; text-transform:uppercase;
+}
+@media (hover:hover){
+  .buscador .accion button:hover{background:var(--acento); box-shadow:none}
+}
+.buscador .accion button:active{transform:none}
+
+/* ─── Cifras al pie de la lámina ───
+   Van dentro de la portada y no en una banda propia: son el pie de foto del
+   titular, no una sección. Todas salen de la cartera o de la configuración;
+   ninguna es un número redondo de folleto. */
+.cifras-cima{position:relative; display:grid; grid-template-columns:repeat(4, 1fr)}
+.cifras-cima > div{padding:24px 26px 34px 0; border-top:1px solid rgba(255,255,255,.18)}
+.cifras-cima b{
+  display:block; margin-bottom:8px; color:#fff;
+  font:600 clamp(26px, 2.6vw, 34px)/1 var(--display); letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums;
+}
+.cifras-cima span{
+  display:block; max-width:25ch; color:rgba(255,255,255,.62);
+  font-size:12.5px; line-height:1.55;
+}
+
+/* ─── Secciones del cuerpo ─── */
+.seccion{padding:88px 32px}
+/* Banda de reposo a sangre: separa dos secciones sin dibujar una caja. */
+.banda-velo{
+  background:var(--velo);
+  border-top:1px solid var(--linea); border-bottom:1px solid var(--linea);
+}
+.seccion-cabeza{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:30px; flex-wrap:wrap;
+  margin:0 0 38px; padding-bottom:20px; border-bottom:1px solid var(--linea);
+}
+.seccion-cabeza .antetitulo{margin:0 0 12px}
+.seccion-cabeza h2{
+  margin:0; font:600 clamp(25px, 3vw, 36px)/1.12 var(--display); letter-spacing:-.032em;
+}
+.seccion-nota{color:var(--tinta-2); font-size:13.5px; line-height:1.6; max-width:46ch}
+.enlace-mas{
+  font:600 11.5px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
+  color:var(--acento); white-space:nowrap;
+}
+.enlace-mas:hover{color:var(--tinta); text-decoration:none}
+
+/* ─── Zonas ───
+   Mosaico de accesos por municipio. La lámina no retrata el municipio —no
+   tenemos una fotografía de cada uno— sino el tipo de sitio; el nombre y el
+   conteo son lo que informa, y eso sí sale de la cartera. */
+.rejilla-zonas{display:grid; grid-template-columns:repeat(auto-fill, minmax(248px, 1fr)); gap:20px}
+.zona{
+  position:relative; display:block; overflow:hidden;
+  border-radius:var(--radio); aspect-ratio:4/3;
+  background:var(--tinta); box-shadow:var(--sombra-2);
+}
+.zona img{
+  width:100%; height:100%; object-fit:cover; display:block;
+  transition:transform .55s cubic-bezier(.2,.7,.3,1);
+}
+.zona::after{
+  content:""; position:absolute; inset:0;
+  background:linear-gradient(180deg, rgba(4,18,27,0) 34%, rgba(4,18,27,.88) 100%);
+}
+.zona-pie{position:absolute; left:0; right:0; bottom:0; z-index:1; padding:20px; color:#fff}
+.zona-nombre{display:block; font:600 19px/1.2 var(--display); letter-spacing:-.022em}
+.zona-dato{display:block; margin-top:5px; font-size:12.5px; color:rgba(255,255,255,.74)}
+@media (hover:hover){
+  .zona:hover{text-decoration:none}
+  .zona:hover img{transform:scale(1.06)}
+}
+
+/* ─── Por qué ───
+   Lámina a la izquierda, argumentos a la derecha. La imagen se queda pegada
+   mientras se leen las razones: es lo que impide que la columna larga deje
+   media pantalla en blanco al lado. */
+.porque{display:grid; grid-template-columns:.82fr 1fr; gap:64px; align-items:start}
+.porque-lamina{
+  position:sticky; top:112px; overflow:hidden;
+  border-radius:var(--radio); box-shadow:var(--sombra-3);
+}
+.porque-lamina img{display:block; width:100%; aspect-ratio:3/4; object-fit:cover}
+.porque-texto .antetitulo{margin:0 0 14px}
+.porque-texto h2{
+  margin:0 0 18px; font:600 clamp(25px, 3vw, 38px)/1.12 var(--display);
+  letter-spacing:-.032em; max-width:20ch;
+}
+.porque-texto .entradilla{
+  margin:0 0 34px; max-width:56ch; color:var(--tinta-2);
+  font-size:16.5px; line-height:1.7;
+}
+.razones{list-style:none; margin:0; padding:0}
+.razones li{padding:24px 0; border-top:1px solid var(--linea)}
+.razones h3{margin:0 0 8px; font:600 17px/1.3 var(--display); letter-spacing:-.018em}
+.razones p{margin:0; max-width:58ch; color:var(--tinta-2); font-size:14.5px; line-height:1.7}
+
+/* ─── Pasos ─── */
+.pasos{
+  list-style:none; margin:0; padding:0;
+  display:grid; grid-template-columns:repeat(auto-fit, minmax(258px, 1fr)); gap:34px;
+}
+.pasos li{padding-top:24px; border-top:2px solid var(--tinta)}
+.paso-num{
+  display:block; margin-bottom:14px;
+  font:400 12px/1 var(--mono); letter-spacing:.2em; color:var(--acento);
+}
+.pasos h3{margin:0 0 10px; font:600 19px/1.25 var(--display); letter-spacing:-.022em}
+.pasos p{margin:0; color:var(--tinta-2); font-size:14.5px; line-height:1.7}
+
+/* ─── Llamada final ───
+   Tinta a sangre, justo encima del pie, que también es tinta: las dos piezas
+   se leen como un solo cierre y no como una banda suelta. */
+.llamada{background:var(--tinta); color:#fff}
+.llamada-cuerpo{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:48px; flex-wrap:wrap; padding:74px 32px;
+}
+.llamada .antetitulo{color:#7fe8ff; margin:0 0 14px}
+.llamada h2{
+  margin:0 0 14px; max-width:21ch;
+  font:600 clamp(24px, 2.6vw, 34px)/1.15 var(--display); letter-spacing:-.03em;
+}
+.llamada .entradilla{margin:0; max-width:52ch; color:#9fc4d6; font-size:15.5px; line-height:1.7}
+.llamada-acciones{display:flex; gap:12px; flex-wrap:wrap}
+.llamada .boton{
+  font:600 11.5px/1 var(--texto); letter-spacing:.13em; text-transform:uppercase;
+  padding:17px 26px; border-radius:var(--radio-xs); box-shadow:none;
+}
+.llamada .destacado{background:#fff; color:var(--tinta)}
+.llamada .suave{background:none; border:1px solid rgba(255,255,255,.35); color:#fff}
+@media (hover:hover){
+  .llamada .destacado:hover{background:var(--acento-vivo); color:var(--tinta)}
+  .llamada .suave:hover{background:rgba(255,255,255,.14); border-color:#fff; color:#fff}
+}
+
+/* ─────────────────────── Portada adaptable ─────────────────────── */
+
+@media (max-width:1000px){
+  .porque{grid-template-columns:1fr; gap:40px}
+  /* Pegada no tiene sentido en una sola columna: la lámina pasa a ser la
+     apertura de la sección y se recorta para no comerse la pantalla. */
+  .porque-lamina{position:static}
+  .porque-lamina img{aspect-ratio:16/9}
+  .cifras-cima{grid-template-columns:repeat(2, 1fr)}
+  .cifras-cima > div{padding-right:20px}
+}
+@media (max-width:820px){
+  /* En móvil la barra deja de flotar: aquí ocupa tres renglones —marca,
+     acciones y menú— y transparente sobre la lámina taparía justo el titular.
+     Se queda en tinta y no cambia al bajar, que sobre una portada oscura es la
+     lectura correcta. */
+  body.inicio .barra, body.inicio .barra.compacta{
+    position:sticky; background:var(--tinta); color:#fff;
+    border-bottom-color:rgba(255,255,255,.14);
+  }
+  body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+  body.inicio .barra.compacta .marca-lema{color:rgba(255,255,255,.6)}
+  body.inicio .barra.compacta nav a{color:rgba(255,255,255,.8)}
+  body.inicio .barra.compacta nav a.activo{color:#fff}
+  body.inicio .barra.compacta .quien{border-left-color:rgba(255,255,255,.2)}
+  body.inicio .barra.compacta .quien .boton.suave,
+  body.inicio .barra.compacta .quien button.suave{
+    border-color:rgba(255,255,255,.35); color:#fff; background:none;
+  }
+  body.inicio .barra.compacta .quien .destacado{
+    background:#fff; color:var(--tinta); border-color:#fff;
+  }
+  body.inicio .franja-demo{padding-top:11px}
+
+  .contenedor{padding:0 18px}
+  .cima{min-height:0}
+  .cima-cuerpo{padding:52px 18px 40px}
+  .cifras-cima{grid-template-columns:1fr 1fr; padding:0 18px}
+  .cifras-cima > div{padding:18px 16px 24px 0}
+  .seccion{padding:56px 18px}
+  .llamada-cuerpo{padding:52px 18px}
+  /* El botón deja de ser una columna de la fila y pasa a su propio renglón,
+     igual que en la fila de filtros de la vitrina. */
+  .buscador .campo{flex:1 1 100%; border-right:0; border-bottom:1px solid var(--linea)}
+  .buscador .accion{flex:1 1 100%}
+  .buscador .accion button{width:100%; min-height:58px}
+  .seccion-cabeza{margin-bottom:28px}
+  .rejilla-zonas{grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:16px}
+}
+
+/* ─── El isotipo en el resto del sistema ───
+   Va después de la portada porque corrige reglas que existían antes de que
+   hubiera un isotipo: el lockup era dos líneas de texto y ahora es un dibujo
+   con dos líneas al lado, así que las tres cabeceras que lo pintan —panel,
+   vitrina y páginas de una sola caja— pasan de columna a fila. */
+.marca-publica{flex-direction:row; align-items:center; gap:12px}
+.marca-publica .marca-texto{gap:5px}
+/* En la barra del panel el lockup es además un enlace a la portada: sin esto
+   heredaría el subrayado de cualquier `<a>`. */
+.barra .marca, .barra .marca:hover{text-decoration:none; color:#fff}
+.barra .marca-texto{gap:5px}
+
+/* ─── Retoques de la portada ───
+   Van al final porque corrigen reglas de más arriba de este mismo bloque y
+   tienen que ganarlas por orden, no por especificidad inflada. */
+
+/* Con la franja de demostración, la barra deja de flotar: transparente se
+   recortaría contra el ladrillo del aviso, no contra la lámina, y el conjunto
+   se lee como un error de maqueta. Vuelve al flujo y se pinta en tinta. */
+body.inicio.con-demo .barra, body.inicio.con-demo .barra.compacta{
+  position:sticky; background:var(--tinta); color:#fff;
+  border-bottom-color:rgba(255,255,255,.14);
+}
+body.inicio.con-demo .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+body.inicio.con-demo .barra.compacta .marca-lema{color:rgba(255,255,255,.6)}
+body.inicio.con-demo .barra.compacta nav a{color:rgba(255,255,255,.8)}
+body.inicio.con-demo .barra.compacta nav a.activo{color:#fff}
+body.inicio.con-demo .barra.compacta .quien{border-left-color:rgba(255,255,255,.2)}
+body.inicio.con-demo .barra.compacta .quien .boton.suave,
+body.inicio.con-demo .barra.compacta .quien button.suave{
+  background:none; border-color:rgba(255,255,255,.35); color:#fff;
+}
+body.inicio.con-demo .barra.compacta .quien .destacado{
+  background:#fff; color:var(--tinta); border-color:#fff;
+}
+body.inicio.con-demo .franja-demo{padding-top:12px}
+body.inicio.con-demo .cima-cuerpo{padding-top:92px}
+
+/* El titular lleva su propio salto de línea, así que el tope en `ch` solo
+   servía para partirlo una tercera vez y dejar «fin» solo en su renglón. */
+.cima h1{max-width:none}
+
+/* El velo de arriba estaba tan cargado que se comía el cielo de la lámina, que
+   es justo lo que hace que la portada no parezca un rectángulo negro. */
+.cima-velo{
+  background:
+    linear-gradient(180deg, rgba(3,16,26,.5) 0%, rgba(3,16,26,.26) 34%,
+                    rgba(3,16,26,.58) 72%, rgba(3,16,26,.94) 100%),
+    linear-gradient(96deg, rgba(3,16,26,.72) 0%, rgba(3,16,26,.24) 54%, transparent 88%);
+}
+
+/* Las láminas claras —la ladera, los lotes— dejaban el nombre del municipio en
+   blanco sobre cielo. El degradado arranca antes y cierra más oscuro: es la
+   única forma de que el rótulo aguante sobre cuatro escenas distintas. */
+.zona::after{
+  background:linear-gradient(180deg, rgba(4,18,27,0) 18%, rgba(4,18,27,.5) 58%,
+                             rgba(4,18,27,.95) 100%);
+}
+/* Sin filete bajo la barra flotante: sobre la lámina, esa línea corta la
+   fotografía en dos y es lo único que delata que hay una caja encima. Vuelve
+   en cuanto la barra se apoya en papel (`.compacta`). */
+body.inicio .barra{border-bottom-color:transparent}
+/* La llamada final y el pie son los dos de tinta y se tocan: sin este filete
+   la página termina en un bloque oscuro de 500px sin ninguna articulación. */
+.llamada + .pie-publico{border-top:1px solid rgba(255,255,255,.1)}

@@ -1,0 +1,34 @@
+{# Isotipo de Inmoclick.
+
+   Va en línea y no como `<img>` por una razón concreta: la torre se pinta con
+   `currentColor`, así que hereda el color del sitio donde esté —tinta sobre la
+   cabecera blanca de la vitrina, blanco sobre la barra del panel y sobre el
+   pie oscuro— y no hacen falta tres archivos ni un filtro de inversión.
+
+   La puerta del volumen acristalado es un cursor: se entra a la casa haciendo
+   clic. Va calada (`fill-rule="evenodd"`) y no pintada de blanco, para que el
+   hueco tome el color del fondo y el isotipo funcione igual sobre papel que
+   sobre tinta.
+
+   La misma geometría está en `app/static/img/inmoclick-isotipo.svg`, que es la
+   versión suelta para el favicon y las vistas previas al compartir. Si se toca
+   una hay que tocar la otra.
+
+   `sufijo` distingue el degradado cuando hay varios isotipos en la página: dos
+   `id` iguales en un documento son inválidos y el segundo se ignora. #}
+{%- macro isotipo(tam=36, sufijo='') -%}
+<svg class="isotipo" width="{{ tam }}" height="{{ tam }}" viewBox="0 0 64 64"
+     aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="ic-vidrio{{ sufijo }}" x1="26" y1="58" x2="58" y2="32"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0e8bbf"/>
+      <stop offset=".55" stop-color="#1fd5ff"/>
+      <stop offset="1" stop-color="#7fe8ff"/>
+    </linearGradient>
+  </defs>
+  <path d="M6 58V24L23 11v47Z" fill="currentColor"/>
+  <path fill-rule="evenodd" fill="url(#ic-vidrio{{ sufijo }})"
+        d="M27 33h31v25H27Zm10.5 5.5v13.6l3.4-3.1 2.3 4.9 2.3-1.1-2.3-4.9h4Z"/>
+</svg>
+{%- endmacro -%}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Misma marca dentro de su placa, que es como la pide una pestaña: sin
+       fondo, la torre en tinta desaparece contra el tema oscuro del navegador. -->
+  <defs>
+    <linearGradient id="fv-vidrio" x1="28" y1="53" x2="54" y2="31" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0e8bbf"/><stop offset="1" stop-color="#7fe8ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0a3348"/>
+  <path d="M11 53V26L26 15v38Z" fill="#ffffff"/>
+  <path fill-rule="evenodd" fill="url(#fv-vidrio)"
+        d="M29 32h25v21H29Zm8.5 4.5v11.4l2.8-2.6 1.9 4.1 1.9-.9-1.9-4.1h3.3Z"/>
+</svg>

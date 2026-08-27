@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Inmoclick">
+  <title>Inmoclick</title>
+  <!-- Isotipo. La geometría está repetida en `app/templates/_marca.html`, que es
+       la versión en línea que hereda el color de la barra; si se toca una hay
+       que tocar la otra. Aquí los colores van fijos porque este archivo lo pinta
+       el navegador como imagen suelta (favicon, og:image, correos). -->
+  <defs>
+    <linearGradient id="ic-vidrio" x1="26" y1="58" x2="58" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0e8bbf"/>
+      <stop offset=".55" stop-color="#1fd5ff"/>
+      <stop offset="1" stop-color="#7fe8ff"/>
+    </linearGradient>
+  </defs>
+  <!-- Torre: la cubierta inclinada sube hacia el interior de la marca. -->
+  <path d="M6 58V24L23 11v47Z" fill="#0a3348"/>
+  <!-- Volumen acristalado. Su puerta es un cursor —se entra a la casa haciendo
+       clic— y va calada (evenodd), no pintada de blanco: así el hueco toma el
+       color de lo que haya detrás y el isotipo funciona sobre papel y sobre la
+       barra oscura sin necesitar dos archivos. -->
+  <path fill-rule="evenodd" fill="url(#ic-vidrio)"
+        d="M27 33h31v25H27Zm10.5 5.5v13.6l3.4-3.1 2.3 4.9 2.3-1.1-2.3-4.9h4Z"/>
+</svg>

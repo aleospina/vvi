@@ -1,0 +1,248 @@
+{% extends "publico.html" %}
+
+{# Portada del sitio. Es la única página que no pide nada —ni sesión, ni
+   filtros, ni que el visitante sepa qué busca— y por eso su trabajo no es
+   listar inventario sino contestar tres preguntas en el primer golpe de vista:
+   qué es Inmoclick, dónde opera y qué pasa si escribe.
+
+   La cabecera flota transparente sobre la lámina del titular (`cuerpo_clase`)
+   y se vuelve papel al bajar; ese conmutador lo hace el mismo script de
+   `publico.html` que compacta la barra en la vitrina. #}
+
+{% from "_tarjeta_inmueble.html" import tarjeta with context %}
+
+{% block titulo %}Inmobiliaria en {{ ciudades | join(' y ') }}{% endblock %}
+{% block descripcion %}Inmoclick es una inmobiliaria boutique en {{ ciudades | join(' y ') }}: cartera con mandato verificado, atención inmediata y un asesor humano en cada visita.{% endblock %}
+{% block canonica %}<link rel="canonical" href="{{ base_publica }}/">{% endblock %}
+{% block cuerpo_clase %} inicio{% endblock %}
+
+{% block contenido %}
+
+<section class="cima">
+  {# La lámina va como `<img>` y no como `background-image` para que el
+     navegador pueda priorizarla: es lo primero que se ve y lo que decide si la
+     página parece cargada o rota. #}
+  <img class="cima-lamina" src="/static/img/portada-ciudad.svg" alt="" aria-hidden="true"
+       fetchpriority="high">
+  <div class="cima-velo" aria-hidden="true"></div>
+
+  <div class="contenedor cima-cuerpo">
+    <p class="antetitulo">Inmobiliaria boutique · {{ ciudades | join(' y ') }}</p>
+    <h1>Vivienda seleccionada,<br>acompañada de principio a fin</h1>
+    <p class="entradilla">
+      Cada inmueble de nuestra cartera lo revisó un asesor y tiene mandato del
+      propietario: lo que ves aquí existe y está disponible. Te atiende un
+      asistente con inteligencia artificial a cualquier hora, y una persona
+      coordina la visita y acompaña el cierre.
+    </p>
+
+    {% if hay_vitrina %}
+    {# Búsqueda por GET: el resultado tiene URL propia y se puede compartir por
+       WhatsApp, que es como circula de verdad una búsqueda de vivienda. #}
+    <form class="buscador" method="get" action="/inmuebles" role="search">
+      <div class="campo ancho">
+        <label for="cq">Qué buscas</label>
+        <input type="search" name="q" id="cq" placeholder="Barrio o código">
+      </div>
+      <div class="campo">
+        <label for="ctipo">Tipo</label>
+        <select name="tipo" id="ctipo">
+          <option value="">Todos</option>
+          {% for clave, etiqueta in etiquetas_tipo.items() %}
+            <option value="{{ clave }}">{{ etiqueta }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo">
+        <label for="cmun">Dónde</label>
+        <select name="municipio" id="cmun">
+          <option value="">Todos</option>
+          {% for ciudad, muni, n in zonas %}
+            <option value="{{ muni }}">{{ muni }} ({{ n }})</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="campo accion">
+        <button type="submit">Buscar</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="cima-acciones">
+      <a class="boton destacado" href="/publicar">Cuéntanos qué necesitas</a>
+    </p>
+    {% endif %}
+  </div>
+
+  {# Las cifras se apoyan en el borde inferior de la lámina, como el pie de una
+     portada de revista. Todas son comprobables: salen de la cartera o de la
+     configuración, no hay ninguna redonda inventada. #}
+  <div class="contenedor cifras-cima">
+    <div>
+      <b>{{ total }}</b>
+      <span>inmueble{{ '' if total == 1 else 's' }} con mandato verificado</span>
+    </div>
+    <div>
+      <b>{{ zonas | length }}</b>
+      <span>municipio{{ '' if zonas | length == 1 else 's' }} en cobertura</span>
+    </div>
+    <div>
+      <b>24/7</b>
+      <span>respuesta del asistente, visita con asesor</span>
+    </div>
+    <div>
+      <b>{{ '%.0f' % (comision_pct * 100) }}%</b>
+      <span>de comisión, solo cuando la venta se cierra</span>
+    </div>
+  </div>
+</section>
+
+{% if destacados %}
+<section class="contenedor seccion">
+  <header class="seccion-cabeza">
+    <div>
+      <p class="antetitulo">Lo último en cartera</p>
+      <h2>Selección de la semana</h2>
+    </div>
+    <a class="enlace-mas" href="/inmuebles">Ver los {{ total }} inmuebles →</a>
+  </header>
+  <div class="rejilla-inmuebles">
+    {% for p in destacados %}
+      {{ tarjeta(p, sesion, etiquetas_negocio) }}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{% if zonas %}
+<section class="banda-velo">
+  <div class="contenedor seccion">
+    <header class="seccion-cabeza">
+      <div>
+        <p class="antetitulo">Dónde operamos</p>
+        <h2>Zonas con inventario</h2>
+      </div>
+      <span class="seccion-nota">
+        Solo aparecen los municipios donde hoy hay algo publicado: una zona sin
+        inmuebles no es una promesa que podamos cumplir.
+      </span>
+    </header>
+    <div class="rejilla-zonas">
+      {% for ciudad, muni, n in zonas %}
+      <a class="zona" href="/inmuebles?municipio={{ muni | urlencode }}">
+        <img src="/static/img/{{ laminas[loop.index0 % laminas | length] }}" alt="" loading="lazy">
+        <span class="zona-pie">
+          <span class="zona-nombre">{{ muni }}</span>
+          <span class="zona-dato">{{ n }} inmueble{{ '' if n == 1 else 's' }}{% if muni != ciudad %} · {{ ciudad }}{% endif %}</span>
+        </span>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<section class="contenedor seccion porque">
+  <div class="porque-lamina">
+    <img src="/static/img/fachada-alta.svg" alt="" loading="lazy">
+  </div>
+  <div class="porque-texto">
+    <p class="antetitulo">Por qué Inmoclick</p>
+    <h2>Una inmobiliaria pequeña que responde como una grande</h2>
+    <p class="entradilla">
+      Trabajamos con cartera propia y con mandato firmado. Eso hace que la
+      búsqueda sea corta: no te mandamos veinte enlaces, te mostramos los que
+      encajan con tu presupuesto, tu zona y lo que necesitas de verdad.
+    </p>
+    <ol class="razones">
+      <li>
+        <h3>Cartera con mandato</h3>
+        <p>
+          Nada entra a la vitrina sin autorización del propietario y sin que un
+          asesor lo verifique. Si ves un inmueble publicado, está disponible.
+        </p>
+      </li>
+      <li>
+        <h3>Atención a cualquier hora</h3>
+        <p>
+          El asistente contesta en el momento por WhatsApp o Telegram, entiende
+          lo que buscas y filtra la cartera. La visita la confirma una persona.
+        </p>
+      </li>
+      <li>
+        <h3>Tus datos son tuyos</h3>
+        <p>
+          No contactamos a nadie en frío. Todo dato entra con tu autorización
+          expresa, se cifra y puedes pedir su consulta o eliminación cuando
+          quieras (Ley 1581 de 2012).
+        </p>
+      </li>
+      <li>
+        <h3>Comisión solo al cierre</h3>
+        <p>
+          El {{ '%.0f' % (comision_pct * 100) }}% se genera cuando la venta se
+          firma. Buscar, preguntar y visitar no cuesta nada.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="banda-velo">
+  <div class="contenedor seccion">
+    <header class="seccion-cabeza">
+      <div>
+        <p class="antetitulo">Cómo funciona</p>
+        <h2>Tres pasos, sin vueltas</h2>
+      </div>
+    </header>
+    <ol class="pasos">
+      <li>
+        <span class="paso-num">01</span>
+        <h3>Cuéntanos qué buscas</h3>
+        <p>
+          Por WhatsApp, por Telegram o desde la ficha de cualquier inmueble.
+          Presupuesto, zona y para cuándo lo necesitas basta para empezar.
+        </p>
+      </li>
+      <li>
+        <span class="paso-num">02</span>
+        <h3>Te mostramos lo que encaja</h3>
+        <p>
+          El asistente cruza tu búsqueda con la cartera y te manda las fichas
+          que cumplen, con fotos, precio y datos reales. Sin relleno.
+        </p>
+      </li>
+      <li>
+        <span class="paso-num">03</span>
+        <h3>Visitas con un asesor</h3>
+        <p>
+          Una persona coordina la visita, resuelve lo jurídico y acompaña la
+          negociación hasta la firma.
+        </p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="llamada">
+  <div class="contenedor llamada-cuerpo">
+    <div>
+      <p class="antetitulo">Para propietarios</p>
+      <h2>¿Tienes un inmueble para vender o arrendar?</h2>
+      <p class="entradilla">
+        Publícalo con nosotros y lo mostramos a compradores ya calificados por
+        el asistente. Sin exclusividad forzada y sin costo hasta que se cierre.
+      </p>
+    </div>
+    <div class="llamada-acciones">
+      <a class="boton destacado" href="/publicar">Ofrecer mi inmueble</a>
+      {% if whatsapp %}
+      <a class="boton suave" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
+        Hablar por WhatsApp
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+
+{% endblock %}

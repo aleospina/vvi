@@ -52,6 +52,8 @@ python -m app.security.crypto   # imprime FERNET_KEY y HMAC_KEY: pégalas en .en
 python run.py
 ```
 
+- **Portada pública**: <http://127.0.0.1:8000/> — sin contraseña, es la cara del negocio
+- Vitrina de inmuebles: <http://127.0.0.1:8000/inmuebles> (también pública)
 - Dashboard: <http://127.0.0.1:8000/dashboard> (usuario y clave de `.env`)
 - API + documentación interactiva: <http://127.0.0.1:8000/docs>
 - Landing de ejemplo: <http://127.0.0.1:8000/c/ig-bio-medellin>
@@ -262,6 +264,68 @@ Cada canal las transporta a su manera: Telegram las agrupa en un **álbum** de u
 envío, y WhatsApp manda **una imagen por mensaje** (Evolution no tiene álbum), en base64
 y no por URL — un enlace obligaría a que Evolution alcanzara a Inmoclick por HTTP, que en
 desarrollo no puede y en producción falla en silencio. Instagram, de momento, solo texto.
+
+---
+
+## Las tres superficies públicas
+
+Todo lo que se puede ver sin contraseña vive en tres páginas, y las tres aplican las
+mismas reglas: solo entra lo publicable (disponible y con mandato), no sale PII de nadie,
+y todo dato que entra lo hace con autorización expresa.
+
+| Página | Ruta | Qué hace |
+|---|---|---|
+| **Portada** | `/` | Explica quiénes somos a quien llega de una pauta o de un enlace: lámina de la ciudad, buscador, selección de cartera, zonas con inventario y las cuatro cifras que sí podemos sostener. `app/routers/inicio.py` |
+| **Vitrina** | `/inmuebles` | El catálogo con filtros, orden y paginación, y la ficha de cada inmueble. `app/routers/catalogo.py` |
+| **Publicar** | `/publicar` | El formulario del propietario que quiere ofrecernos un inmueble. `app/routers/captacion.py` |
+
+`/` **no pide contraseña y no debe volver a pedirla.** Antes redirigía a `/dashboard`, de
+modo que un comprador que escribía la dirección se encontraba con un formulario de ingreso
+y ninguna explicación. `tests/test_portada.py` fija esa regresión: la raíz responde 200 sin
+cookie, no redirige, y el panel sigue cerrado.
+
+El cascarón de las tres —cabecera, isotipo, pie, aviso de datos personales— lo monta
+`app/vistas.py`, que es también donde se registran los filtros de Jinja (`pesos`, `ruta`,
+`municipio`, `fecha`). Añadir una cuarta página pública es importar de ahí, no repetir el
+montaje.
+
+### La marca
+
+El isotipo es una torre con un volumen acristalado al lado, y la puerta de ese volumen es
+un cursor: se entra a la casa haciendo clic. Vive en dos sitios que hay que mantener a la
+par:
+
+- `app/templates/_marca.html` — versión en línea. La torre se pinta con `currentColor`, así
+  que hereda el color de donde esté: tinta sobre la cabecera blanca de la vitrina, blanco
+  sobre la barra del panel y sobre el pie. La puerta va **calada** (`fill-rule="evenodd"`),
+  no pintada de blanco, para que el hueco tome el color del fondo.
+- `app/static/img/inmoclick-isotipo.svg` y `favicon.svg` — versiones sueltas, con los
+  colores fijos, para la pestaña del navegador y las vistas previas al compartir.
+
+### Las láminas
+
+Las imágenes de la portada (`app/static/img/portada-ciudad.svg`, `vista-*.svg`,
+`fachada-alta.svg`) son **ilustraciones vectoriales generadas**, no fotografías. La razón no
+es el peso —aunque las seis juntas ocupan menos que una sola foto de banco— sino que una
+foto de archivo de una torre de Miami en la portada de una inmobiliaria de Medellín y
+Pereira es una promesa que no se puede cumplir. Estas dibujan lo que sí hay: el valle
+mirado desde la ladera, las lomas cerrando el fondo, el caserío escalonado.
+
+Cuando haya fotografía propia de la cartera, sustituirlas es cambiar el `src`: ninguna
+lámina afirma nada sobre un inmueble concreto. Las de las zonas (`vista-*.svg`) se turnan
+por orden y no retratan al municipio; lo que informa es el nombre y el conteo, y eso sale
+de la cartera.
+
+Las genera `app/laminas.py`, con la semilla fija —el mismo archivo byte a byte mientras no
+se toque el código—. Para retocar una y volver a sacarlas todas:
+
+```bash
+python -m app.laminas          # sobrescribe los SVG de app/static/img/
+```
+
+Es el mismo patrón de `app/demo_imagenes.py`, que dibuja las fichas de la cartera de
+demostración por la misma razón: no poner la casa de una persona real ilustrando algo que
+no existe.
 
 ---
 

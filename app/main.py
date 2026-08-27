@@ -8,7 +8,6 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -17,7 +16,9 @@ from app.db import inicializar
 from app.channels import instagram_bot
 from app.services import fotos
 from app.channels.telegram_bot import aviso_de_red, construir_app
-from app.routers import api, captacion, catalogo, dashboard, instagram, whatsapp
+from app.routers import (
+    api, captacion, catalogo, dashboard, inicio, instagram, whatsapp,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -223,13 +224,11 @@ app.include_router(api.router)
 app.include_router(captacion.router)
 app.include_router(catalogo.router)
 app.include_router(dashboard.router)
+# La portada pública. Va después de los demás a propósito: monta `/` a secas y
+# no debe adelantarse a ninguna ruta con prefijo.
+app.include_router(inicio.router)
 app.include_router(instagram.router)
 app.include_router(whatsapp.router)
-
-
-@app.get("/", include_in_schema=False)
-def raiz():
-    return RedirectResponse("/dashboard")
 
 
 @app.get("/health", tags=["operación"])

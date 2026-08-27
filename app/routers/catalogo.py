@@ -21,36 +21,24 @@ import logging
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.channels.gateway import pesos
-from app import estaticos
-from app.config import RAIZ, settings
+from app.config import settings
 from app.db import get_db
 from app.models import ROTULO_PRECIO, TipoInmueble, TipoNegocio
 from app.services import ingesta, portfolio, prospecting
 from app.security.sesion import INVITADO, quien_mira, rol_de
 from app.services.compliance import texto_consentimiento
 from app.services.prospecting import ConsentimientoAusente
-from app.tiempo import fecha
+# El entorno de plantillas y el contexto común los pone `app.vistas`: la portada
+# pinta el mismo cascarón y los mismos precios, y duplicarlos aquí garantizaba
+# que un día divergieran.
+from app.vistas import contexto as _contexto, plantillas
 
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/inmuebles", tags=["catálogo público"])
-plantillas = Jinja2Templates(directory=str(RAIZ / "app" / "templates"))
-# Cuelga la huella del CSS de la URL, o el navegador sigue pintando la
-# hoja anterior después de un despliegue (ver `app.estaticos`).
-estaticos.registrar(plantillas)
-plantillas.env.filters["pesos"] = pesos
-# Las plantillas no arman URLs ni deducen municipios por su cuenta: usan las
-# mismas funciones que el resto del sistema, para que cambiar la forma de la
-# URL canónica siga siendo un cambio en un solo archivo.
-plantillas.env.filters["ruta"] = portfolio.ruta_publica
-plantillas.env.filters["municipio"] = portfolio.municipio_de
-# Todo se guarda en UTC; al comprador hay que mostrarle su hora. Un inmueble
-# publicado a las 10 de la noche figuraba como del día siguiente.
-plantillas.env.filters["fecha"] = fecha
 
 #: Etiquetas de los tipos en plural, para las pestañas de la vitrina.
 ETIQUETAS_TIPO = {"casa": "Casas", "apartamento": "Apartamentos", "lote": "Lotes"}
@@ -100,33 +88,6 @@ def _miles(valor: int | None) -> str:
     pesos y un `$` dentro de la casilla estorba al escribir.
     """
     return f"{valor:,}".replace(",", ".") if valor else ""
-
-
-def _contexto(request: Request, **extra) -> dict:
-    # La vitrina no autentica nada —es pública y así debe seguir—, pero sí
-    # cambia lo que ofrece cuando quien mira ya tiene sesión: el camino de
-    # vuelta al panel y el atajo a la ficha interna del inmueble que está
-    # viendo. Sin esto, el operador que abre la vitrina queda encerrado.
-    usuario, es_operador = quien_mira(request.cookies)
-    return {
-        "request": request,
-        # Solo deciden qué enlaces se pintan. No abren ningún dato: la ficha
-        # pública no recibe PII ni con sesión, y editar sigue exigiendo pasar
-        # por las dependencias del router del dashboard.
-        "sesion": usuario,
-        "puede_editar": es_operador,
-        "empresa": settings.empresa_nombre,
-        "politica": settings.politica_privacidad_url,
-        "ciudades": settings.ciudades_cobertura,
-        "whatsapp": settings.whatsapp_contacto,
-        # Con la puerta de demo abierta la vitrina muestra inmuebles que no
-        # existen: se marca `noindex` para que ningún buscador los recoja, y la
-        # plantilla pinta un aviso permanente. Es deliberadamente difícil de
-        # dejar puesto sin darse cuenta.
-        "modo_demo": settings.catalogo_muestra_demo,
-        "base_publica": settings.url_publica,
-        **extra,
-    }
 
 
 # ─────────────────────────── Listado ───────────────────────────

@@ -1,3 +1,4 @@
+{% from "_marca.html" import isotipo %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -13,18 +14,37 @@
   {% else %}
     {% block canonica %}{% endblock %}
   {% endif %}
+  {# El isotipo hace de favicon. El SVG lo entienden todos los navegadores
+     vigentes; el `.ico` clásico se omite porque no hay ninguno que mantener y
+     un 404 en la pestaña no rompe nada. #}
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/img/favicon.svg">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="{{ empresa }}">
+  <meta property="og:title" content="{{ self.titulo() }} · {{ empresa }}">
+  <meta property="og:description" content="{{ self.descripcion() }}">
+  <meta property="og:image" content="{{ base_publica }}/static/img/portada-ciudad.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400&display=swap">
   <link rel="stylesheet" href="/static/estilos.css?v={{ v_estilos }}">
   {% block cabeza %}{% endblock %}
 </head>
-<body class="vitrina">
+{# `cuerpo_clase` lo usa la portada para que la cabecera flote sobre la lámina
+   del titular en vez de apoyarse encima de ella. `con-demo` la devuelve al
+   suelo: con la franja de demostración puesta, una barra transparente se
+   recorta contra el ladrillo del aviso y no contra la fotografía. #}
+<body class="vitrina{% block cuerpo_clase %}{% endblock %}{{ ' con-demo' if modo_demo }}">
 
 <header class="barra">
-  <a class="marca" href="/inmuebles">
-    <span class="marca-inmoclick">Inmo<b>click</b></span>
-    <span class="marca-lema">{{ ciudades | join(' · ') }}</span>
+  {# El isotipo lleva al inicio y no a la vitrina: la portada es la puerta del
+     sitio, y es además lo único que existe cuando el catálogo está apagado. #}
+  <a class="marca" href="/">
+    {{ isotipo(34, '-barra') }}
+    <span class="marca-texto">
+      <span class="marca-inmoclick">Inmo<b>click</b></span>
+      <span class="marca-lema">{{ ciudades | join(' · ') }}</span>
+    </span>
   </a>
   {# El menú solo ofrece rutas que existen de verdad. Se probó a poner «En
      venta» y «En arriendo» como secciones y se quitó: la vitrina no sabe aquí
@@ -32,7 +52,9 @@
      lee como que el sitio está roto. Ese filtro vive donde sí se cuenta, que
      es el conmutador de la propia vitrina. #}
   <nav>
+    {% if hay_vitrina %}
     <a href="/inmuebles" class="{{ 'activo' if request.url.path == '/inmuebles' }}">Inmuebles</a>
+    {% endif %}
     <a href="/publicar" class="{{ 'activo' if request.url.path == '/publicar' }}">Publica tu inmueble</a>
   </nav>
   <div class="quien">
@@ -85,7 +107,10 @@
 <footer class="pie-publico">
   <div class="pie-columnas">
     <div>
-      <span class="pie-marca">Inmo<b>click</b></span>
+      {# El logotipo va envuelto en su propio `span`: `.pie-marca` es flex y sin
+         él «Inmo» y «click» serían dos elementos sueltos con el hueco del
+         `gap` metido en medio de la palabra. #}
+      <span class="pie-marca">{{ isotipo(30, '-pie') }}<span>Inmo<b>click</b></span></span>
       <p class="leyenda" style="margin:0">
         Inmuebles en {{ ciudades | join(' y ') }}. Te atiende un asistente con
         inteligencia artificial y un asesor humano confirma cada visita.
@@ -130,8 +155,10 @@
 <script>
   // Compactar la cabecera al bajar. Es lo único que hace la barra de la
   // vitrina: no hay indicador viajero porque las secciones son dos y el
-  // subrayado ya las marca. Si este script no corre, la barra se queda a su
-  // altura normal y no se pierde ninguna función.
+  // subrayado ya las marca. En la portada hace además de conmutador: la barra
+  // nace transparente sobre la lámina del titular y se vuelve papel al salir
+  // de ella. Si este script no corre, la barra se queda a su altura normal y
+  // no se pierde ninguna función.
   (function () {
     var barra = document.querySelector('.barra');
     if (!barra) return;

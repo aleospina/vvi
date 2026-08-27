@@ -1,9 +1,11 @@
+{% from "_marca.html" import isotipo %}
 <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Inmoclick{% endblock %} · {{ empresa }}</title>
+  <link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
   {# Fuentes con respaldo local: si no hay internet, cae a Georgia y Segoe UI
      sin romper la maqueta. #}
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,10 +15,15 @@
 </head>
 <body>
 <header class="barra">
-  <div class="marca">
-    <span class="marca-inmoclick">Inmo<b>click</b></span>
-    <span class="marca-lema">Panel de gestión</span>
-  </div>
+  {# El isotipo lleva a la portada pública: desde el panel es la forma de ver
+     lo que ve un desconocido, y no había ninguna. #}
+  <a class="marca" href="/">
+    {{ isotipo(32, '-panel') }}
+    <span class="marca-texto">
+      <span class="marca-inmoclick">Inmo<b>click</b></span>
+      <span class="marca-lema">Panel de gestión</span>
+    </span>
+  </a>
   {% set ruta = request.url.path %}
   {# El invitado solo ve Cartera: las demás pantallas exponen conversaciones y
      datos de contacto de titulares reales. #}
