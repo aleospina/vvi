@@ -665,6 +665,12 @@ footer .aviso{color:var(--tinta-3)}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none !important; transition:none !important}
   .tarjeta-inmueble:hover .ti-foto img{transform:none}
+  /* Quien pidió menos movimiento no se queda sin respuesta del logotipo: se
+     conserva el brillo del vidrio —que no es desplazamiento— y se retira el
+     hundimiento. Un enlace sin ninguna señal al enfocarlo sería un problema
+     de accesibilidad mayor que el que se intenta evitar. */
+  .marca:hover .iso-vidrio, .marca:focus-visible .iso-vidrio,
+  .marca:active .iso-vidrio{transform:none}
 }
 
 /* ─────────────────────────── Adaptable ─────────────────────────── */
@@ -750,9 +756,10 @@ body.vitrina .barra.compacta{
   }
 }
 
-/* Logotipo de palabra. No hay isotipo a propósito: una sigla dibujada exige
-   un archivo que mantener, y en este sector el nombre compuesto en versalitas
-   espaciadas es el código visual que la gente ya lee como «inmobiliaria». */
+/* Logotipo de palabra. Acompaña al isotipo, no lo sustituye: el nombre
+   compuesto en versalitas espaciadas es el código visual que en este sector se
+   lee como «inmobiliaria», y es lo único del lockup que sobrevive a un
+   favicon de 16px o a una firma de correo. */
 .marca-inmoclick{
   font:600 19px/1 var(--display);
   letter-spacing:.17em; text-transform:uppercase;
@@ -763,16 +770,46 @@ body.vitrina .barra.compacta{
    isotipo aclarado lo justo para aguantar sobre papel: 3,8:1, que es lo que
    pide un texto de 19px en seminegra. */
 .marca-inmoclick b{font-weight:600; color:var(--marca-acento, #0e8bbf)}
+/* El lema lleva una pareja de colores en vez de uno solo: `--lema-base` es su
+   tinta de reposo y `--lema-viso` la banda de luz que lo recorre al pasar el
+   ratón por el logotipo. Cada superficie declara la suya más abajo, porque un
+   plateado que sobre una fotografía oscura parece plata de verdad, sobre la
+   barra blanca es texto que desaparece. */
 .marca-lema{
   font:500 9px/1 var(--texto); letter-spacing:.24em; text-transform:uppercase;
-  color:var(--tinta-3);
+  --lema-base:var(--tinta-3);
+  --lema-viso:var(--tinta-2);
+  color:var(--lema-base);
+}
+/* El degradado va recortado contra las letras y no como fondo del renglón, así
+   que vive entero dentro del `@supports`: un navegador sin `background-clip`
+   pintaría un rectángulo gris detrás del lema, que es peor que no tener viso.
+   Ahí se queda con el color liso de arriba, exactamente como estaba.
+
+   En reposo la banda está aparcada fuera del cuadro (`background-position:100%`
+   con un lienzo de triple ancho), de modo que sin hover no se nota nada. */
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .marca-lema{
+    background-image:linear-gradient(105deg,
+        var(--lema-base) 0 42%, var(--lema-viso) 50%, var(--lema-base) 58% 100%);
+    background-size:300% 100%;
+    background-position:100% 0;
+    background-repeat:no-repeat;
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent; -webkit-text-fill-color:transparent;
+  }
+}
+/* En alto contraste el sistema impone sus colores y retira las imágenes de
+   fondo: sin esto el lema se quedaría relleno de transparente, o sea invisible. */
+@media (forced-colors:active){
+  .marca-lema{color:CanvasText; -webkit-text-fill-color:currentColor}
 }
 /* Sobre la barra oscura del panel el petróleo desaparece: la mitad acentuada
    sube a un celeste que sí despega del fondo. */
 .barra .marca-inmoclick{--marca-acento:#59e0ff}
-.barra .marca-lema{color:#7aa9bd}
+.barra .marca-lema{--lema-base:#7aa9bd; --lema-viso:#eaf7ff}
 body.vitrina .barra .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
-body.vitrina .barra .marca-lema{color:var(--tinta-3)}
+body.vitrina .barra .marca-lema{--lema-base:var(--tinta-3); --lema-viso:var(--tinta-2)}
 body.vitrina .barra .marca{
   flex-direction:column; align-items:flex-start; gap:4px; text-decoration:none;
 }
@@ -1434,6 +1471,121 @@ body.publica{background:var(--velo)}
 body.vitrina .barra .marca{flex-direction:row; align-items:center; gap:12px}
 .pie-marca{display:flex; align-items:center; gap:11px}
 
+/* ─── El logotipo responde ───
+   Dos movimientos, y los dos los provoca quien mira: ninguno se repite solo.
+   La barra acompaña al visitante en todas las pantallas y durante todo el
+   scroll, así que algo que se moviera ahí en bucle competiría con las
+   fotografías en la visión periférica y acabaría leyéndose como un anuncio.
+   Lo permanente no se mueve; lo que responde, sí.
+
+   1) El clic. Al pasar el ratón o al llegar con el tabulador, el volumen
+      acristalado —el que lleva la puerta-cursor— se hunde y sube de brillo:
+      es el gesto que da nombre a la casa. Antes el logotipo era un enlace sin
+      ninguna respuesta al hover, porque `body.vitrina .barra .marca:hover`
+      anula el subrayado general y no ponía nada en su lugar.
+
+   `transform-box:fill-box` no es opcional: sin él el origen de la
+   transformación es la esquina del lienzo SVG y el vidrio sale disparado. */
+.iso-vidrio{
+  transform-box:fill-box; transform-origin:center;
+  transition:transform .2s cubic-bezier(.2,.7,.3,1), filter .2s ease;
+}
+@media (hover:hover){
+  .marca:hover .iso-vidrio{transform:translateY(2px) scale(.92); filter:brightness(1.15)}
+}
+.marca:focus-visible .iso-vidrio{transform:translateY(2px) scale(.92); filter:brightness(1.15)}
+/* Al pulsar de verdad, un poco más hondo: el enlace confirma que recibió el
+   clic antes de que llegue la página siguiente. */
+.marca:active .iso-vidrio{transform:translateY(3px) scale(.89); filter:brightness(1.2)}
+
+/* 2) La bajada se pliega al bajar. Cuando la barra se compacta, el lema deja
+      sitio en vez de acompañar: el sitio se aparta para que se lea el
+      inventario. Es la misma clase `.compacta` que ya encoge la barra, así que
+      no hace falta ni un byte más de JavaScript.
+
+   El `overflow` recorta en el borde del relleno, no en el del texto: esos 2px
+   de `padding-top` son los que evitan que la tilde de «RAÍCES» se guillotine
+   con `line-height:1`, y el margen negativo del mismo tamaño devuelve la
+   maqueta a donde estaba. */
+.barra .marca-lema{
+  overflow:hidden;
+  padding-top:2px; margin-top:-2px;
+  max-height:14px;
+  transition:max-height .3s cubic-bezier(.2,.7,.3,1), opacity .18s ease,
+             transform .3s cubic-bezier(.2,.7,.3,1);
+}
+.barra.compacta .marca-lema{max-height:0; opacity:0; transform:translateY(-5px)}
+/* El hueco entre las dos líneas se cierra con ellas; si no, el logotipo
+   quedaría descentrado sobre un espacio vacío. */
+.barra .marca-texto{transition:gap .3s cubic-bezier(.2,.7,.3,1)}
+.barra.compacta .marca-texto{gap:0}
+
+/* 3) El viso del lema. Al pasar el ratón por el logotipo —o al enfocarlo con
+      el tabulador—, una banda de luz recorre «BIENES RAÍCES DE LUJO» de
+      izquierda a derecha, una sola vez. Mismo criterio que los otros dos
+      gestos: lo dispara quien mira, no un reloj.
+
+   Sobre fondo oscuro la banda es blanca y se lee como plata. Sobre la barra
+   blanca va al revés —oscurece hacia `--tinta-2`— y no es un apaño: el metal
+   pulido sobre papel se dibuja justamente así, con la banda oscura del
+   horizonte cruzando la letra. Un viso claro sobre blanco, a 9px y con .24em
+   de espaciado, no sería elegante; sería un renglón que se borra.
+
+   Lo único que se anima es `background-position`: composición pura, sin
+   maqueta y sin repintar el texto. Y como los dos extremos dejan la banda
+   fuera del cuadro, la animación no necesita `forwards` ni deja rastro. */
+@keyframes viso-lema{
+  from{background-position:100% 0}
+  to{background-position:0% 0}
+}
+
+/* 4) El mismo viso, solo, cada 7 segundos.
+      Un bucle en una barra que acompaña todo el scroll sería ruido. Este no lo
+      es, y la diferencia la puso el punto 2: el lema se pliega al bajar, así
+      que este destello únicamente puede verse con la barra en reposo —arriba
+      del todo, cuando todavía no hay inventario que leer—. El propio diseño
+      pone la puerta; aquí solo se aprovecha.
+
+   Va colgado de `body.vitrina`, o sea solo en el sitio público. En el panel el
+   logotipo es el mismo, pero el operador lo tiene delante horas y ahí sí hay
+   tableros cortos que no llegan a hacer scroll: la barra nunca se compacta, el
+   lema nunca se pliega y el destello se quedaría latiendo toda la jornada. Lo
+   que en una vitrina es acabado, en una herramienta de trabajo es un tic. El
+   hover, en cambio, sigue funcionando en las dos.
+
+   Los 7 segundos no son un número redondo al azar. Por debajo de cinco el ojo
+   lo clasifica como publicidad y aprende a evitarlo; por encima de doce no lo
+   ve nadie, porque para entonces ya se bajó de la portada. A siete, quien lee
+   el titular y el buscador alcanza a ver dos o tres pasadas.
+
+   El barrido va en el último 18% del ciclo, no en el primero, por una razón
+   concreta: al soltar el ratón la regla de `:hover` deja de aplicar, la
+   animación de fondo vuelve a empezar desde cero, y con el barrido al final
+   eso significa cinco segundos de calma en vez de un segundo destello pegado
+   al que acaba de dar el hover.
+
+   Dura 1,26s frente a los 0,9s del hover: el del hover confirma un gesto tuyo
+   y puede ser nítido; este no lo pidió nadie, así que tiene que ser un reflejo
+   y no un chasquido. `prefers-reduced-motion` lo apaga entero y deja solo el
+   acabado plateado, que es exactamente lo que esa preferencia pide. */
+@keyframes viso-lema-solo{
+  0%{background-position:100% 0}
+  82%{background-position:100% 0; animation-timing-function:cubic-bezier(.25,.6,.3,1)}
+  100%{background-position:0% 0}
+}
+body.vitrina .barra .marca-lema{animation:viso-lema-solo 7s linear infinite}
+/* Plegado el lema, el destello no se ve: pausarlo evita que el compositor siga
+   trabajando en un renglón invisible durante todo el scroll. */
+.barra.compacta .marca-lema{animation-play-state:paused}
+
+/* El hover manda sobre el destello de fondo. Va después a propósito: los dos
+   selectores pesan lo mismo, así que aquí decide el orden del archivo, y quien
+   pasa el ratón tiene que ver su barrido ya, no esperar al del reloj. */
+@media (hover:hover){
+  .marca:hover .marca-lema{animation:viso-lema .9s cubic-bezier(.25,.6,.3,1)}
+}
+.marca:focus-visible .marca-lema{animation:viso-lema .9s cubic-bezier(.25,.6,.3,1)}
+
 /* ─── Cabecera flotante ───
    Fija y no pegajosa: la lámina arranca en el píxel cero y la barra tiene que
    pisarla, no empujarla hacia abajo. El cambio de color lo dispara `.compacta`,
@@ -1448,7 +1600,7 @@ body.inicio .barra{
 }
 body.inicio main{max-width:none; margin:0; padding:0}
 body.inicio .barra .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
-body.inicio .barra .marca-lema{color:rgba(255,255,255,.6)}
+body.inicio .barra .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
 body.inicio .barra nav a{color:rgba(255,255,255,.8)}
 body.inicio .barra nav a::after{background:#7fe8ff}
 body.inicio .barra nav a.activo{color:#fff}
@@ -1470,7 +1622,7 @@ body.inicio .quien .destacado{background:#fff; color:var(--tinta); border-color:
    desenfoque existe de verdad— y repetirlo aquí la anularía. */
 body.inicio .barra.compacta{color:var(--tinta); border-bottom-color:var(--linea)}
 body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
-body.inicio .barra.compacta .marca-lema{color:var(--tinta-3)}
+body.inicio .barra.compacta .marca-lema{--lema-base:var(--tinta-3); --lema-viso:var(--tinta-2)}
 body.inicio .barra.compacta nav a{color:var(--tinta-2)}
 body.inicio .barra.compacta nav a::after{background:var(--acento)}
 body.inicio .barra.compacta nav a.activo{color:var(--tinta)}
@@ -1736,7 +1888,7 @@ body.inicio .franja-demo{padding-top:92px}
     border-bottom-color:rgba(255,255,255,.14);
   }
   body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
-  body.inicio .barra.compacta .marca-lema{color:rgba(255,255,255,.6)}
+  body.inicio .barra.compacta .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
   body.inicio .barra.compacta nav a{color:rgba(255,255,255,.8)}
   body.inicio .barra.compacta nav a.activo{color:#fff}
   body.inicio .barra.compacta .quien{border-left-color:rgba(255,255,255,.2)}
@@ -1792,7 +1944,7 @@ body.inicio.con-demo .barra, body.inicio.con-demo .barra.compacta{
   border-bottom-color:rgba(255,255,255,.14);
 }
 body.inicio.con-demo .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
-body.inicio.con-demo .barra.compacta .marca-lema{color:rgba(255,255,255,.6)}
+body.inicio.con-demo .barra.compacta .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
 body.inicio.con-demo .barra.compacta nav a{color:rgba(255,255,255,.8)}
 body.inicio.con-demo .barra.compacta nav a.activo{color:#fff}
 body.inicio.con-demo .barra.compacta .quien{border-left-color:rgba(255,255,255,.2)}

@@ -10,6 +10,11 @@
    hueco tome el color del fondo y el isotipo funcione igual sobre papel que
    sobre tinta.
 
+   Ese volumen lleva la clase `iso-vidrio` porque es lo único del dibujo que se
+   mueve: al pasar el ratón o al llegar con el tabulador se hunde, como si se
+   pulsara. La torre se queda quieta a propósito —el edificio no es lo que se
+   pulsa—. El gesto lo define `.iso-vidrio` en la hoja de estilos.
+
    La misma geometría está en `app/static/img/inmoclick-isotipo.svg`, que es la
    versión suelta para el favicon y las vistas previas al compartir. Si se toca
    una hay que tocar la otra.
@@ -38,7 +43,7 @@
     </linearGradient>
   </defs>
   <path d="M6 58V24L23 11v47Z" fill="currentColor"/>
-  <path fill-rule="evenodd" fill="url(#ic-vidrio{{ sufijo }})"
+  <path class="iso-vidrio" fill-rule="evenodd" fill="url(#ic-vidrio{{ sufijo }})"
         d="M27 33h31v25H27Zm10.5 5.5v13.6l3.4-3.1 2.3 4.9 2.3-1.1-2.3-4.9h4Z"/>
 </svg>
 {%- endmacro -%}
