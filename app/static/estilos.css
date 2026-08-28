@@ -1957,3 +1957,42 @@ body.inicio .barra{border-bottom-color:transparent}
   }
   html.con-js body.vitrina .quien-soy{color:rgba(255,255,255,.8); text-align:center}
 }
+
+/* ─────────────── El escudo de marca en un teléfono ───────────────
+   El logotipo se dibujaba igual a 1920px que a 360px: ninguna media query
+   tocaba nunca su tamaño, solo su color. Con el isotipo a 34px, «INMOCLICK» a
+   19px con .17em de entreletra y el lema a .24em debajo, el escudo mide unos
+   200px de ancho; sumando el relleno de la barra, el hueco y el botón de tres
+   rayas, la fila pedía cerca de 290px. Cabía raspando en un teléfono de 360 y
+   se salía en uno de 320.
+
+   Y se salía mal. `.marca-texto` lleva `min-width:0`, así que el escudo sí se
+   encoge cuando falta sitio, pero `.marca-inmoclick` lleva `white-space:nowrap`
+   y entonces el logotipo se desborda de su propia caja y se mete por debajo del
+   botón de tres rayas. El lema hace lo contrario: como no lleva `nowrap`,
+   partía «Bienes raíces de lujo» en dos renglones y estiraba la barra a lo
+   alto.
+
+   Aquí el escudo se compone a escala de teléfono. El lema se retira de la
+   cabecera —que no del sitio: lo dicen igual el titular de la portada y el
+   pie—, y es la retirada que más espacio devuelve, porque de las dos líneas
+   era la ancha.
+
+   Nada de esto llega al escritorio: todo cuelga de un ancho máximo, así que la
+   barra ancha se sigue pintando exactamente igual que antes. */
+@media (max-width:560px){
+  /* `body.vitrina .barra .marca` ya fija el hueco más arriba y le gana a un
+     `.barra .marca` a secas: hay que repetir el selector entero para poder
+     estrecharlo aquí. */
+  .barra .marca, body.vitrina .barra .marca, .marca-publica{gap:9px; min-width:0}
+  .barra .isotipo, .marca-publica .isotipo{width:28px; height:28px}
+  .marca-inmoclick{font-size:16px; letter-spacing:.11em}
+  .barra .marca-lema{display:none}
+}
+
+/* Un escalón más para los teléfonos estrechos —el iPhone SE sigue siendo 320px
+   de ancho—, donde 16px con .11em todavía dejaba el logotipo pegado al botón. */
+@media (max-width:380px){
+  .barra .isotipo{width:26px; height:26px}
+  .marca-inmoclick{font-size:15px; letter-spacing:.08em}
+}
