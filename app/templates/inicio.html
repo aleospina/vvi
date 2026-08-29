@@ -11,8 +11,13 @@
 
 {% from "_tarjeta_inmueble.html" import tarjeta with context %}
 
-{% block titulo %}Inmobiliaria en {{ ciudades | join(' y ') }}{% endblock %}
-{% block descripcion %}Inmoclick es una inmobiliaria boutique en {{ ciudades | join(' y ') }}: cartera con mandato verificado, atención inmediata y un asesor humano en cada visita.{% endblock %}
+{# La portada se presenta como inmobiliaria de alcance nacional y no de las dos
+   ciudades donde hoy hay cartera: quien llega desde otra parte del país no debe
+   leer un título que lo excluye. Las plazas de arranque se nombran al final de
+   la descripción, con `ciudades`, para que la frase crezca sola cuando se abra
+   una nueva y no haya que volver aquí. #}
+{% block titulo %}Inmobiliaria Boutique{% endblock %}
+{% block descripcion %}Inmoclick, inmobiliaria boutique en Colombia: cartera con mandato verificado, atención inmediata y un asesor humano en cada visita. Hoy, en {{ ciudades | join(' y ') }}.{% endblock %}
 {% block canonica %}<link rel="canonical" href="{{ base_publica }}/">{% endblock %}
 {% block og_imagen %}{{ base_publica }}{{ lamina_cima.url }}{% endblock %}
 {% block cuerpo_clase %} inicio{% endblock %}
