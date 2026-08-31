@@ -1273,6 +1273,8 @@ body.vitrina .quien .destacado{background:var(--tinta); color:#fff; border:1px s
   background:none; border:1px solid var(--linea-fuerte); color:var(--tinta);
   border-radius:var(--radio-s); box-shadow:none;
   font:600 12px/1 var(--texto); letter-spacing:.11em; text-transform:uppercase;
+  /* El de la ficha es el mismo botón y traía el mismo recuadro al tocarlo. */
+  -webkit-tap-highlight-color:transparent;
 }
 @media (hover:hover){
   .boton-wasap:hover{background:none; border-color:#25d366; color:#128c4b; text-decoration:none}
@@ -1382,6 +1384,13 @@ body.sin-scroll{overflow:hidden}
   display:grid; place-items:center;
   background:#25d366; color:#fff; box-shadow:var(--sombra-3);
   transition:transform .18s cubic-bezier(.2,.7,.3,1);
+  /* Al tocarlo en un teléfono, el navegador pintaba encima su recuadro azul
+     de sistema —cuadrado, sobre un botón redondo y verde— antes de abrir
+     WhatsApp. Es lo mismo que ya se le quita a `button, .boton`, que este
+     enlace no hereda por no llevar esa clase. Solo existe en táctil: en
+     escritorio la propiedad no hace nada, y el aro del tabulador se queda
+     donde estaba, que ese sí hace falta. */
+  -webkit-tap-highlight-color:transparent;
 }
 .wasap:hover{transform:scale(1.07); text-decoration:none}
 
