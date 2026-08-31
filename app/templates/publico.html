@@ -1,5 +1,5 @@
 {% from "_marca.html" import isotipo, lema_marca %}
-{% from "_wasap.html" import wasap_flotante %}
+{% from "_wasap.html" import wasap_flotante, ruta_wasap %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -81,8 +81,13 @@
       {# Ya no está condicionado a que haya un número configurado: `/wa` decide
          el destino al pulsar —el asistente virtual si está vinculado, y si no
          el respaldo humano—, así que siempre hay alguien al otro lado. El
-         teléfono no se escribe aquí a propósito; ver `routers.contacto`. #}
-      <a class="boton destacado" href="/wa" target="_blank" rel="noopener">
+         teléfono no se escribe aquí a propósito; ver `routers.contacto`.
+
+         `ref_wasap` lo pone la ficha de un inmueble (`catalogo_ficha.html`) y
+         en las demás páginas no existe: quien escribe desde una ficha lleva su
+         código en el mensaje, y quien escribe desde la portada, no. #}
+      <a class="boton destacado" href="{{ ruta_wasap(ref_wasap | default('', true)) }}"
+         target="_blank" rel="noopener">
         Escríbenos
       </a>
       {# Una sola puerta de vuelta, no dos. Llegó a haber «Cartera» y «Panel»: son
@@ -144,7 +149,8 @@
       <p class="leyenda" style="margin:0">
         Inmuebles en {{ ciudades | join(' y ') }}. Te atiende un asistente con
         inteligencia artificial y un asesor humano confirma cada visita.
-        <br><a href="/wa" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
+        <br><a href="{{ ruta_wasap(ref_wasap | default('', true)) }}"
+               target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
       </p>
     </div>
     <div>
@@ -173,7 +179,7 @@
   </p>
 </footer>
 
-{{ wasap_flotante() }}
+{{ wasap_flotante(ref_wasap | default('', true)) }}
 
 <script>
   // Compactar la cabecera al bajar. Es lo único que hace la barra de la

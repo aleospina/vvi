@@ -262,3 +262,62 @@ def test_desvincular_olvida_el_numero(canal, monkeypatch):
     whatsapp_evo.desvincular()
 
     assert whatsapp_evo._numero_cache == ("", 0.0)
+
+
+# ═══════════ Desde una ficha, la consulta dice de qué inmueble habla ═══════════
+
+@pytest.fixture()
+def ficha():
+    """Un inmueble publicable, y su URL pública."""
+    from app.db import SessionLocal
+    from app.models import EstadoPropiedad, FuentePropiedad, Propiedad
+    from app.services import portfolio
+
+    inicializar(seed=False)
+    db = SessionLocal()
+    try:
+        db.query(Propiedad).filter(Propiedad.id == "WA-01").delete(synchronize_session=False)
+        inmueble = Propiedad(
+            id="WA-01", ciudad="Pereira", zona="Pinares", tipo="casa",
+            habitaciones=3, banos=2, area_m2=140, precio=430_000_000,
+            descripcion="Casa de prueba para el botón de WhatsApp.",
+            estado=EstadoPropiedad.DISPONIBLE.value,
+            fuente=FuentePropiedad.MANUAL.value,
+        )
+        db.add(inmueble)
+        db.commit()
+        yield portfolio.ruta_publica(inmueble)
+    finally:
+        db.query(Propiedad).filter(Propiedad.id == "WA-01").delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
+def test_desde_la_ficha_los_botones_llevan_el_codigo(web, ficha):
+    """Quien pregunta desde un inmueble no debería tener que decir cuál es.
+
+    Son las cuatro puertas de la ficha —el botón flotante, el de la cabecera, el
+    de la tarjeta del asesor y el del pie—: olvidar una significa que parte de
+    las consultas llegan sin decir de qué hablan, y el asesor tiene que
+    preguntar «¿cuál?» a alguien que lo tenía en pantalla.
+    """
+    html = web.get(ficha).text
+
+    assert html.count('/wa?ref=WA-01') == 4
+    assert 'href="/wa"' not in html
+
+
+def test_fuera_de_una_ficha_no_se_inventa_ninguna(web):
+    """La portada no habla de ningún inmueble en concreto."""
+    html = web.get("/").text
+
+    assert "?ref=" not in html
+
+
+def test_la_consulta_desde_la_ficha_llega_con_el_codigo_escrito(web, monkeypatch):
+    """El redirector convierte ese `ref` en el mensaje que ve el asesor."""
+    monkeypatch.setattr(settings, "whatsapp_contacto", "573009998877")
+
+    destino = web.get("/wa?ref=WA-01").headers["location"]
+
+    assert "WA-01" in destino
