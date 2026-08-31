@@ -278,6 +278,7 @@ y todo dato que entra lo hace con autorización expresa.
 | **Portada** | `/` | Explica quiénes somos a quien llega de una pauta o de un enlace: lámina de la ciudad, buscador, selección de cartera, zonas con inventario y las cuatro cifras que sí podemos sostener. `app/routers/inicio.py` |
 | **Vitrina** | `/inmuebles` | El catálogo con filtros, orden y paginación, y la ficha de cada inmueble. `app/routers/catalogo.py` |
 | **Publicar** | `/publicar` | El formulario del propietario que quiere ofrecernos un inmueble. `app/routers/captacion.py` |
+| **WhatsApp** | `/wa` | La puerta de las consultas. Redirige a WhatsApp resolviendo el destino en el momento del clic: el número que atiende el asistente virtual —el que se vinculó con el QR— y, si no hay ninguno vinculado, el respaldo humano de `WHATSAPP_RESPALDO`. El teléfono no se escribe en ninguna página: en el HTML solo hay un enlace a esta ruta. `app/routers/contacto.py` |
 
 `/` **no pide contraseña y no debe volver a pedirla.** Antes redirigía a `/dashboard`, de
 modo que un comprador que escribía la dirección se encontraba con un formulario de ingreso

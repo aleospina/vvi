@@ -1,4 +1,5 @@
 {% from "_marca.html" import isotipo, lema_marca %}
+{% from "_wasap.html" import wasap_flotante %}
 <!doctype html>
 <html lang="es">
 <head>
@@ -77,11 +78,13 @@
       <a href="/publicar" class="{{ 'activo' if request.url.path == '/publicar' }}">Publica tu inmueble</a>
     </nav>
     <div class="quien">
-      {% if whatsapp %}
-        <a class="boton destacado" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener">
-          Escríbenos
-        </a>
-      {% endif %}
+      {# Ya no está condicionado a que haya un número configurado: `/wa` decide
+         el destino al pulsar —el asistente virtual si está vinculado, y si no
+         el respaldo humano—, así que siempre hay alguien al otro lado. El
+         teléfono no se escribe aquí a propósito; ver `routers.contacto`. #}
+      <a class="boton destacado" href="/wa" target="_blank" rel="noopener">
+        Escríbenos
+      </a>
       {# Una sola puerta de vuelta, no dos. Llegó a haber «Cartera» y «Panel»: son
          pantallas distintas, pero desde la vitrina ambas significan lo mismo
          —salir de aquí—, y el menú del panel ya lleva a cualquier sitio una vez
@@ -141,7 +144,7 @@
       <p class="leyenda" style="margin:0">
         Inmuebles en {{ ciudades | join(' y ') }}. Te atiende un asistente con
         inteligencia artificial y un asesor humano confirma cada visita.
-        {% if whatsapp %}<br>WhatsApp <a href="https://wa.me/{{ whatsapp }}">+{{ whatsapp }}</a>{% endif %}
+        <br><a href="/wa" target="_blank" rel="noopener">Escríbenos por WhatsApp</a>
       </p>
     </div>
     <div>
@@ -170,14 +173,7 @@
   </p>
 </footer>
 
-{% if whatsapp %}
-<a class="wasap" href="https://wa.me/{{ whatsapp }}" target="_blank" rel="noopener"
-   aria-label="Escríbenos por WhatsApp">
-  <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true" fill="currentColor">
-    <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.46 1.32 4.96L2 22l5.25-1.38a9.9 9.9 0 0 0 4.79 1.22h.01c5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.82 9.82 0 0 0 12.04 2Zm0 18.15h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24a8.2 8.2 0 0 1 5.83 2.42 8.2 8.2 0 0 1 2.41 5.83c0 4.54-3.7 8.23-8.24 8.23Zm4.52-6.16c-.25-.12-1.47-.72-1.69-.81-.23-.08-.39-.12-.56.13-.16.24-.64.8-.78.97-.15.16-.29.18-.53.06-.25-.12-1.05-.39-1.99-1.23-.74-.66-1.23-1.47-1.38-1.72-.14-.25-.01-.38.11-.5.11-.11.25-.29.37-.44.12-.15.16-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.16 1.73 2.65 4.2 3.71.59.25 1.04.4 1.4.52.59.18 1.12.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.11-.22-.17-.47-.29Z"/>
-  </svg>
-</a>
-{% endif %}
+{{ wasap_flotante() }}
 
 <script>
   // Compactar la cabecera al bajar. Es lo único que hace la barra de la

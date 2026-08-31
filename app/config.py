@@ -172,9 +172,18 @@ class Settings(BaseSettings):
     catalogo_muestra_demo: bool = False
     #: Cuántos inmuebles por página en la vitrina.
     catalogo_por_pagina: int = 12
-    #: Número de WhatsApp para el botón de contacto directo de la ficha, en
-    #: formato internacional sin signos (573001234567). Vacío = no se muestra.
+    #: Número de WhatsApp al que van las consultas de la vitrina, en formato
+    #: internacional sin signos (573001234567). Es un **anulador**: si está
+    #: puesto manda sobre cualquier otra cosa. Vacío —lo normal— hace que las
+    #: consultas caigan en el número que atiende el asistente virtual, que es el
+    #: que se vinculó escaneando el QR de Evolution.
     whatsapp_contacto: str = ""
+    #: Último recurso cuando no hay asistente vinculado: el canal se cayó, el QR
+    #: no se ha escaneado todavía o esta instalación no tiene WhatsApp montado.
+    #: Aquí contesta una persona. Nunca se pinta en pantalla —el visitante pulsa
+    #: un botón, no lee un teléfono—, así que cambiarlo no toca ninguna
+    #: plantilla: el destino se resuelve en el momento del clic.
+    whatsapp_respaldo: str = "573122799808"
 
     @property
     def url_publica(self) -> str:

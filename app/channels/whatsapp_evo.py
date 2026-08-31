@@ -230,6 +230,71 @@ def estado_conexion() -> str:
         return "error"
 
 
+#: Cache del teléfono que atiende la instancia: (valor, momento en que se leyó).
+#: La vitrina pregunta por él cada vez que alguien pulsa el botón de WhatsApp, y
+#: ese número solo cambia cuando alguien escanea otro QR: consultarlo en cada
+#: clic sería pagar una llamada a Evolution por visitante.
+_numero_cache: tuple[str, float] = ("", 0.0)
+TTL_NUMERO = 300.0
+#: El vacío se recuerda mucho menos: si el canal acaba de vincularse, quien
+#: entre al minuto siguiente ya tiene que caer en el asistente y no seguir yendo
+#: al número de respaldo durante cinco minutos.
+TTL_NUMERO_VACIO = 60.0
+#: Averiguar quién atiende no puede colgar un clic. Si Evolution no contesta en
+#: dos segundos y medio se responde con el respaldo, que para el visitante es
+#: una conversación igual de válida.
+TIMEOUT_NUMERO = 2.5
+
+
+def numero_vinculado() -> str:
+    """El teléfono del asistente virtual, o cadena vacía si no hay ninguno.
+
+    Es el número que se escaneó con el QR: no está escrito en ninguna variable
+    de entorno —vincular otro aparato lo cambia sin desplegar nada—, así que la
+    única forma de saberlo es preguntárselo a Evolution.
+
+    Se exige `open` a propósito. Con la sesión cerrada el número sigue figurando
+    en la instancia, pero mandar ahí a un comprador es mandarlo a un WhatsApp
+    que nadie está leyendo; sin número, quien llama cae en el respaldo humano.
+
+    Nunca levanta: un fallo aquí no puede dejar sin botón a la vitrina.
+    """
+    global _numero_cache
+    valor, leido = _numero_cache
+    edad = time.monotonic() - leido
+    if leido and edad < (TTL_NUMERO if valor else TTL_NUMERO_VACIO):
+        return valor
+
+    numero = ""
+    if settings.tiene_whatsapp:
+        try:
+            with _cliente(TIMEOUT_NUMERO) as c:
+                r = c.get("/instance/fetchInstances")
+                r.raise_for_status()
+                for fila in r.json():
+                    if not isinstance(fila, dict):
+                        continue
+                    # Los nombres de los campos cambiaron entre las versiones
+                    # mayores de Evolution: la v2 los pone en la raíz y la v1
+                    # los anida bajo `instance`. Se prueban los dos.
+                    dentro = fila.get("instance")
+                    dentro = dentro if isinstance(dentro, dict) else {}
+                    if (fila.get("name") or dentro.get("instanceName")) != settings.evolution_instancia:
+                        continue
+                    estado = fila.get("connectionStatus") or dentro.get("status") or ""
+                    jid = fila.get("ownerJid") or dentro.get("owner") or ""
+                    if estado == "open" and isinstance(jid, str):
+                        # Solo dígitos: lo que sale de aquí termina dentro de una
+                        # URL de wa.me, y un JID raro no puede colarse en ella.
+                        numero = "".join(d for d in numero_de_jid(jid) if d.isdigit())
+                    break
+        except (httpx.HTTPError, ValueError, TypeError) as e:  # noqa: BLE001
+            log.warning("No se pudo saber qué número atiende WhatsApp: %s", e)
+
+    _numero_cache = (numero, time.monotonic())
+    return numero
+
+
 def qr_de_conexion() -> dict:
     """Devuelve el QR (base64) o el código de pareo para vincular la instancia.
 
@@ -407,7 +472,12 @@ def desvincular() -> None:
     Es la salida limpia cuando se cambia de número o se termina una prueba: deja
     el dispositivo desvinculado del teléfono en vez de abandonar la sesión viva.
     """
+    global _numero_cache
     with _cliente() as c:
         r = c.delete(f"/instance/logout/{settings.evolution_instancia}")
         if r.status_code not in (200, 201, 404):
             r.raise_for_status()
+    # Desvincular es el momento exacto en que el número deja de atender. Sin
+    # esto, la vitrina seguiría mandando compradores a un WhatsApp apagado
+    # durante los cinco minutos que dura el recuerdo.
+    _numero_cache = ("", 0.0)

@@ -17,7 +17,7 @@ from app.channels import instagram_bot
 from app.services import fotos
 from app.channels.telegram_bot import aviso_de_red, construir_app
 from app.routers import (
-    api, captacion, catalogo, dashboard, inicio, instagram, whatsapp,
+    api, captacion, catalogo, contacto, dashboard, inicio, instagram, whatsapp,
 )
 
 logging.basicConfig(
@@ -223,6 +223,7 @@ app.mount("/static", StaticFiles(directory=str(RAIZ / "app" / "static")), name="
 app.include_router(api.router)
 app.include_router(captacion.router)
 app.include_router(catalogo.router)
+app.include_router(contacto.router)
 app.include_router(dashboard.router)
 # La portada pública. Va después de los demás a propósito: monta `/` a secas y
 # no debe adelantarse a ninguna ruta con prefijo.

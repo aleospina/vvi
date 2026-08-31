@@ -57,7 +57,10 @@ def contexto(request: Request, **extra) -> dict:
         "empresa": settings.empresa_nombre,
         "politica": settings.politica_privacidad_url,
         "ciudades": settings.ciudades_cobertura,
-        "whatsapp": settings.whatsapp_contacto,
+        # El teléfono de contacto ya no viaja hasta la plantilla. Las páginas
+        # públicas enlazan a `/wa` (`routers.contacto`), que resuelve al pulsar
+        # a quién mandar la consulta —el asistente vinculado por QR, o el
+        # respaldo humano— y no deja ningún número escrito en el HTML.
         # Con la puerta de demo abierta la vitrina muestra inmuebles que no
         # existen: se marca `noindex` para que ningún buscador los recoja, y la
         # plantilla pinta un aviso permanente. Es deliberadamente difícil de
