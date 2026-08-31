@@ -770,6 +770,13 @@ body.vitrina .barra.compacta{
    isotipo aclarado lo justo para aguantar sobre papel: 3,8:1, que es lo que
    pide un texto de 19px en seminegra. */
 .marca-inmoclick b{font-weight:600; color:var(--marca-acento, #0e8bbf)}
+/* La banda de luz que recorre el logotipo. Cada superficie declara la suya, y
+   en las dos es un cian —no un blanco— por el mismo motivo visto desde los dos
+   lados: sobre papel, el nombre va en tinta casi negra y una banda blanca no
+   sería un viso sino un borrón; sobre la barra oscura el nombre ya va en
+   blanco, así que una banda blanca sencillamente no se vería. El cian es lo
+   único que despega de las dos, y además es el color de la casa. */
+.marca-inmoclick{--marca-viso:#38b6e0}
 /* El lema lleva una pareja de colores en vez de uno solo: `--lema-base` es su
    tinta de reposo y `--lema-viso` la banda de luz que lo recorre al pasar el
    ratón por el logotipo. Cada superficie declara la suya más abajo, porque un
@@ -806,9 +813,9 @@ body.vitrina .barra.compacta{
 }
 /* Sobre la barra oscura del panel el petróleo desaparece: la mitad acentuada
    sube a un celeste que sí despega del fondo. */
-.barra .marca-inmoclick{--marca-acento:#59e0ff}
+.barra .marca-inmoclick{--marca-acento:#59e0ff; --marca-viso:#3fc9f0}
 .barra .marca-lema{--lema-base:#7aa9bd; --lema-viso:#eaf7ff}
-body.vitrina .barra .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
+body.vitrina .barra .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta); --marca-viso:#38b6e0}
 body.vitrina .barra .marca-lema{--lema-base:var(--tinta-3); --lema-viso:var(--tinta-2)}
 body.vitrina .barra .marca{
   flex-direction:column; align-items:flex-start; gap:4px; text-decoration:none;
@@ -1586,6 +1593,78 @@ body.vitrina .barra .marca-lema{animation:viso-lema-solo 7s linear infinite}
 }
 .marca:focus-visible .marca-lema{animation:viso-lema .9s cubic-bezier(.25,.6,.3,1)}
 
+/* 5) El mismo viso, en el logotipo. Es lo que faltaba: el destello recorría la
+      bajada y se paraba justo antes del nombre, que es la palabra que hay que
+      recordar. Ahora cruza el escudo entero.
+
+   Comparte fotogramas con el lema —`viso-lema` y `viso-lema-solo`, los mismos
+   dos— y eso no es ahorro de líneas: al arrancar a la vez y durar lo mismo, lo
+   que se ve no son dos destellos encadenados sino una sola banda que baña las
+   dos líneas. Con dos animaciones propias habría que mantener a mano una
+   sincronía que aquí sale gratis.
+
+   Lo que sí cambia es cómo se pinta. El lema tiene una sola tinta, así que
+   recorta el degradado contra sus propias letras. El logotipo tiene dos —«Inmo»
+   en la del sitio, «click» en el acento de marca— y ese recorte las aplanaría
+   en un solo color: el logotipo perdería justo lo que lo hace logotipo.
+
+   Así que la banda viaja en una copia calcada del nombre, superpuesta y
+   transparente salvo por la propia banda. Debajo, el bicolor sigue intacto y
+   solo le pasa la luz por encima. La copia es decorativa —el nombre ya lo dice
+   el texto de verdad, y repetirlo sería oírlo dos veces en un lector de
+   pantalla—, de ahí el texto alternativo vacío del `content`.
+
+   Todo vive dentro del `@supports`: sin `background-clip:text` la copia sería
+   un rectángulo de color tapando el logotipo, que es mucho peor que no tener
+   viso. Ahí no se pinta nada y el escudo se queda como estaba. */
+@supports ((-webkit-background-clip:text) or (background-clip:text)){
+  .marca-inmoclick{position:relative}
+  .marca-inmoclick::after{
+    content:"Inmoclick";
+    position:absolute; inset:0;
+    /* La copia está encima del original: sin esto se comería el clic del
+       enlace y el logotipo dejaría de llevar a la portada. */
+    pointer-events:none;
+    background-image:linear-gradient(105deg,
+        transparent 0 42%, var(--marca-viso) 50%, transparent 58% 100%);
+    background-size:300% 100%;
+    background-position:100% 0;
+    background-repeat:no-repeat;
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent; -webkit-text-fill-color:transparent;
+  }
+  /* El texto alternativo vacío es lo que retira la copia de los lectores de
+     pantalla, y no lo entienden todos los navegadores: va aparte para que el
+     que no lo entienda se quede con el `content` de arriba —con viso y con el
+     nombre repetido— en vez de perder las dos cosas. */
+  @supports (content:"a" / ""){
+    .marca-inmoclick::after{content:"Inmoclick" / ""}
+  }
+
+  /* Mismo criterio que el lema: el bucle solo en el sitio público, y en el
+     panel únicamente como respuesta al ratón o al tabulador. */
+  body.vitrina .barra .marca-inmoclick::after,
+  .marca-publica .marca-inmoclick::after{animation:viso-lema-solo 7s linear infinite}
+  .barra.compacta .marca-inmoclick::after{animation-play-state:paused}
+  /* `running` no sobra: con la barra compacta el bucle está pausado, y sin
+     devolverlo aquí el barrido del hover nacería congelado en su primer
+     fotograma —o sea, no pasaría nada al pasar el ratón—. */
+  @media (hover:hover){
+    .marca:hover .marca-inmoclick::after{
+      animation:viso-lema .9s cubic-bezier(.25,.6,.3,1); animation-play-state:running;
+    }
+  }
+  .marca:focus-visible .marca-inmoclick::after{
+    animation:viso-lema .9s cubic-bezier(.25,.6,.3,1); animation-play-state:running;
+  }
+}
+/* En alto contraste el sistema retira las imágenes de fondo e impone sus
+   colores: la copia dejaría de ser una banda para volverse un duplicado opaco
+   escrito encima del logotipo. Ahí no hay viso que valga. */
+@media (forced-colors:active){
+  .marca-inmoclick::after{content:none}
+}
+
 /* ─── Cabecera flotante ───
    Fija y no pegajosa: la lámina arranca en el píxel cero y la barra tiene que
    pisarla, no empujarla hacia abajo. El cambio de color lo dispara `.compacta`,
@@ -1599,7 +1678,7 @@ body.inicio .barra{
              color .3s ease, border-color .3s ease, box-shadow .3s ease;
 }
 body.inicio main{max-width:none; margin:0; padding:0}
-body.inicio .barra .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+body.inicio .barra .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff; --marca-viso:#3fc9f0}
 body.inicio .barra .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
 body.inicio .barra nav a{color:rgba(255,255,255,.8)}
 body.inicio .barra nav a::after{background:#7fe8ff}
@@ -1621,7 +1700,7 @@ body.inicio .quien .destacado{background:#fff; color:var(--tinta); border-color:
    propósito: lo pone la regla de la vitrina —blanco, y translúcido donde el
    desenfoque existe de verdad— y repetirlo aquí la anularía. */
 body.inicio .barra.compacta{color:var(--tinta); border-bottom-color:var(--linea)}
-body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta)}
+body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#0e8bbf; color:var(--tinta); --marca-viso:#38b6e0}
 body.inicio .barra.compacta .marca-lema{--lema-base:var(--tinta-3); --lema-viso:var(--tinta-2)}
 body.inicio .barra.compacta nav a{color:var(--tinta-2)}
 body.inicio .barra.compacta nav a::after{background:var(--acento)}
@@ -1887,7 +1966,7 @@ body.inicio .franja-demo{padding-top:92px}
     position:sticky; background:var(--tinta); color:#fff;
     border-bottom-color:rgba(255,255,255,.14);
   }
-  body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+  body.inicio .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff; --marca-viso:#3fc9f0}
   body.inicio .barra.compacta .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
   body.inicio .barra.compacta nav a{color:rgba(255,255,255,.8)}
   body.inicio .barra.compacta nav a.activo{color:#fff}
@@ -1943,7 +2022,7 @@ body.inicio.con-demo .barra, body.inicio.con-demo .barra.compacta{
   position:sticky; background:var(--tinta); color:#fff;
   border-bottom-color:rgba(255,255,255,.14);
 }
-body.inicio.con-demo .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff}
+body.inicio.con-demo .barra.compacta .marca-inmoclick{--marca-acento:#7fe8ff; color:#fff; --marca-viso:#3fc9f0}
 body.inicio.con-demo .barra.compacta .marca-lema{--lema-base:rgba(255,255,255,.6); --lema-viso:#fff}
 body.inicio.con-demo .barra.compacta nav a{color:rgba(255,255,255,.8)}
 body.inicio.con-demo .barra.compacta nav a.activo{color:#fff}
